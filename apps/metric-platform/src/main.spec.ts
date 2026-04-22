@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { bootstrap } from './main.js';
+import type {
+  MetricEventRepository,
+  RecordedMetricEvent,
+} from './database/postgres-event.repository.js';
 
 describe('bootstrap', () => {
   const servers: Array<{ close: () => Promise<void> }> = [];
@@ -10,7 +14,38 @@ describe('bootstrap', () => {
   });
 
   it('serves personal and team metric snapshots over HTTP', async () => {
-    const app = await bootstrap({ port: 0 });
+    const recordedMetricEvents: RecordedMetricEvent[] = [];
+    const metricEventRepository: MetricEventRepository = {
+      async saveIngestionBatch(batch) {
+        recordedMetricEvents.push(
+          ...batch.events
+            .filter((event) => event.eventType === 'session.recorded')
+            .map((event) => ({
+              memberId:
+                typeof event.payload.memberId === 'string'
+                  ? event.payload.memberId
+                  : event.payload.sessionId,
+              acceptedAiLines:
+                typeof event.payload.acceptedAiLines === 'number'
+                  ? event.payload.acceptedAiLines
+                  : 0,
+              commitTotalLines:
+                typeof event.payload.commitTotalLines === 'number'
+                  ? event.payload.commitTotalLines
+                  : 0,
+              sessionCount: 1,
+            })),
+        );
+      },
+      async listRecordedMetricEvents() {
+        return [...recordedMetricEvents];
+      },
+      async disconnect() {
+        return undefined;
+      },
+    };
+
+    const app = await bootstrap({ port: 0, metricEventRepository });
     servers.push(app);
 
     const importResponse = await fetch(`${app.baseUrl}/events/import`, {

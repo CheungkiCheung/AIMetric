@@ -1,27 +1,26 @@
 import type { IngestionBatch } from '@aimetric/event-schema';
-import { PrismaService } from './database/prisma.service.js';
+import {
+  PostgresMetricEventRepository,
+  type MetricEventRepository,
+} from './database/postgres-event.repository.js';
 import { MetricsController } from './metrics/metrics.controller.js';
 import { MetricsService } from './metrics/metrics.service.js';
 
-interface RecordedMetricEvent {
-  memberId: string;
-  acceptedAiLines: number;
-  commitTotalLines: number;
-  sessionCount: number;
-}
-
 export class AppModule {
   readonly metricsController: MetricsController;
-  readonly prismaService: PrismaService;
+  readonly metricEventRepository: MetricEventRepository;
 
-  constructor() {
-    this.prismaService = new PrismaService();
+  constructor(
+    metricEventRepository: MetricEventRepository =
+      new PostgresMetricEventRepository(),
+  ) {
+    this.metricEventRepository = metricEventRepository;
     const metricsService = new MetricsService();
     this.metricsController = new MetricsController(metricsService);
   }
 
-  importEvents(batch: IngestionBatch) {
-    this.prismaService.appendBatch(batch);
+  async importEvents(batch: IngestionBatch) {
+    await this.metricEventRepository.saveIngestionBatch(batch);
 
     return {
       imported: batch.events.length,
@@ -29,30 +28,13 @@ export class AppModule {
     };
   }
 
-  private buildRecordedMetricEvents(): RecordedMetricEvent[] {
-    return this.prismaService
-      .listBatches()
-      .flatMap((batch) => batch.events)
-      .filter((event) => event.eventType === 'session.recorded')
-      .map((event) => ({
-        memberId:
-          typeof event.payload.memberId === 'string'
-            ? event.payload.memberId
-            : event.payload.sessionId,
-        acceptedAiLines:
-          typeof event.payload.acceptedAiLines === 'number'
-            ? event.payload.acceptedAiLines
-            : 0,
-        commitTotalLines:
-          typeof event.payload.commitTotalLines === 'number'
-            ? event.payload.commitTotalLines
-            : 0,
-        sessionCount: 1,
-      }));
+  async close() {
+    await this.metricEventRepository.disconnect();
   }
 
-  buildPersonalSnapshot() {
-    const recordedMetricEvents = this.buildRecordedMetricEvents();
+  async buildPersonalSnapshot() {
+    const recordedMetricEvents =
+      await this.metricEventRepository.listRecordedMetricEvents();
     const personalEvent = recordedMetricEvents[0];
 
     if (!personalEvent) {
@@ -70,8 +52,9 @@ export class AppModule {
     });
   }
 
-  buildTeamSnapshot() {
-    const recordedMetricEvents = this.buildRecordedMetricEvents();
+  async buildTeamSnapshot() {
+    const recordedMetricEvents =
+      await this.metricEventRepository.listRecordedMetricEvents();
 
     return this.metricsController.buildTeamSnapshot({
       members: recordedMetricEvents,

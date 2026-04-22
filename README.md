@@ -6,8 +6,8 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 
 按最初的全量规划估算：
 
-- `Phase 1 主链路 MVP`：约 `80%` 完成
-- `全量文章同构系统`：约 `30%` 完成
+- `Phase 1 主链路 MVP`：约 `90%` 完成
+- `全量文章同构系统`：约 `35%` 完成
 
 已完成：
 
@@ -15,14 +15,14 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 - 事件 schema、指标公式、规则包、采集 SDK
 - MCP 主链路工具：`beforeEditFile`、`afterEditFile`、`recordSession`
 - `collector-gateway` 采集接入服务
-- `metric-platform` 事件导入、基础归因、个人/团队指标快照
+- `metric-platform` 事件导入、PostgreSQL 持久化、基础归因、个人/团队指标快照
 - `dashboard` 个人出码视图和团队出码视图
 - 本地 `docker-compose.yml`，包含 PostgreSQL 和 Redis
 - 基础 README、设计文档、Phase 1 执行计划
 
 未完成：
 
-- PostgreSQL 真实持久化落库，当前稳定提交仍以服务内仓储完成指标闭环
+- 指标快照表和定时回算任务
 - 规则中心与知识库查询 MCP
 - 多 IDE/CLI 适配器扩展
 - Cursor 本地数据库逆向采集研究模块
@@ -34,7 +34,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 
 - `采集平台层`：Cursor / CLI / IDE 入口，当前先以 SDK 与 MCP 工具为主
 - `数据采集层`：MCP 工具、采集 SDK、采集网关
-- `平台能力层`：指标平台、归因证据、指标计算、基础存储
+- `平台能力层`：指标平台、归因证据、指标计算、PostgreSQL 事实表
 - `指标展示层`：个人出码视图、团队出码视图
 
 当前主链路：
@@ -161,7 +161,21 @@ corepack pnpm -r lint
 
 - 仓库内包含本地 HTTP 集成测试
 - 在某些沙箱环境中，本地端口监听测试可能需要额外权限
-- PostgreSQL 真实持久化仍在下一步实现中，当前稳定版本先保证主链路可运行
+- PostgreSQL 真实持久化测试默认跳过，需要设置 `RUN_DB_TESTS=1`
+
+### PostgreSQL 持久化验证
+
+```bash
+DATABASE_URL='postgresql://aimetric:aimetric@127.0.0.1:5432/aimetric?schema=public' \
+RUN_DB_TESTS=1 \
+./node_modules/.bin/vitest run apps/metric-platform/src/database/postgres-event.repository.spec.ts
+```
+
+事件事实表 SQL 位于：
+
+```text
+apps/metric-platform/sql/schema.sql
+```
 
 ## 已提交里程碑
 
@@ -179,7 +193,7 @@ corepack pnpm -r lint
 
 建议优先级：
 
-1. PostgreSQL 真实持久化，把当前服务内仓储升级为事实表
+1. 指标快照表和定时回算任务
 2. Dashboard 自动刷新、时间范围筛选、项目/成员筛选
 3. 规则中心与文档查询 MCP
 4. 多 IDE/CLI 采集适配器

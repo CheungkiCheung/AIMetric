@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { pathToFileURL } from 'node:url';
 import { IngestionBatchSchema } from '@aimetric/event-schema';
 import { AppModule } from './app.module.js';
+import type { MetricEventRepository } from './database/postgres-event.repository.js';
 
 export interface MetricPlatformServer {
   baseUrl: string;
@@ -10,6 +11,7 @@ export interface MetricPlatformServer {
 
 export interface BootstrapOptions {
   host?: string;
+  metricEventRepository?: MetricEventRepository;
   port?: number;
 }
 
@@ -70,7 +72,7 @@ const handleRequest = async (
       const body = await readJsonBody(request);
       const batch = IngestionBatchSchema.parse(body);
 
-      writeJson(response, 200, appModule.importEvents(batch));
+      writeJson(response, 200, await appModule.importEvents(batch));
     } catch {
       writeJson(response, 400, { message: 'Invalid ingestion batch' });
     }
@@ -85,7 +87,7 @@ export async function bootstrap(
 ): Promise<MetricPlatformServer> {
   const host = options.host ?? '127.0.0.1';
   const port = options.port ?? 3001;
-  const appModule = new AppModule();
+  const appModule = new AppModule(options.metricEventRepository);
 
   const server = createServer((request, response) => {
     void handleRequest(request, response, appModule);
@@ -115,7 +117,7 @@ export async function bootstrap(
             return;
           }
 
-          resolve();
+          void appModule.close().then(resolve, reject);
         });
       }),
   };
