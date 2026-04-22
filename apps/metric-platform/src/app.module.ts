@@ -2,6 +2,7 @@ import type { IngestionBatch } from '@aimetric/event-schema';
 import {
   PostgresMetricEventRepository,
   type MetricEventRepository,
+  type MetricSnapshotFilters,
 } from './database/postgres-event.repository.js';
 import { MetricsController } from './metrics/metrics.controller.js';
 import { MetricsService } from './metrics/metrics.service.js';
@@ -32,9 +33,9 @@ export class AppModule {
     await this.metricEventRepository.disconnect();
   }
 
-  async buildPersonalSnapshot() {
+  async buildPersonalSnapshot(filters?: MetricSnapshotFilters) {
     const recordedMetricEvents =
-      await this.metricEventRepository.listRecordedMetricEvents();
+      await this.metricEventRepository.listRecordedMetricEvents(filters);
     const personalEvent = recordedMetricEvents[0];
 
     if (!personalEvent) {
@@ -52,9 +53,9 @@ export class AppModule {
     });
   }
 
-  async buildTeamSnapshot() {
+  async buildTeamSnapshot(filters?: MetricSnapshotFilters) {
     const recordedMetricEvents =
-      await this.metricEventRepository.listRecordedMetricEvents();
+      await this.metricEventRepository.listRecordedMetricEvents(filters);
 
     return this.metricsController.buildTeamSnapshot({
       members: recordedMetricEvents,

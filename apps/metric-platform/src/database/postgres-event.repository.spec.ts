@@ -48,4 +48,57 @@ describeIfDatabase('PostgresMetricEventRepository', () => {
       sessionCount: 1,
     });
   });
+
+  it('filters recorded metric events by project, member, and time range', async () => {
+    const uniqueProjectKey = `project-${Date.now()}`;
+    const repository = new PostgresMetricEventRepository();
+    services.push(repository);
+
+    await repository.saveIngestionBatch({
+      schemaVersion: 'v1',
+      source: 'cursor',
+      events: [
+        {
+          eventType: 'session.recorded',
+          occurredAt: '2026-04-23T00:00:00.000Z',
+          payload: {
+            sessionId: 'sess-filter-1',
+            projectKey: uniqueProjectKey,
+            repoName: 'repo',
+            memberId: 'alice',
+            acceptedAiLines: 30,
+            commitTotalLines: 60,
+          },
+        },
+        {
+          eventType: 'session.recorded',
+          occurredAt: '2026-04-24T00:00:00.000Z',
+          payload: {
+            sessionId: 'sess-filter-2',
+            projectKey: uniqueProjectKey,
+            repoName: 'repo',
+            memberId: 'bob',
+            acceptedAiLines: 50,
+            commitTotalLines: 100,
+          },
+        },
+      ],
+    });
+
+    const recordedMetricEvents = await repository.listRecordedMetricEvents({
+      projectKey: uniqueProjectKey,
+      memberId: 'alice',
+      from: '2026-04-22T00:00:00.000Z',
+      to: '2026-04-23T23:59:59.999Z',
+    });
+
+    expect(recordedMetricEvents).toEqual([
+      {
+        memberId: 'alice',
+        acceptedAiLines: 30,
+        commitTotalLines: 60,
+        sessionCount: 1,
+      },
+    ]);
+  });
 });

@@ -2,7 +2,10 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { pathToFileURL } from 'node:url';
 import { IngestionBatchSchema } from '@aimetric/event-schema';
 import { AppModule } from './app.module.js';
-import type { MetricEventRepository } from './database/postgres-event.repository.js';
+import type {
+  MetricEventRepository,
+  MetricSnapshotFilters,
+} from './database/postgres-event.repository.js';
 
 export interface MetricPlatformServer {
   baseUrl: string;
@@ -44,30 +47,67 @@ const readJsonBody = async (request: IncomingMessage): Promise<unknown> =>
     request.on('error', reject);
   });
 
+const parseRequestUrl = (request: IncomingMessage): URL =>
+  new URL(request.url ?? '/', 'http://localhost');
+
+const getMetricSnapshotFilters = (url: URL): MetricSnapshotFilters => {
+  const filters: MetricSnapshotFilters = {};
+  const projectKey = url.searchParams.get('projectKey');
+  const memberId = url.searchParams.get('memberId');
+  const from = url.searchParams.get('from');
+  const to = url.searchParams.get('to');
+
+  if (projectKey) {
+    filters.projectKey = projectKey;
+  }
+
+  if (memberId) {
+    filters.memberId = memberId;
+  }
+
+  if (from) {
+    filters.from = from;
+  }
+
+  if (to) {
+    filters.to = to;
+  }
+
+  return filters;
+};
+
 const handleRequest = async (
   request: IncomingMessage,
   response: ServerResponse,
   appModule: AppModule,
 ): Promise<void> => {
   const method = request.method ?? 'GET';
-  const url = request.url ?? '/';
+  const url = parseRequestUrl(request);
 
-  if (method === 'GET' && url === '/health') {
+  if (method === 'GET' && url.pathname === '/health') {
     writeJson(response, 200, { status: 'ok', service: 'metric-platform' });
     return;
   }
 
-  if (method === 'GET' && url === '/metrics/personal') {
-    writeJson(response, 200, await appModule.buildPersonalSnapshot());
+  if (method === 'GET' && url.pathname === '/metrics/personal') {
+    writeJson(
+      response,
+      200,
+      await appModule.buildPersonalSnapshot(getMetricSnapshotFilters(url)),
+    );
     return;
   }
 
-  if (method === 'GET' && url === '/metrics/team') {
-    writeJson(response, 200, await appModule.buildTeamSnapshot());
+  if (method === 'GET' && url.pathname === '/metrics/team') {
+    writeJson(
+      response,
+      200,
+      await appModule.buildTeamSnapshot(getMetricSnapshotFilters(url)),
+    );
     return;
   }
 
-  if (method === 'POST' && url === '/events/import') {
+  if (method === 'POST' && url.pathname === '/events/import') {
     try {
       const body = await readJsonBody(request);
       const batch = IngestionBatchSchema.parse(body);

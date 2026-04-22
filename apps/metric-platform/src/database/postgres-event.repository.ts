@@ -8,9 +8,18 @@ export interface RecordedMetricEvent {
   sessionCount: number;
 }
 
+export interface MetricSnapshotFilters {
+  projectKey?: string;
+  memberId?: string;
+  from?: string;
+  to?: string;
+}
+
 export interface MetricEventRepository {
   saveIngestionBatch(batch: IngestionBatch): Promise<void>;
-  listRecordedMetricEvents(): Promise<RecordedMetricEvent[]>;
+  listRecordedMetricEvents(
+    filters?: MetricSnapshotFilters,
+  ): Promise<RecordedMetricEvent[]>;
   disconnect(): Promise<void>;
 }
 
@@ -102,8 +111,33 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
     );
   }
 
-  async listRecordedMetricEvents(): Promise<RecordedMetricEvent[]> {
+  async listRecordedMetricEvents(
+    filters: MetricSnapshotFilters = {},
+  ): Promise<RecordedMetricEvent[]> {
     await this.ensureSchema();
+
+    const values: string[] = [];
+    const whereClauses = [`event_type = 'session.recorded'`];
+
+    if (filters.projectKey) {
+      values.push(filters.projectKey);
+      whereClauses.push(`project_key = $${values.length}`);
+    }
+
+    if (filters.memberId) {
+      values.push(filters.memberId);
+      whereClauses.push(`member_id = $${values.length}`);
+    }
+
+    if (filters.from) {
+      values.push(filters.from);
+      whereClauses.push(`occurred_at >= $${values.length}`);
+    }
+
+    if (filters.to) {
+      values.push(filters.to);
+      whereClauses.push(`occurred_at <= $${values.length}`);
+    }
 
     const metricEvents = await this.database.query<{
       member_id: string | null;
@@ -117,9 +151,9 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
         accepted_ai_lines,
         commit_total_lines
       FROM metric_events
-      WHERE event_type = 'session.recorded'
+      WHERE ${whereClauses.join(' AND ')}
       ORDER BY occurred_at ASC, id ASC
-    `);
+    `, values);
 
     return metricEvents.rows.map((event) => ({
       memberId: event.member_id ?? event.session_id,

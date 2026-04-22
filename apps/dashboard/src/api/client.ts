@@ -13,9 +13,16 @@ export interface TeamSnapshot {
   aiOutputRate: number;
 }
 
+export interface DashboardFilters {
+  projectKey?: string;
+  memberId?: string;
+  from?: string;
+  to?: string;
+}
+
 export interface DashboardClient {
-  getPersonalSnapshot(): Promise<PersonalSnapshot>;
-  getTeamSnapshot(): Promise<TeamSnapshot>;
+  getPersonalSnapshot(filters?: DashboardFilters): Promise<PersonalSnapshot>;
+  getTeamSnapshot(filters?: DashboardFilters): Promise<TeamSnapshot>;
 }
 
 const fallbackPersonalSnapshot: PersonalSnapshot = {
@@ -51,11 +58,41 @@ const fetchJson = async <T>(url: string, fallback: T): Promise<T> => {
   }
 };
 
+const buildMetricUrl = (
+  baseUrl: string,
+  path: string,
+  filters: DashboardFilters = {},
+): string => {
+  const url = new URL(path, baseUrl);
+  const orderedFilterKeys: Array<keyof DashboardFilters> = [
+    'projectKey',
+    'memberId',
+    'from',
+    'to',
+  ];
+
+  orderedFilterKeys.forEach((key) => {
+    const value = filters[key];
+
+    if (value) {
+      url.searchParams.set(key, value);
+    }
+  });
+
+  return url.toString();
+};
+
 export const createDashboardClient = (
   baseUrl = 'http://localhost:3001',
 ): DashboardClient => ({
-  getPersonalSnapshot: () =>
-    fetchJson<PersonalSnapshot>(`${baseUrl}/metrics/personal`, fallbackPersonalSnapshot),
-  getTeamSnapshot: () =>
-    fetchJson<TeamSnapshot>(`${baseUrl}/metrics/team`, fallbackTeamSnapshot),
+  getPersonalSnapshot: (filters) =>
+    fetchJson<PersonalSnapshot>(
+      buildMetricUrl(baseUrl, '/metrics/personal', filters),
+      fallbackPersonalSnapshot,
+    ),
+  getTeamSnapshot: (filters) =>
+    fetchJson<TeamSnapshot>(
+      buildMetricUrl(baseUrl, '/metrics/team', filters),
+      fallbackTeamSnapshot,
+    ),
 });

@@ -101,4 +101,42 @@ describe('bootstrap', () => {
     expect(teamSnapshot.aiOutputRate).toBe(0.75);
     expect(teamSnapshot.memberCount).toBe(2);
   });
+
+  it('passes metric query parameters from HTTP requests to the repository', async () => {
+    const listCalls: unknown[] = [];
+    const metricEventRepository: MetricEventRepository = {
+      async saveIngestionBatch() {
+        return undefined;
+      },
+      async listRecordedMetricEvents(filters?: unknown) {
+        listCalls.push(filters);
+        return [
+          {
+            memberId: 'alice',
+            acceptedAiLines: 30,
+            commitTotalLines: 60,
+            sessionCount: 1,
+          },
+        ];
+      },
+      async disconnect() {
+        return undefined;
+      },
+    };
+
+    const app = await bootstrap({ port: 0, metricEventRepository });
+    servers.push(app);
+
+    const personalResponse = await fetch(
+      `${app.baseUrl}/metrics/personal?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z`,
+    );
+
+    expect(personalResponse.status).toBe(200);
+    expect(listCalls[0]).toEqual({
+      projectKey: 'navigation',
+      memberId: 'alice',
+      from: '2026-04-23T00:00:00.000Z',
+      to: '2026-04-24T00:00:00.000Z',
+    });
+  });
 });

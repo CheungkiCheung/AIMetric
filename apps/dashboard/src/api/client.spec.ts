@@ -48,4 +48,34 @@ describe('createDashboardClient', () => {
       memberCount: 3,
     });
   });
+
+  it('passes dashboard filters as metric query parameters', async () => {
+    const requestedUrls: string[] = [];
+
+    globalThis.fetch = vi.fn(async (input: string | URL | Request) => {
+      requestedUrls.push(String(input));
+      return new Response(
+        JSON.stringify({
+          acceptedAiLines: 1,
+          commitTotalLines: 2,
+          aiOutputRate: 0.5,
+          sessionCount: 1,
+        }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+
+    const client = createDashboardClient('http://127.0.0.1:3001');
+
+    await client.getPersonalSnapshot({
+      projectKey: 'navigation',
+      memberId: 'alice',
+      from: '2026-04-23T00:00:00.000Z',
+      to: '2026-04-24T00:00:00.000Z',
+    });
+
+    expect(requestedUrls[0]).toBe(
+      'http://127.0.0.1:3001/metrics/personal?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+    );
+  });
 });

@@ -68,4 +68,26 @@ describe('AppModule', () => {
     expect(teamSnapshot.totalCommitLines).toBe(120);
     expect(teamSnapshot.aiOutputRate).toBe(0.75);
   });
+
+  it('passes metric filters to the repository when building snapshots', async () => {
+    const repository = {
+      saveIngestionBatch: vi.fn(async () => undefined),
+      listRecordedMetricEvents: vi.fn(async () => []),
+      disconnect: vi.fn(async () => undefined),
+    };
+    const filters = {
+      projectKey: 'navigation',
+      memberId: 'alice',
+      from: '2026-04-23T00:00:00.000Z',
+      to: '2026-04-24T00:00:00.000Z',
+    };
+
+    const appModule = new AppModule(repository);
+
+    await appModule.buildPersonalSnapshot(filters);
+    await appModule.buildTeamSnapshot(filters);
+
+    expect(repository.listRecordedMetricEvents).toHaveBeenNthCalledWith(1, filters);
+    expect(repository.listRecordedMetricEvents).toHaveBeenNthCalledWith(2, filters);
+  });
 });

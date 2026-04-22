@@ -6,8 +6,8 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 
 按最初的全量规划估算：
 
-- `Phase 1 主链路 MVP`：约 `90%` 完成
-- `全量文章同构系统`：约 `35%` 完成
+- `Phase 1 主链路 MVP`：约 `93%` 完成
+- `全量文章同构系统`：约 `37%` 完成
 
 已完成：
 
@@ -16,7 +16,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 - MCP 主链路工具：`beforeEditFile`、`afterEditFile`、`recordSession`
 - `collector-gateway` 采集接入服务
 - `metric-platform` 事件导入、PostgreSQL 持久化、基础归因、个人/团队指标快照
-- `dashboard` 个人出码视图和团队出码视图
+- `dashboard` 个人出码视图、团队出码视图、自动刷新、项目/成员/时间范围筛选
 - 本地 `docker-compose.yml`，包含 PostgreSQL 和 Redis
 - 基础 README、设计文档、Phase 1 执行计划
 
@@ -150,6 +150,13 @@ curl http://127.0.0.1:3001/metrics/personal
 curl http://127.0.0.1:3001/metrics/team
 ```
 
+支持按项目、成员、时间范围筛选：
+
+```bash
+curl 'http://127.0.0.1:3001/metrics/personal?projectKey=proj&memberId=alice&from=2026-04-23T00:00:00.000Z&to=2026-04-24T00:00:00.000Z'
+curl 'http://127.0.0.1:3001/metrics/team?projectKey=proj&from=2026-04-23T00:00:00.000Z&to=2026-04-24T00:00:00.000Z'
+```
+
 ## 测试与校验
 
 ```bash
@@ -194,7 +201,6 @@ apps/metric-platform/sql/schema.sql
 建议优先级：
 
 1. 指标快照表和定时回算任务
-2. Dashboard 自动刷新、时间范围筛选、项目/成员筛选
-3. 规则中心与文档查询 MCP
-4. 多 IDE/CLI 采集适配器
-5. 准生产能力：RBAC、审计、可观测、回算、部署文档
+2. 规则中心与文档查询 MCP
+3. 多 IDE/CLI 采集适配器
+4. 准生产能力：RBAC、审计、可观测、回算、部署文档
