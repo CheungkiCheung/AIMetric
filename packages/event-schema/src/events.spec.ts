@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { IngestionBatchSchema } from './events';
+import { IngestionBatchSchema } from './events.js';
 
 describe('IngestionBatchSchema', () => {
   it('accepts a minimal valid ingestion batch', () => {

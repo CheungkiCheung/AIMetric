@@ -1,4 +1,4 @@
-import { IngestionService } from './ingestion.service';
+import { IngestionService } from './ingestion.service.js';
 
 export class IngestionController {
   constructor(private readonly ingestionService: IngestionService) {}

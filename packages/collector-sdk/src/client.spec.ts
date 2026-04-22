@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LocalEventBuffer } from './buffer';
+import { LocalEventBuffer } from './buffer.js';
 
 describe('LocalEventBuffer', () => {
   it('stores and flushes buffered events in FIFO order', () => {

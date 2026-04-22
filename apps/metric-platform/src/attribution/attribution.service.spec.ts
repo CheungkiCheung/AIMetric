@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AttributionService } from './attribution.service';
+import { AttributionService } from './attribution.service.js';
 
 describe('AttributionService', () => {
   it('builds commit evidence from ai lines and commit lines', async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCommitEvidence } from './line-attribution';
+import { buildCommitEvidence } from './line-attribution.js';
 
 describe('buildCommitEvidence', () => {
   it('counts accepted ai lines that appear in a commit patch', () => {

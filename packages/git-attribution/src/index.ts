@@ -1,1 +1,1 @@
-export * from './line-attribution';
+export * from './line-attribution.js';

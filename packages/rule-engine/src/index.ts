@@ -1,1 +1,1 @@
-export * from './rule-bundle';
+export * from './rule-bundle.js';

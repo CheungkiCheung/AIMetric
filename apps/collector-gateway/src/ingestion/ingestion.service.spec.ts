@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { IngestionService } from './ingestion.service';
+import { IngestionService } from './ingestion.service.js';
 
 describe('IngestionService', () => {
   it('accepts a valid batch and returns accepted event count', async () => {

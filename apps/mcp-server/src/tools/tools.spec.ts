@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { beforeEditFile } from './before-edit-file.tool';
-import { afterEditFile } from './after-edit-file.tool';
-import { recordSession } from './record-session.tool';
+import { beforeEditFile } from './before-edit-file.tool.js';
+import { afterEditFile } from './after-edit-file.tool.js';
+import { recordSession } from './record-session.tool.js';
 
 describe('beforeEditFile', () => {
   it('captures a stable pre-edit snapshot', async () => {

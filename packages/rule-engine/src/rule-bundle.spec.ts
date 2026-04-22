@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveRuleBundle } from './rule-bundle';
+import { resolveRuleBundle } from './rule-bundle.js';
 
 describe('resolveRuleBundle', () => {
   it('returns mandatory rules and on-demand rules for matching scenes', () => {

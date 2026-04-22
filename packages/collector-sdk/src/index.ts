@@ -1,2 +1,2 @@
-export * from './buffer';
-export * from './client';
+export * from './buffer.js';
+export * from './client.js';

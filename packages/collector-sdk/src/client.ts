@@ -1,4 +1,4 @@
-import { LocalEventBuffer } from './buffer';
+import { LocalEventBuffer } from './buffer.js';
 
 export class CollectorClient<T = unknown> {
   constructor(private readonly buffer = new LocalEventBuffer<T>()) {}

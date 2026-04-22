@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateAiOutputRate } from './formulas';
+import { calculateAiOutputRate } from './formulas.js';
 
 describe('calculateAiOutputRate', () => {
   it('returns accepted ai lines divided by commit total lines', () => {
