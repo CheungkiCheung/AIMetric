@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { pathToFileURL } from 'node:url';
+import { IngestionBatchSchema } from '@aimetric/event-schema';
 import { AppModule } from './app.module.js';
 
 export interface MetricPlatformServer {
@@ -23,6 +24,24 @@ const writeJson = (
   response.end(JSON.stringify(body));
 };
 
+const readJsonBody = async (request: IncomingMessage): Promise<unknown> =>
+  new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+
+    request.on('data', (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
+    request.on('end', () => {
+      try {
+        const rawBody = Buffer.concat(chunks).toString('utf8');
+        resolve(rawBody.length > 0 ? JSON.parse(rawBody) : {});
+      } catch (error) {
+        reject(error);
+      }
+    });
+    request.on('error', reject);
+  });
+
 const handleRequest = async (
   request: IncomingMessage,
   response: ServerResponse,
@@ -43,6 +62,18 @@ const handleRequest = async (
 
   if (method === 'GET' && url === '/metrics/team') {
     writeJson(response, 200, await appModule.buildTeamSnapshot());
+    return;
+  }
+
+  if (method === 'POST' && url === '/events/import') {
+    try {
+      const body = await readJsonBody(request);
+      const batch = IngestionBatchSchema.parse(body);
+
+      writeJson(response, 200, appModule.importEvents(batch));
+    } catch {
+      writeJson(response, 400, { message: 'Invalid ingestion batch' });
+    }
     return;
   }
 
