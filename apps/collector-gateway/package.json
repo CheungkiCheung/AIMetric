@@ -1,14 +1,14 @@
 {
-  "name": "@aimetric/rule-engine",
+  "name": "@aimetric/collector-gateway",
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "exports": {
-    ".": "./src/index.ts"
-  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@aimetric/event-schema": "workspace:*"
   }
 }
