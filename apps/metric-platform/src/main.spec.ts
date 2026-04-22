@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { bootstrap } from './main.js';
 import type {
   MetricEventRepository,
@@ -11,6 +11,7 @@ describe('bootstrap', () => {
   afterEach(async () => {
     await Promise.all(servers.map((server) => server.close()));
     servers.length = 0;
+    vi.useRealTimers();
   });
 
   it('serves personal and team metric snapshots over HTTP', async () => {
@@ -39,6 +40,12 @@ describe('bootstrap', () => {
       },
       async listRecordedMetricEvents() {
         return [...recordedMetricEvents];
+      },
+      async saveMetricSnapshots() {
+        return undefined;
+      },
+      async listMetricSnapshots() {
+        return [];
       },
       async disconnect() {
         return undefined;
@@ -119,6 +126,12 @@ describe('bootstrap', () => {
           },
         ];
       },
+      async saveMetricSnapshots() {
+        return undefined;
+      },
+      async listMetricSnapshots() {
+        return [];
+      },
       async disconnect() {
         return undefined;
       },
@@ -138,5 +151,165 @@ describe('bootstrap', () => {
       from: '2026-04-23T00:00:00.000Z',
       to: '2026-04-24T00:00:00.000Z',
     });
+  });
+
+  it('recalculates and persists metric snapshots over HTTP', async () => {
+    const savedSnapshots: unknown[] = [];
+    const metricEventRepository: MetricEventRepository = {
+      async saveIngestionBatch() {
+        return undefined;
+      },
+      async listRecordedMetricEvents() {
+        return [
+          {
+            memberId: 'alice',
+            acceptedAiLines: 30,
+            commitTotalLines: 60,
+            sessionCount: 1,
+          },
+        ];
+      },
+      async saveMetricSnapshots(snapshots) {
+        savedSnapshots.push(...snapshots);
+      },
+      async listMetricSnapshots() {
+        return [];
+      },
+      async disconnect() {
+        return undefined;
+      },
+    };
+
+    const app = await bootstrap({ port: 0, metricEventRepository });
+    servers.push(app);
+
+    const response = await fetch(`${app.baseUrl}/metrics/recalculate`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        projectKey: 'navigation',
+        from: '2026-04-23T00:00:00.000Z',
+        to: '2026-04-24T00:00:00.000Z',
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      upsertedSnapshots: 2,
+    });
+    expect(savedSnapshots).toContainEqual(
+      expect.objectContaining({
+        scope: 'team',
+        projectKey: 'navigation',
+        acceptedAiLines: 30,
+        commitTotalLines: 60,
+      }),
+    );
+  });
+
+  it('can run snapshot recalculation on a configured interval', async () => {
+    vi.useFakeTimers();
+    const savedSnapshots: unknown[] = [];
+    const metricEventRepository: MetricEventRepository = {
+      async saveIngestionBatch() {
+        return undefined;
+      },
+      async listRecordedMetricEvents() {
+        return [
+          {
+            memberId: 'alice',
+            acceptedAiLines: 30,
+            commitTotalLines: 60,
+            sessionCount: 1,
+          },
+        ];
+      },
+      async saveMetricSnapshots(snapshots) {
+        savedSnapshots.push(...snapshots);
+      },
+      async listMetricSnapshots() {
+        return [];
+      },
+      async disconnect() {
+        return undefined;
+      },
+    };
+
+    const app = await bootstrap({
+      port: 0,
+      metricEventRepository,
+      snapshotRecalculationIntervalMs: 1_000,
+      snapshotRecalculationFilters: {
+        projectKey: 'navigation',
+      },
+    });
+    servers.push(app);
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(savedSnapshots).toContainEqual(
+      expect.objectContaining({
+        scope: 'team',
+        projectKey: 'navigation',
+      }),
+    );
+
+    await app.close();
+    servers.length = 0;
+    savedSnapshots.length = 0;
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(savedSnapshots).toEqual([]);
+  });
+
+  it('serves persisted metric snapshots over HTTP', async () => {
+    const listCalls: unknown[] = [];
+    const metricEventRepository: MetricEventRepository = {
+      async saveIngestionBatch() {
+        return undefined;
+      },
+      async listRecordedMetricEvents() {
+        return [];
+      },
+      async saveMetricSnapshots() {
+        return undefined;
+      },
+      async listMetricSnapshots(filters) {
+        listCalls.push(filters);
+        return [
+          {
+            scope: 'team',
+            projectKey: 'navigation',
+            periodStart: '2026-04-23T00:00:00.000Z',
+            periodEnd: '2026-04-24T00:00:00.000Z',
+            acceptedAiLines: 50,
+            commitTotalLines: 100,
+            aiOutputRate: 0.5,
+            sessionCount: 2,
+            memberCount: 2,
+          },
+        ];
+      },
+      async disconnect() {
+        return undefined;
+      },
+    };
+
+    const app = await bootstrap({ port: 0, metricEventRepository });
+    servers.push(app);
+
+    const response = await fetch(
+      `${app.baseUrl}/metrics/snapshots?projectKey=navigation`,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual([
+      expect.objectContaining({
+        scope: 'team',
+        projectKey: 'navigation',
+      }),
+    ]);
+    expect(listCalls[0]).toEqual({ projectKey: 'navigation' });
   });
 });

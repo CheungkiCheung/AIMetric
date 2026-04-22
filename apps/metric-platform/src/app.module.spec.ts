@@ -26,6 +26,8 @@ describe('AppModule', () => {
     const repository = {
       saveIngestionBatch: vi.fn(async () => undefined),
       listRecordedMetricEvents: vi.fn(async () => []),
+      saveMetricSnapshots: vi.fn(async () => undefined),
+      listMetricSnapshots: vi.fn(async () => []),
       disconnect: vi.fn(async () => undefined),
     };
 
@@ -56,6 +58,8 @@ describe('AppModule', () => {
           sessionCount: 1,
         },
       ]),
+      saveMetricSnapshots: vi.fn(async () => undefined),
+      listMetricSnapshots: vi.fn(async () => []),
       disconnect: vi.fn(async () => undefined),
     };
 
@@ -73,6 +77,8 @@ describe('AppModule', () => {
     const repository = {
       saveIngestionBatch: vi.fn(async () => undefined),
       listRecordedMetricEvents: vi.fn(async () => []),
+      saveMetricSnapshots: vi.fn(async () => undefined),
+      listMetricSnapshots: vi.fn(async () => []),
       disconnect: vi.fn(async () => undefined),
     };
     const filters = {
@@ -89,5 +95,107 @@ describe('AppModule', () => {
 
     expect(repository.listRecordedMetricEvents).toHaveBeenNthCalledWith(1, filters);
     expect(repository.listRecordedMetricEvents).toHaveBeenNthCalledWith(2, filters);
+  });
+
+  it('recalculates personal and team snapshots into the repository', async () => {
+    const repository = {
+      saveIngestionBatch: vi.fn(async () => undefined),
+      listRecordedMetricEvents: vi.fn(async () => [
+        {
+          memberId: 'alice',
+          acceptedAiLines: 30,
+          commitTotalLines: 60,
+          sessionCount: 1,
+        },
+        {
+          memberId: 'bob',
+          acceptedAiLines: 20,
+          commitTotalLines: 40,
+          sessionCount: 1,
+        },
+      ]),
+      saveMetricSnapshots: vi.fn(async () => undefined),
+      listMetricSnapshots: vi.fn(async () => []),
+      disconnect: vi.fn(async () => undefined),
+    };
+    const filters = {
+      projectKey: 'navigation',
+      from: '2026-04-23T00:00:00.000Z',
+      to: '2026-04-24T00:00:00.000Z',
+    };
+
+    const appModule = new AppModule(repository);
+    const result = await appModule.recalculateMetricSnapshots(filters);
+
+    expect(repository.listRecordedMetricEvents).toHaveBeenCalledWith(filters);
+    expect(repository.saveMetricSnapshots).toHaveBeenCalledWith([
+      {
+        scope: 'personal',
+        projectKey: 'navigation',
+        memberId: 'alice',
+        periodStart: '2026-04-23T00:00:00.000Z',
+        periodEnd: '2026-04-24T00:00:00.000Z',
+        acceptedAiLines: 30,
+        commitTotalLines: 60,
+        aiOutputRate: 0.5,
+        sessionCount: 1,
+        memberCount: 1,
+      },
+      {
+        scope: 'personal',
+        projectKey: 'navigation',
+        memberId: 'bob',
+        periodStart: '2026-04-23T00:00:00.000Z',
+        periodEnd: '2026-04-24T00:00:00.000Z',
+        acceptedAiLines: 20,
+        commitTotalLines: 40,
+        aiOutputRate: 0.5,
+        sessionCount: 1,
+        memberCount: 1,
+      },
+      {
+        scope: 'team',
+        projectKey: 'navigation',
+        periodStart: '2026-04-23T00:00:00.000Z',
+        periodEnd: '2026-04-24T00:00:00.000Z',
+        acceptedAiLines: 50,
+        commitTotalLines: 100,
+        aiOutputRate: 0.5,
+        sessionCount: 2,
+        memberCount: 2,
+      },
+    ]);
+    expect(result.upsertedSnapshots).toBe(3);
+  });
+
+  it('lists persisted metric snapshots through the repository', async () => {
+    const repository = {
+      saveIngestionBatch: vi.fn(async () => undefined),
+      listRecordedMetricEvents: vi.fn(async () => []),
+      saveMetricSnapshots: vi.fn(async () => undefined),
+      listMetricSnapshots: vi.fn(async () => [
+        {
+          scope: 'team' as const,
+          projectKey: 'navigation',
+          periodStart: '2026-04-23T00:00:00.000Z',
+          periodEnd: '2026-04-24T00:00:00.000Z',
+          acceptedAiLines: 50,
+          commitTotalLines: 100,
+          aiOutputRate: 0.5,
+          sessionCount: 2,
+          memberCount: 2,
+        },
+      ]),
+      disconnect: vi.fn(async () => undefined),
+    };
+    const filters = {
+      projectKey: 'navigation',
+    };
+
+    const appModule = new AppModule(repository);
+    const snapshots = await appModule.listMetricSnapshots(filters);
+
+    expect(repository.listMetricSnapshots).toHaveBeenCalledWith(filters);
+    expect(snapshots).toHaveLength(1);
   });
 });

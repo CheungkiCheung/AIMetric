@@ -6,8 +6,8 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 
 按最初的全量规划估算：
 
-- `Phase 1 主链路 MVP`：约 `93%` 完成
-- `全量文章同构系统`：约 `37%` 完成
+- `Phase 1 主链路 MVP`：约 `96%` 完成
+- `全量文章同构系统`：约 `39%` 完成
 
 已完成：
 
@@ -15,14 +15,13 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 - 事件 schema、指标公式、规则包、采集 SDK
 - MCP 主链路工具：`beforeEditFile`、`afterEditFile`、`recordSession`
 - `collector-gateway` 采集接入服务
-- `metric-platform` 事件导入、PostgreSQL 持久化、基础归因、个人/团队指标快照
+- `metric-platform` 事件导入、PostgreSQL 持久化、基础归因、个人/团队指标快照、快照表、手动/定时回算
 - `dashboard` 个人出码视图、团队出码视图、自动刷新、项目/成员/时间范围筛选
 - 本地 `docker-compose.yml`，包含 PostgreSQL 和 Redis
 - 基础 README、设计文档、Phase 1 执行计划
 
 未完成：
 
-- 指标快照表和定时回算任务
 - 规则中心与知识库查询 MCP
 - 多 IDE/CLI 适配器扩展
 - Cursor 本地数据库逆向采集研究模块
@@ -157,6 +156,26 @@ curl 'http://127.0.0.1:3001/metrics/personal?projectKey=proj&memberId=alice&from
 curl 'http://127.0.0.1:3001/metrics/team?projectKey=proj&from=2026-04-23T00:00:00.000Z&to=2026-04-24T00:00:00.000Z'
 ```
 
+### 回算与查询指标快照
+
+```bash
+curl -X POST http://127.0.0.1:3001/metrics/recalculate \
+  -H 'content-type: application/json' \
+  -d '{
+    "projectKey": "proj",
+    "from": "2026-04-23T00:00:00.000Z",
+    "to": "2026-04-24T00:00:00.000Z"
+  }'
+
+curl 'http://127.0.0.1:3001/metrics/snapshots?projectKey=proj&from=2026-04-23T00:00:00.000Z&to=2026-04-24T00:00:00.000Z'
+```
+
+如需启动指标平台时自动定时回算，可设置：
+
+```bash
+METRIC_SNAPSHOT_RECALCULATION_INTERVAL_MS=60000 corepack pnpm start:metric-platform
+```
+
 ## 测试与校验
 
 ```bash
@@ -200,7 +219,6 @@ apps/metric-platform/sql/schema.sql
 
 建议优先级：
 
-1. 指标快照表和定时回算任务
-2. 规则中心与文档查询 MCP
-3. 多 IDE/CLI 采集适配器
-4. 准生产能力：RBAC、审计、可观测、回算、部署文档
+1. 规则中心与文档查询 MCP
+2. 多 IDE/CLI 采集适配器
+3. 准生产能力：RBAC、审计、可观测、回算、部署文档

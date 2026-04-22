@@ -1,8 +1,11 @@
 import type { IngestionBatch } from '@aimetric/event-schema';
+import { calculateAiOutputRate } from '@aimetric/metric-core';
 import {
   PostgresMetricEventRepository,
   type MetricEventRepository,
+  type MetricSnapshotRecord,
   type MetricSnapshotFilters,
+  type RecordedMetricEvent,
 } from './database/postgres-event.repository.js';
 import { MetricsController } from './metrics/metrics.controller.js';
 import { MetricsService } from './metrics/metrics.service.js';
@@ -61,4 +64,88 @@ export class AppModule {
       members: recordedMetricEvents,
     });
   }
+
+  async recalculateMetricSnapshots(filters: MetricSnapshotFilters = {}) {
+    const recordedMetricEvents =
+      await this.metricEventRepository.listRecordedMetricEvents(filters);
+    const snapshots = buildMetricSnapshots(recordedMetricEvents, filters);
+
+    await this.metricEventRepository.saveMetricSnapshots(snapshots);
+
+    return {
+      upsertedSnapshots: snapshots.length,
+      snapshots,
+    };
+  }
+
+  listMetricSnapshots(filters: MetricSnapshotFilters = {}) {
+    return this.metricEventRepository.listMetricSnapshots(filters);
+  }
 }
+
+const buildMetricSnapshots = (
+  recordedMetricEvents: RecordedMetricEvent[],
+  filters: MetricSnapshotFilters,
+): MetricSnapshotRecord[] => {
+  const periodStart = filters.from ?? '1970-01-01T00:00:00.000Z';
+  const periodEnd = filters.to ?? new Date().toISOString();
+  const projectKey = filters.projectKey ?? 'all';
+  const members = new Map<string, RecordedMetricEvent>();
+
+  recordedMetricEvents.forEach((event) => {
+    const current = members.get(event.memberId);
+
+    members.set(event.memberId, {
+      memberId: event.memberId,
+      acceptedAiLines:
+        (current?.acceptedAiLines ?? 0) + event.acceptedAiLines,
+      commitTotalLines:
+        (current?.commitTotalLines ?? 0) + event.commitTotalLines,
+      sessionCount: (current?.sessionCount ?? 0) + event.sessionCount,
+    });
+  });
+
+  const personalSnapshots = [...members.values()].map((member) => ({
+    scope: 'personal' as const,
+    projectKey,
+    memberId: member.memberId,
+    periodStart,
+    periodEnd,
+    acceptedAiLines: member.acceptedAiLines,
+    commitTotalLines: member.commitTotalLines,
+    aiOutputRate: calculateAiOutputRate(
+      member.acceptedAiLines,
+      member.commitTotalLines,
+    ),
+    sessionCount: member.sessionCount,
+    memberCount: 1,
+  }));
+  const teamAcceptedAiLines = personalSnapshots.reduce(
+    (sum, snapshot) => sum + snapshot.acceptedAiLines,
+    0,
+  );
+  const teamCommitTotalLines = personalSnapshots.reduce(
+    (sum, snapshot) => sum + snapshot.commitTotalLines,
+    0,
+  );
+  const teamSessionCount = personalSnapshots.reduce(
+    (sum, snapshot) => sum + snapshot.sessionCount,
+    0,
+  );
+  const teamSnapshot: MetricSnapshotRecord = {
+    scope: 'team',
+    projectKey,
+    periodStart,
+    periodEnd,
+    acceptedAiLines: teamAcceptedAiLines,
+    commitTotalLines: teamCommitTotalLines,
+    aiOutputRate: calculateAiOutputRate(
+      teamAcceptedAiLines,
+      teamCommitTotalLines,
+    ),
+    sessionCount: teamSessionCount,
+    memberCount: personalSnapshots.length,
+  };
+
+  return [...personalSnapshots, teamSnapshot];
+};

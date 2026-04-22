@@ -15,11 +15,30 @@ export interface MetricSnapshotFilters {
   to?: string;
 }
 
+export type MetricSnapshotScope = 'personal' | 'team';
+
+export interface MetricSnapshotRecord {
+  scope: MetricSnapshotScope;
+  projectKey: string;
+  memberId?: string;
+  periodStart: string;
+  periodEnd: string;
+  acceptedAiLines: number;
+  commitTotalLines: number;
+  aiOutputRate: number;
+  sessionCount: number;
+  memberCount: number;
+}
+
 export interface MetricEventRepository {
   saveIngestionBatch(batch: IngestionBatch): Promise<void>;
   listRecordedMetricEvents(
     filters?: MetricSnapshotFilters,
   ): Promise<RecordedMetricEvent[]>;
+  saveMetricSnapshots(snapshots: MetricSnapshotRecord[]): Promise<void>;
+  listMetricSnapshots(
+    filters?: MetricSnapshotFilters,
+  ): Promise<MetricSnapshotRecord[]>;
   disconnect(): Promise<void>;
 }
 
@@ -61,7 +80,26 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
           payload JSONB NOT NULL,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
-      `).then(() => undefined);
+      `).then(async () => {
+        await this.database.query(`
+          CREATE TABLE IF NOT EXISTS metric_snapshots (
+            id BIGSERIAL PRIMARY KEY,
+            scope TEXT NOT NULL,
+            project_key TEXT NOT NULL,
+            member_id TEXT NOT NULL DEFAULT '',
+            period_start TIMESTAMPTZ NOT NULL,
+            period_end TIMESTAMPTZ NOT NULL,
+            accepted_ai_lines INTEGER NOT NULL,
+            commit_total_lines INTEGER NOT NULL,
+            ai_output_rate DOUBLE PRECISION NOT NULL,
+            session_count INTEGER NOT NULL,
+            member_count INTEGER NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (scope, project_key, member_id, period_start, period_end)
+          )
+        `);
+      });
     }
 
     await this.schemaReady;
@@ -163,7 +201,129 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
     }));
   }
 
+  async saveMetricSnapshots(snapshots: MetricSnapshotRecord[]): Promise<void> {
+    await this.ensureSchema();
+
+    await Promise.all(
+      snapshots.map((snapshot) =>
+        this.database.query(
+          `
+            INSERT INTO metric_snapshots (
+              scope,
+              project_key,
+              member_id,
+              period_start,
+              period_end,
+              accepted_ai_lines,
+              commit_total_lines,
+              ai_output_rate,
+              session_count,
+              member_count
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            ON CONFLICT (scope, project_key, member_id, period_start, period_end)
+            DO UPDATE SET
+              accepted_ai_lines = EXCLUDED.accepted_ai_lines,
+              commit_total_lines = EXCLUDED.commit_total_lines,
+              ai_output_rate = EXCLUDED.ai_output_rate,
+              session_count = EXCLUDED.session_count,
+              member_count = EXCLUDED.member_count,
+              updated_at = NOW()
+          `,
+          [
+            snapshot.scope,
+            snapshot.projectKey,
+            snapshot.memberId ?? '',
+            snapshot.periodStart,
+            snapshot.periodEnd,
+            snapshot.acceptedAiLines,
+            snapshot.commitTotalLines,
+            snapshot.aiOutputRate,
+            snapshot.sessionCount,
+            snapshot.memberCount,
+          ],
+        ),
+      ),
+    );
+  }
+
+  async listMetricSnapshots(
+    filters: MetricSnapshotFilters = {},
+  ): Promise<MetricSnapshotRecord[]> {
+    await this.ensureSchema();
+
+    const values: string[] = [];
+    const whereClauses: string[] = [];
+
+    if (filters.projectKey) {
+      values.push(filters.projectKey);
+      whereClauses.push(`project_key = $${values.length}`);
+    }
+
+    if (filters.memberId) {
+      values.push(filters.memberId);
+      whereClauses.push(`member_id = $${values.length}`);
+    }
+
+    if (filters.from) {
+      values.push(filters.from);
+      whereClauses.push(`period_start >= $${values.length}`);
+    }
+
+    if (filters.to) {
+      values.push(filters.to);
+      whereClauses.push(`period_end <= $${values.length}`);
+    }
+
+    const metricSnapshots = await this.database.query<{
+      scope: MetricSnapshotScope;
+      project_key: string;
+      member_id: string;
+      period_start: Date | string;
+      period_end: Date | string;
+      accepted_ai_lines: number;
+      commit_total_lines: number;
+      ai_output_rate: number;
+      session_count: number;
+      member_count: number;
+    }>(
+      `
+        SELECT
+          scope,
+          project_key,
+          member_id,
+          period_start,
+          period_end,
+          accepted_ai_lines,
+          commit_total_lines,
+          ai_output_rate,
+          session_count,
+          member_count
+        FROM metric_snapshots
+        ${whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : ''}
+        ORDER BY period_start ASC, scope ASC, member_id ASC
+      `,
+      values,
+    );
+
+    return metricSnapshots.rows.map((snapshot) => ({
+      scope: snapshot.scope,
+      projectKey: snapshot.project_key,
+      ...(snapshot.member_id ? { memberId: snapshot.member_id } : {}),
+      periodStart: toIsoString(snapshot.period_start),
+      periodEnd: toIsoString(snapshot.period_end),
+      acceptedAiLines: snapshot.accepted_ai_lines,
+      commitTotalLines: snapshot.commit_total_lines,
+      aiOutputRate: snapshot.ai_output_rate,
+      sessionCount: snapshot.session_count,
+      memberCount: snapshot.member_count,
+    }));
+  }
+
   async disconnect(): Promise<void> {
     await this.database.end?.();
   }
 }
+
+const toIsoString = (value: Date | string): string =>
+  value instanceof Date ? value.toISOString() : new Date(value).toISOString();

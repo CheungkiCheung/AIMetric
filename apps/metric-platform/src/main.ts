@@ -6,6 +6,10 @@ import type {
   MetricEventRepository,
   MetricSnapshotFilters,
 } from './database/postgres-event.repository.js';
+import {
+  createSnapshotRecalculationScheduler,
+  type SnapshotRecalculationScheduler,
+} from './snapshots/snapshot-recalculation.scheduler.js';
 
 export interface MetricPlatformServer {
   baseUrl: string;
@@ -16,6 +20,8 @@ export interface BootstrapOptions {
   host?: string;
   metricEventRepository?: MetricEventRepository;
   port?: number;
+  snapshotRecalculationFilters?: MetricSnapshotFilters;
+  snapshotRecalculationIntervalMs?: number;
 }
 
 const writeJson = (
@@ -76,6 +82,33 @@ const getMetricSnapshotFilters = (url: URL): MetricSnapshotFilters => {
   return filters;
 };
 
+const getMetricSnapshotFiltersFromBody = (body: unknown): MetricSnapshotFilters => {
+  if (!body || typeof body !== 'object') {
+    return {};
+  }
+
+  const payload = body as Record<string, unknown>;
+  const filters: MetricSnapshotFilters = {};
+
+  if (typeof payload.projectKey === 'string') {
+    filters.projectKey = payload.projectKey;
+  }
+
+  if (typeof payload.memberId === 'string') {
+    filters.memberId = payload.memberId;
+  }
+
+  if (typeof payload.from === 'string') {
+    filters.from = payload.from;
+  }
+
+  if (typeof payload.to === 'string') {
+    filters.to = payload.to;
+  }
+
+  return filters;
+};
+
 const handleRequest = async (
   request: IncomingMessage,
   response: ServerResponse,
@@ -107,6 +140,32 @@ const handleRequest = async (
     return;
   }
 
+  if (method === 'GET' && url.pathname === '/metrics/snapshots') {
+    writeJson(
+      response,
+      200,
+      await appModule.listMetricSnapshots(getMetricSnapshotFilters(url)),
+    );
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/metrics/recalculate') {
+    try {
+      const body = await readJsonBody(request);
+
+      writeJson(
+        response,
+        200,
+        await appModule.recalculateMetricSnapshots(
+          getMetricSnapshotFiltersFromBody(body),
+        ),
+      );
+    } catch {
+      writeJson(response, 400, { message: 'Invalid recalculation request' });
+    }
+    return;
+  }
+
   if (method === 'POST' && url.pathname === '/events/import') {
     try {
       const body = await readJsonBody(request);
@@ -128,6 +187,7 @@ export async function bootstrap(
   const host = options.host ?? '127.0.0.1';
   const port = options.port ?? 3001;
   const appModule = new AppModule(options.metricEventRepository);
+  let snapshotScheduler: SnapshotRecalculationScheduler | undefined;
 
   const server = createServer((request, response) => {
     void handleRequest(request, response, appModule);
@@ -147,6 +207,18 @@ export async function bootstrap(
     throw new Error('Failed to resolve metric-platform listening address');
   }
 
+  if (
+    options.snapshotRecalculationIntervalMs !== undefined &&
+    options.snapshotRecalculationIntervalMs > 0
+  ) {
+    snapshotScheduler = createSnapshotRecalculationScheduler({
+      intervalMs: options.snapshotRecalculationIntervalMs,
+      filters: options.snapshotRecalculationFilters,
+      recalculate: (filters) => appModule.recalculateMetricSnapshots(filters),
+    });
+    snapshotScheduler.start();
+  }
+
   return {
     baseUrl: `http://${host}:${address.port}`,
     close: () =>
@@ -157,6 +229,7 @@ export async function bootstrap(
             return;
           }
 
+          snapshotScheduler?.stop();
           void appModule.close().then(resolve, reject);
         });
       }),
@@ -168,7 +241,12 @@ const isDirectRun =
   import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isDirectRun) {
-  void bootstrap().then((app) => {
+  const snapshotRecalculationIntervalMs = process.env
+    .METRIC_SNAPSHOT_RECALCULATION_INTERVAL_MS
+    ? Number(process.env.METRIC_SNAPSHOT_RECALCULATION_INTERVAL_MS)
+    : undefined;
+
+  void bootstrap({ snapshotRecalculationIntervalMs }).then((app) => {
     console.log(`metric-platform listening on ${app.baseUrl}`);
   });
 }

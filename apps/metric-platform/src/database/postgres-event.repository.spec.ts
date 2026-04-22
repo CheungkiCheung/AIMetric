@@ -101,4 +101,42 @@ describeIfDatabase('PostgresMetricEventRepository', () => {
       },
     ]);
   });
+
+  it('persists recalculated metric snapshots', async () => {
+    const uniqueProjectKey = `snapshot-project-${Date.now()}`;
+    const repository = new PostgresMetricEventRepository();
+    services.push(repository);
+
+    await repository.saveMetricSnapshots([
+      {
+        scope: 'team',
+        projectKey: uniqueProjectKey,
+        periodStart: '2026-04-23T00:00:00.000Z',
+        periodEnd: '2026-04-24T00:00:00.000Z',
+        acceptedAiLines: 50,
+        commitTotalLines: 100,
+        aiOutputRate: 0.5,
+        sessionCount: 2,
+        memberCount: 2,
+      },
+    ]);
+
+    const snapshots = await repository.listMetricSnapshots({
+      projectKey: uniqueProjectKey,
+      from: '2026-04-23T00:00:00.000Z',
+      to: '2026-04-24T00:00:00.000Z',
+    });
+
+    expect(snapshots).toContainEqual({
+      scope: 'team',
+      projectKey: uniqueProjectKey,
+      periodStart: '2026-04-23T00:00:00.000Z',
+      periodEnd: '2026-04-24T00:00:00.000Z',
+      acceptedAiLines: 50,
+      commitTotalLines: 100,
+      aiOutputRate: 0.5,
+      sessionCount: 2,
+      memberCount: 2,
+    });
+  });
 });
