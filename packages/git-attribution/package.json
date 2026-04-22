@@ -1,15 +1,14 @@
 {
-  "name": "@aimetric/metric-platform",
+  "name": "@aimetric/git-attribution",
   "version": "0.0.1",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "lint": "tsc -p tsconfig.json --noEmit"
-  },
-  "dependencies": {
-    "@aimetric/git-attribution": "workspace:*",
-    "@aimetric/metric-core": "workspace:*"
   }
 }
