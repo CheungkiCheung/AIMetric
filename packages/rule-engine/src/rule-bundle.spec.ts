@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   getProjectRulePack,
   getRuleRollout,
+  evaluateRuleRollout,
   getRuleTemplate,
   listRuleVersions,
   resolveRuleBundle,
@@ -203,6 +204,108 @@ describe('rule rollout management', () => {
         catalogRoot,
       }),
     ).toEqual(rollout);
+  });
+});
+
+describe('evaluateRuleRollout', () => {
+  it('selects the active version when rollout is disabled', () => {
+    const evaluation = evaluateRuleRollout({
+      projectKey: 'aimetric',
+      memberId: 'alice',
+    });
+
+    expect(evaluation).toEqual({
+      projectKey: 'aimetric',
+      memberId: 'alice',
+      enabled: false,
+      activeVersion: 'v2',
+      selectedVersion: 'v2',
+      candidateVersion: undefined,
+      percentage: 0,
+      bucket: undefined,
+      matched: false,
+      reason: 'rollout-disabled',
+    });
+  });
+
+  it('selects the candidate version for included rollout members', () => {
+    const catalogRoot = createTemporaryCatalogRoot();
+
+    setRuleRollout(
+      {
+        projectKey: 'aimetric',
+        enabled: true,
+        candidateVersion: 'v1',
+        percentage: 0,
+        includedMembers: ['alice'],
+      },
+      {
+        catalogRoot,
+      },
+    );
+
+    const evaluation = evaluateRuleRollout(
+      {
+        projectKey: 'aimetric',
+        memberId: 'alice',
+      },
+      {
+        catalogRoot,
+      },
+    );
+    const rulePack = getProjectRulePack(
+      {
+        projectKey: 'aimetric',
+        toolType: 'cursor',
+        sceneType: 'api-change',
+        memberId: 'alice',
+      },
+      {
+        catalogRoot,
+      },
+    );
+
+    expect(evaluation).toMatchObject({
+      selectedVersion: 'v1',
+      matched: true,
+      reason: 'included-member',
+    });
+    expect(rulePack.version).toBe('v1');
+    expect(rulePack.mandatoryRules).not.toContain('rule.template-versioning');
+  });
+
+  it('selects the candidate version when percentage rollout is 100 percent', () => {
+    const catalogRoot = createTemporaryCatalogRoot();
+
+    setRuleRollout(
+      {
+        projectKey: 'aimetric',
+        enabled: true,
+        candidateVersion: 'v1',
+        percentage: 100,
+        includedMembers: [],
+      },
+      {
+        catalogRoot,
+      },
+    );
+
+    expect(
+      evaluateRuleRollout(
+        {
+          projectKey: 'aimetric',
+          memberId: 'bob',
+        },
+        {
+          catalogRoot,
+        },
+      ),
+    ).toMatchObject({
+      selectedVersion: 'v1',
+      matched: true,
+      reason: 'percentage-hit',
+      bucket: expect.any(Number),
+    });
   });
 });
 

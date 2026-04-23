@@ -168,6 +168,7 @@ const handleRequest = async (
         projectKey: url.searchParams.get('projectKey') ?? 'aimetric',
         toolType: url.searchParams.get('toolType') ?? 'cursor',
         sceneType: url.searchParams.get('sceneType') ?? 'rule-query',
+        memberId: url.searchParams.get('memberId') ?? undefined,
       }),
     );
     return;
@@ -240,6 +241,18 @@ const handleRequest = async (
       response,
       200,
       appModule.getRuleRollout(url.searchParams.get('projectKey') ?? 'aimetric'),
+    );
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/rules/rollout/evaluate') {
+    writeJson(
+      response,
+      200,
+      appModule.evaluateRuleRollout({
+        projectKey: url.searchParams.get('projectKey') ?? 'aimetric',
+        memberId: url.searchParams.get('memberId') ?? undefined,
+      }),
     );
     return;
   }

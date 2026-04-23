@@ -8,6 +8,7 @@ export * from './tools/validate-rule-template.tool.js';
 export * from './tools/set-active-rule-version.tool.js';
 export * from './tools/get-rule-rollout.tool.js';
 export * from './tools/set-rule-rollout.tool.js';
+export * from './tools/evaluate-rule-rollout.tool.js';
 export * from './tools/search-knowledge.tool.js';
 export * from './runtime/mcp-runtime.js';
 export * from './runtime/stdio.js';

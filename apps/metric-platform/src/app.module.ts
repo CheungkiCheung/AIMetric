@@ -102,6 +102,7 @@ export class AppModule {
     projectKey: string;
     toolType: string;
     sceneType: string;
+    memberId?: string;
   }) {
     return this.ruleCenterService.getProjectRules(input);
   }
@@ -134,6 +135,10 @@ export class AppModule {
     includedMembers?: string[];
   }) {
     return this.ruleCenterService.setRollout(input);
+  }
+
+  evaluateRuleRollout(input: { projectKey: string; memberId?: string }) {
+    return this.ruleCenterService.evaluateRollout(input);
   }
 
   searchKnowledge(input: { query: string; limit?: number }) {

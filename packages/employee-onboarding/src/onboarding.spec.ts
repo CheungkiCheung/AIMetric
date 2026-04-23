@@ -29,6 +29,7 @@ describe('buildEmployeeOnboardingConfig', () => {
     expect(config.rules.version).toBe('v2');
     expect(config.rules.must).toContain('rule.template-versioning');
     expect(config.mcp.tools).toContain('getProjectRules');
+    expect(config.mcp.tools).toContain('evaluateRuleRollout');
     expect(config.collector.endpoint).toBe('http://127.0.0.1:3000/ingestion');
   });
 });

@@ -44,6 +44,24 @@ export interface RuleRollout {
   updatedAt?: string;
 }
 
+export interface RuleRolloutEvaluation {
+  projectKey: string;
+  memberId?: string;
+  enabled: boolean;
+  activeVersion: string;
+  selectedVersion: string;
+  candidateVersion?: string;
+  percentage: number;
+  bucket?: number;
+  matched: boolean;
+  reason:
+    | 'rollout-disabled'
+    | 'no-member'
+    | 'included-member'
+    | 'percentage-hit'
+    | 'percentage-miss';
+}
+
 export interface DashboardFilters {
   projectKey?: string;
   memberId?: string;
@@ -57,6 +75,10 @@ export interface DashboardClient {
   getMcpAuditMetrics(filters?: DashboardFilters): Promise<McpAuditMetrics>;
   getRuleVersions(projectKey?: string): Promise<RuleVersionCatalog>;
   getRuleRollout(projectKey?: string): Promise<RuleRollout>;
+  getRuleRolloutEvaluation(
+    projectKey?: string,
+    memberId?: string,
+  ): Promise<RuleRolloutEvaluation>;
 }
 
 const fallbackPersonalSnapshot: PersonalSnapshot = {
@@ -96,6 +118,19 @@ const fallbackRuleRollout: RuleRollout = {
   percentage: 0,
   includedMembers: [],
   updatedAt: undefined,
+};
+
+const fallbackRuleRolloutEvaluation: RuleRolloutEvaluation = {
+  projectKey: 'aimetric',
+  memberId: undefined,
+  enabled: false,
+  activeVersion: 'v2',
+  selectedVersion: 'v2',
+  candidateVersion: undefined,
+  percentage: 0,
+  bucket: undefined,
+  matched: false,
+  reason: 'rollout-disabled',
 };
 
 const fetchJson = async <T>(url: string, fallback: T): Promise<T> => {
@@ -144,11 +179,16 @@ const buildRuleUrl = (
   baseUrl: string,
   path: string,
   projectKey?: string,
+  memberId?: string,
 ): string => {
   const url = new URL(path, baseUrl);
 
   if (projectKey) {
     url.searchParams.set('projectKey', projectKey);
+  }
+
+  if (memberId) {
+    url.searchParams.set('memberId', memberId);
   }
 
   return url.toString();
@@ -181,5 +221,10 @@ export const createDashboardClient = (
     fetchJson<RuleRollout>(
       buildRuleUrl(baseUrl, '/rules/rollout', projectKey),
       fallbackRuleRollout,
+    ),
+  getRuleRolloutEvaluation: (projectKey, memberId) =>
+    fetchJson<RuleRolloutEvaluation>(
+      buildRuleUrl(baseUrl, '/rules/rollout/evaluate', projectKey, memberId),
+      fallbackRuleRolloutEvaluation,
     ),
 });

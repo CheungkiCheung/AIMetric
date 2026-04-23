@@ -71,6 +71,24 @@ describe('createDashboardClient', () => {
         );
       }
 
+      if (url.endsWith('/rules/rollout/evaluate')) {
+        return new Response(
+          JSON.stringify({
+            projectKey: 'aimetric',
+            memberId: 'alice',
+            enabled: true,
+            activeVersion: 'v2',
+            selectedVersion: 'v1',
+            candidateVersion: 'v1',
+            percentage: 25,
+            bucket: 7,
+            matched: true,
+            reason: 'included-member',
+          }),
+          { status: 200 },
+        );
+      }
+
       return new Response(
         JSON.stringify({
           memberCount: 3,
@@ -109,6 +127,11 @@ describe('createDashboardClient', () => {
       candidateVersion: 'v1',
       percentage: 25,
     });
+    await expect(client.getRuleRolloutEvaluation()).resolves.toMatchObject({
+      selectedVersion: 'v1',
+      matched: true,
+      reason: 'included-member',
+    });
   });
 
   it('passes dashboard filters as metric query parameters', async () => {
@@ -140,6 +163,7 @@ describe('createDashboardClient', () => {
     await client.getMcpAuditMetrics(filters);
     await client.getRuleVersions('navigation');
     await client.getRuleRollout('navigation');
+    await client.getRuleRolloutEvaluation('navigation', 'alice');
 
     expect(requestedUrls[0]).toBe(
       'http://127.0.0.1:3001/metrics/personal?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
@@ -152,6 +176,9 @@ describe('createDashboardClient', () => {
     );
     expect(requestedUrls[3]).toBe(
       'http://127.0.0.1:3001/rules/rollout?projectKey=navigation',
+    );
+    expect(requestedUrls[4]).toBe(
+      'http://127.0.0.1:3001/rules/rollout/evaluate?projectKey=navigation&memberId=alice',
     );
   });
 });

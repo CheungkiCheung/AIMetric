@@ -2,6 +2,7 @@ import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { evaluateRuleRollout } from './evaluate-rule-rollout.tool.js';
 import { getProjectRules } from './get-project-rules.tool.js';
 import { getRuleRollout } from './get-rule-rollout.tool.js';
 import { getRuleTemplate } from './get-rule-template.tool.js';
@@ -210,6 +211,42 @@ describe('rule rollout tools', () => {
       enabled: true,
       candidateVersion: 'v1',
       percentage: 25,
+    });
+  });
+
+  it('evaluates rollout hits for MCP rule consumers', async () => {
+    const catalogRoot = createTemporaryCatalogRoot();
+
+    await setRuleRollout({
+      projectKey: 'aimetric',
+      enabled: true,
+      candidateVersion: 'v1',
+      percentage: 0,
+      includedMembers: ['alice'],
+      catalogRoot,
+    });
+
+    await expect(
+      evaluateRuleRollout({
+        projectKey: 'aimetric',
+        memberId: 'alice',
+        catalogRoot,
+      }),
+    ).resolves.toMatchObject({
+      selectedVersion: 'v1',
+      matched: true,
+      reason: 'included-member',
+    });
+    await expect(
+      getProjectRules({
+        projectKey: 'aimetric',
+        toolType: 'cursor',
+        sceneType: 'api-change',
+        memberId: 'alice',
+        catalogRoot,
+      }),
+    ).resolves.toMatchObject({
+      version: 'v1',
     });
   });
 });

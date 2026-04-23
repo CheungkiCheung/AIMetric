@@ -6,6 +6,7 @@ type RuleContext = {
   projectType?: string;
   toolType: string;
   sceneType: string;
+  memberId?: string;
 };
 
 export interface ProjectRulePack {
@@ -31,6 +32,26 @@ export interface RuleRollout {
   percentage: number;
   includedMembers: string[];
   updatedAt?: string;
+}
+
+export type RuleRolloutReason =
+  | 'rollout-disabled'
+  | 'no-member'
+  | 'included-member'
+  | 'percentage-hit'
+  | 'percentage-miss';
+
+export interface RuleRolloutEvaluation {
+  projectKey: string;
+  memberId?: string;
+  enabled: boolean;
+  activeVersion: string;
+  selectedVersion: string;
+  candidateVersion?: string;
+  percentage: number;
+  bucket?: number;
+  matched: boolean;
+  reason: RuleRolloutReason;
 }
 
 export interface RuleTemplateSection {
@@ -136,7 +157,14 @@ export function resolveRuleBundle(
 ) {
   const projectKey = context.projectKey ?? defaultProjectKey;
   const projectConfig = loadProjectRuleCatalogEntry(projectKey, options);
-  const activeTemplate = projectConfig.templates[projectConfig.activeVersion];
+  const selection = evaluateRuleRollout(
+    {
+      projectKey,
+      memberId: context.memberId,
+    },
+    options,
+  );
+  const activeTemplate = projectConfig.templates[selection.selectedVersion];
   const mandatoryRules = [
     ...activeTemplate.rules.must,
     ...(projectConfig.sceneMandatoryRules[context.sceneType] ?? []),
@@ -158,15 +186,24 @@ export function getProjectRulePack(
 ): ProjectRulePack {
   const projectKey = context.projectKey ?? defaultProjectKey;
   const projectConfig = loadProjectRuleCatalogEntry(projectKey, options);
+  const selection = evaluateRuleRollout(
+    {
+      projectKey,
+      memberId: context.memberId,
+    },
+    options,
+  );
   const resolved = resolveRuleBundle(context, options);
 
   return {
     projectKey: projectConfig.projectKey,
-    version: projectConfig.activeVersion,
+    version: selection.selectedVersion,
     mandatoryRules: resolved.mandatoryRules,
     onDemandRules: resolved.onDemandRules,
     knowledgeRefs: projectConfig.knowledgeRefs,
-    terminology: projectConfig.terminology,
+    terminology:
+      projectConfig.templates[selection.selectedVersion]?.terminology ??
+      projectConfig.terminology,
   };
 }
 
@@ -198,6 +235,71 @@ export function getRuleRollout(
     percentage: manifest.rollout?.percentage ?? 0,
     includedMembers: manifest.rollout?.includedMembers ?? [],
     updatedAt: manifest.rollout?.updatedAt,
+  };
+}
+
+export function evaluateRuleRollout(
+  input: {
+    projectKey?: string;
+    memberId?: string;
+  },
+  options?: RuleCatalogOptions,
+): RuleRolloutEvaluation {
+  const projectKey = input.projectKey ?? defaultProjectKey;
+  const projectConfig = loadProjectRuleCatalogEntry(projectKey, options);
+  const rollout = getRuleRollout(projectKey, options);
+  const baseEvaluation = {
+    projectKey,
+    memberId: input.memberId,
+    enabled: rollout.enabled,
+    activeVersion: projectConfig.activeVersion,
+    candidateVersion: rollout.candidateVersion,
+    percentage: rollout.percentage,
+  };
+
+  if (!rollout.enabled || !rollout.candidateVersion) {
+    return {
+      ...baseEvaluation,
+      selectedVersion: projectConfig.activeVersion,
+      bucket: undefined,
+      matched: false,
+      reason: 'rollout-disabled',
+    };
+  }
+
+  if (!input.memberId) {
+    return {
+      ...baseEvaluation,
+      selectedVersion: projectConfig.activeVersion,
+      bucket: undefined,
+      matched: false,
+      reason: 'no-member',
+    };
+  }
+
+  if (rollout.includedMembers.includes(input.memberId)) {
+    return {
+      ...baseEvaluation,
+      selectedVersion: rollout.candidateVersion,
+      bucket: undefined,
+      matched: true,
+      reason: 'included-member',
+    };
+  }
+
+  const bucket = calculateRolloutBucket(
+    `${projectKey}:${rollout.candidateVersion}:${input.memberId}`,
+  );
+  const matched = bucket < rollout.percentage;
+
+  return {
+    ...baseEvaluation,
+    selectedVersion: matched
+      ? rollout.candidateVersion
+      : projectConfig.activeVersion,
+    bucket,
+    matched,
+    reason: matched ? 'percentage-hit' : 'percentage-miss',
   };
 }
 
@@ -353,3 +455,13 @@ export function setRuleRollout(
     ...rollout,
   };
 }
+
+const calculateRolloutBucket = (seed: string): number => {
+  let hash = 0;
+
+  for (const character of seed) {
+    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  }
+
+  return hash % 100;
+};

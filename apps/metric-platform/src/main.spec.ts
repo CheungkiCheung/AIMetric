@@ -431,6 +431,9 @@ describe('bootstrap', () => {
     const persistedRolloutResponse = await fetch(
       `${app.baseUrl}/rules/rollout?projectKey=aimetric`,
     );
+    const rolloutEvaluationResponse = await fetch(
+      `${app.baseUrl}/rules/rollout/evaluate?projectKey=aimetric&memberId=alice`,
+    );
 
     expect(versionsResponse.status).toBe(200);
     expect(templateResponse.status).toBe(200);
@@ -439,6 +442,7 @@ describe('bootstrap', () => {
     expect(defaultRolloutResponse.status).toBe(200);
     expect(rolloutUpdateResponse.status).toBe(200);
     expect(persistedRolloutResponse.status).toBe(200);
+    expect(rolloutEvaluationResponse.status).toBe(200);
     await expect(versionsResponse.json()).resolves.toMatchObject({
       projectKey: 'aimetric',
       activeVersion: 'v2',
@@ -475,6 +479,14 @@ describe('bootstrap', () => {
       candidateVersion: 'v1',
       percentage: 25,
       includedMembers: ['alice'],
+    });
+    await expect(rolloutEvaluationResponse.json()).resolves.toMatchObject({
+      projectKey: 'aimetric',
+      memberId: 'alice',
+      activeVersion: 'v1',
+      selectedVersion: 'v1',
+      matched: true,
+      reason: 'included-member',
     });
   });
 

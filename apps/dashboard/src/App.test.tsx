@@ -57,6 +57,18 @@ describe('App', () => {
             includedMembers: ['alice'],
             updatedAt: '2026-04-24T00:00:00.000Z',
           }),
+          getRuleRolloutEvaluation: async () => ({
+            projectKey: 'aimetric',
+            memberId: 'alice',
+            enabled: true,
+            activeVersion: 'v2',
+            selectedVersion: 'v1',
+            candidateVersion: 'v1',
+            percentage: 25,
+            bucket: 7,
+            matched: true,
+            reason: 'included-member',
+          }),
         }}
       />,
     );
@@ -69,6 +81,8 @@ describe('App', () => {
     expect(screen.getByText('62.5%')).toBeInTheDocument();
     expect(screen.getByText('83.3%')).toBeInTheDocument();
     expect(screen.getByText('25%')).toBeInTheDocument();
+    expect(screen.getByText('命中规则版本')).toBeInTheDocument();
+    expect(screen.getAllByText('v1').length).toBeGreaterThan(0);
   });
 
   it('reloads metrics when filters change', async () => {
@@ -106,6 +120,20 @@ describe('App', () => {
       includedMembers: [],
       updatedAt: undefined,
     }));
+    const getRuleRolloutEvaluation = vi.fn(
+      async (_projectKey?: string, _memberId?: string) => ({
+        projectKey: 'aimetric',
+        memberId: undefined,
+        enabled: false,
+        activeVersion: 'v2',
+        selectedVersion: 'v2',
+        candidateVersion: undefined,
+        percentage: 0,
+        bucket: undefined,
+        matched: false,
+        reason: 'rollout-disabled' as const,
+      }),
+    );
 
     render(
       <App
@@ -115,6 +143,7 @@ describe('App', () => {
           getMcpAuditMetrics,
           getRuleVersions,
           getRuleRollout,
+          getRuleRolloutEvaluation,
         }}
       />,
     );
@@ -133,6 +162,10 @@ describe('App', () => {
       );
       expect(getRuleVersions).toHaveBeenLastCalledWith('navigation');
       expect(getRuleRollout).toHaveBeenLastCalledWith('navigation');
+      expect(getRuleRolloutEvaluation).toHaveBeenLastCalledWith(
+        'navigation',
+        undefined,
+      );
     });
   });
 
@@ -172,6 +205,18 @@ describe('App', () => {
       includedMembers: [],
       updatedAt: undefined,
     }));
+    const getRuleRolloutEvaluation = vi.fn(async () => ({
+      projectKey: 'aimetric',
+      memberId: undefined,
+      enabled: false,
+      activeVersion: 'v2',
+      selectedVersion: 'v2',
+      candidateVersion: undefined,
+      percentage: 0,
+      bucket: undefined,
+      matched: false,
+      reason: 'rollout-disabled' as const,
+    }));
 
     try {
       render(
@@ -183,6 +228,7 @@ describe('App', () => {
             getMcpAuditMetrics,
             getRuleVersions,
             getRuleRollout,
+            getRuleRolloutEvaluation,
           }}
         />,
       );
@@ -202,6 +248,7 @@ describe('App', () => {
       expect(getMcpAuditMetrics).toHaveBeenCalledTimes(2);
       expect(getRuleVersions).toHaveBeenCalledTimes(2);
       expect(getRuleRollout).toHaveBeenCalledTimes(2);
+      expect(getRuleRolloutEvaluation).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }

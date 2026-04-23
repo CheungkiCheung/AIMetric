@@ -1,4 +1,5 @@
 import {
+  evaluateRuleRollout,
   getProjectRulePack,
   getRuleRollout,
   getRuleTemplate,
@@ -16,6 +17,7 @@ export class RuleCenterService {
     projectKey: string;
     toolType: string;
     sceneType: string;
+    memberId?: string;
   }) {
     return getProjectRulePack(input, this.options);
   }
@@ -48,5 +50,9 @@ export class RuleCenterService {
     includedMembers?: string[];
   }) {
     return setRuleRollout(input, this.options);
+  }
+
+  evaluateRollout(input: { projectKey: string; memberId?: string }) {
+    return evaluateRuleRollout(input, this.options);
   }
 }

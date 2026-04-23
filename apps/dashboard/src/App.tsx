@@ -6,6 +6,7 @@ import {
   type McpAuditMetrics,
   type PersonalSnapshot,
   type RuleRollout,
+  type RuleRolloutEvaluation,
   type RuleVersionCatalog,
   type TeamSnapshot,
 } from './api/client.js';
@@ -82,6 +83,8 @@ export const App = ({
   const [mcpAuditMetrics, setMcpAuditMetrics] = useState<McpAuditMetrics | null>(null);
   const [ruleVersions, setRuleVersions] = useState<RuleVersionCatalog | null>(null);
   const [ruleRollout, setRuleRollout] = useState<RuleRollout | null>(null);
+  const [ruleRolloutEvaluation, setRuleRolloutEvaluation] =
+    useState<RuleRolloutEvaluation | null>(null);
   const [filters, setFilters] = useState<DashboardFilters>({});
 
   useEffect(() => {
@@ -89,12 +92,14 @@ export const App = ({
 
     const load = async () => {
       const projectKey = filters.projectKey ?? 'aimetric';
-      const [personal, team, auditMetrics, versions, rollout] = await Promise.all([
+      const [personal, team, auditMetrics, versions, rollout, rolloutEvaluation] =
+        await Promise.all([
         client.getPersonalSnapshot(filters),
         client.getTeamSnapshot(filters),
         client.getMcpAuditMetrics(filters),
         client.getRuleVersions(projectKey),
         client.getRuleRollout(projectKey),
+        client.getRuleRolloutEvaluation(projectKey, filters.memberId),
       ]);
 
       if (!active) {
@@ -106,6 +111,7 @@ export const App = ({
       setMcpAuditMetrics(auditMetrics);
       setRuleVersions(versions);
       setRuleRollout(rollout);
+      setRuleRolloutEvaluation(rolloutEvaluation);
     };
 
     void load();
@@ -191,7 +197,8 @@ export const App = ({
     !teamSnapshot ||
     !mcpAuditMetrics ||
     !ruleVersions ||
-    !ruleRollout
+    !ruleRollout ||
+    !ruleRolloutEvaluation
   ) {
     return (
       <main style={shellStyle}>
@@ -237,7 +244,11 @@ export const App = ({
         <PersonalDashboard snapshot={personalSnapshot} />
         <TeamDashboard snapshot={teamSnapshot} />
         <McpAuditDashboard metrics={mcpAuditMetrics} />
-        <RuleCenterDashboard versions={ruleVersions} rollout={ruleRollout} />
+        <RuleCenterDashboard
+          versions={ruleVersions}
+          rollout={ruleRollout}
+          evaluation={ruleRolloutEvaluation}
+        />
       </div>
     </main>
   );

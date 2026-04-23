@@ -1,5 +1,6 @@
 import { afterEditFile } from '../tools/after-edit-file.tool.js';
 import { beforeEditFile } from '../tools/before-edit-file.tool.js';
+import { evaluateRuleRollout } from '../tools/evaluate-rule-rollout.tool.js';
 import { getProjectRules } from '../tools/get-project-rules.tool.js';
 import { getRuleRollout } from '../tools/get-rule-rollout.tool.js';
 import { getRuleTemplate } from '../tools/get-rule-template.tool.js';
@@ -87,6 +88,8 @@ export const createToolRegistry = (
         projectKey: stringProperty('AIMetric project key.'),
         toolType: stringProperty('AI tool type, such as cursor or cli.'),
         sceneType: stringProperty('Development scene type.'),
+        memberId: stringProperty('Optional member id for rollout-aware rule selection.'),
+        catalogRoot: stringProperty('Optional local rule catalog root for tests or staging.'),
       }, ['projectKey', 'toolType', 'sceneType']),
       invoke: (input) => getProjectRules(input as Parameters<typeof getProjectRules>[0]),
     },
@@ -162,6 +165,17 @@ export const createToolRegistry = (
         catalogRoot: stringProperty('Optional local rule catalog root for tests or staging.'),
       }, ['projectKey', 'enabled']),
       invoke: (input) => setRuleRollout(input as Parameters<typeof setRuleRollout>[0]),
+    },
+    {
+      name: 'evaluateRuleRollout',
+      description: 'Evaluate which rule version a member should receive under rollout policy.',
+      inputSchema: objectSchema({
+        projectKey: stringProperty('AIMetric project key.'),
+        memberId: stringProperty('Optional member id for rollout hit evaluation.'),
+        catalogRoot: stringProperty('Optional local rule catalog root for tests or staging.'),
+      }, ['projectKey']),
+      invoke: (input) =>
+        evaluateRuleRollout(input as Parameters<typeof evaluateRuleRollout>[0]),
     },
     {
       name: 'searchKnowledge',

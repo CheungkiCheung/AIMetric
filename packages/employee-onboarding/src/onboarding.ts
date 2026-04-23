@@ -52,6 +52,9 @@ const mcpTools = [
   'getRuleTemplate',
   'validateRuleTemplate',
   'setActiveRuleVersion',
+  'getRuleRollout',
+  'setRuleRollout',
+  'evaluateRuleRollout',
   'searchKnowledge',
 ];
 
