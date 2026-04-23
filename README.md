@@ -7,7 +7,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 按最初的全量规划估算：
 
 - `Phase 1 主链路 MVP`：约 `96%` 完成
-- `全量文章同构系统`：约 `53%` 完成
+- `全量文章同构系统`：约 `55%` 完成
 
 已完成：
 
@@ -20,6 +20,8 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 - `rule-engine` 项目规则版本目录、文件化规则模板与激活版本 manifest
 - `mcp-server` 新增 `getProjectRules`、`listRuleVersions`、`getRuleTemplate`、`validateRuleTemplate`、`setActiveRuleVersion`、`searchKnowledge` 基础工具
 - `employee-onboarding` 员工接入原型，可生成 `.aimetric/config.json` 与 `.aimetric/mcp.json`
+- `collector-sdk` 可读取 `.aimetric/config.json` 并生成标准 `IngestionBatch`
+- `mcp-server recordSession` 可读取员工接入配置并补齐项目、成员、仓库、规则版本
 - `dashboard` 个人出码视图、团队出码视图、自动刷新、项目/成员/时间范围筛选
 - 本地 `docker-compose.yml`，包含 PostgreSQL 和 Redis
 - 基础 README、设计文档、Phase 1 执行计划
@@ -256,6 +258,8 @@ node packages/employee-onboarding/dist/cli.js \
 ```
 
 后续插件/CLI 可以复用这两个文件，自动读取采集端点、员工身份、仓库名、当前激活规则版本和 MCP 工具列表。
+
+当前 `collector-sdk` 和 `recordSession` 已能读取 `.aimetric/config.json`，将员工身份、项目、仓库和规则版本写入 `session.recorded` 事件。
 
 ## 下一步路线
 

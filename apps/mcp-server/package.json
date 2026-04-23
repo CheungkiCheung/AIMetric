@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@aimetric/collector-sdk": "workspace:*",
     "@aimetric/rule-engine": "workspace:*"
   },
   "scripts": {

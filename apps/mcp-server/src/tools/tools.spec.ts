@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -57,6 +57,27 @@ describe('recordSession', () => {
 
     expect(result.sessionId).toBe('sess_1');
     expect(result.summary).toContain('change the file');
+  });
+
+  it('uses onboarding config to produce a session event payload', async () => {
+    const workspaceDir = createWorkspaceWithAimMetricConfig();
+
+    const result = await recordSession({
+      sessionId: 'sess_1',
+      userMessage: 'change the file',
+      assistantMessage: 'file changed',
+      workspaceDir,
+    });
+
+    expect(result.event).toEqual({
+      eventType: 'session.recorded',
+      payload: expect.objectContaining({
+        projectKey: 'aimetric',
+        memberId: 'alice',
+        repoName: 'AIMetric',
+        ruleVersion: 'v2',
+      }),
+    });
   });
 });
 
@@ -160,4 +181,40 @@ const createTemporaryCatalogRoot = (): string => {
   );
 
   return catalogRoot;
+};
+
+const createWorkspaceWithAimMetricConfig = (): string => {
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'aimetric-mcp-config-'));
+  const aimetricDir = join(workspaceDir, '.aimetric');
+  temporaryCatalogRoots.push(workspaceDir);
+  mkdirSync(aimetricDir, { recursive: true });
+  writeFileSync(
+    join(aimetricDir, 'config.json'),
+    JSON.stringify({
+      projectKey: 'aimetric',
+      memberId: 'alice',
+      repoName: 'AIMetric',
+      collector: {
+        endpoint: 'http://127.0.0.1:3000/ingestion',
+        source: 'cursor',
+      },
+      metricPlatform: {
+        endpoint: 'http://127.0.0.1:3001',
+      },
+      rules: {
+        version: 'v2',
+        must: [],
+        should: [],
+        onDemand: [],
+        knowledgeRefs: [],
+      },
+      mcp: {
+        tools: [],
+        environment: {},
+      },
+    }),
+    'utf8',
+  );
+
+  return workspaceDir;
 };

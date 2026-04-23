@@ -3,6 +3,13 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@aimetric/event-schema": "workspace:*",
+    "zod": "^3.24.3"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
