@@ -1,0 +1,20 @@
+{
+  "name": "@aimetric/employee-onboarding",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "bin": {
+    "aimetric-onboard": "./dist/cli.js"
+  },
+  "dependencies": {
+    "@aimetric/rule-engine": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  }
+}
