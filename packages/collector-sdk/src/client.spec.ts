@@ -106,6 +106,50 @@ describe('CollectorClient', () => {
     expect(config.toolProfile).toBe('cli');
     expect(client.flushBatch().source).toBe('cli');
   });
+
+  it('records ingestionKey and metadata in session payloads when provided', async () => {
+    const workspaceDir = createWorkspaceWithConfig({
+      collector: {
+        endpoint: 'http://127.0.0.1:3000/ingestion',
+        source: 'cursor-db',
+      },
+    });
+    const config = await loadAimMetricConfig({ workspaceDir });
+    const client = CollectorClient.fromConfig(config, {
+      now: () => '2026-04-24T00:00:00.000Z',
+    });
+
+    client.recordSession({
+      sessionId: 'cursor-session-1',
+      ingestionKey: 'cursor-db:cursor-session-1:2026-04-24T00:00:00.000Z:abc',
+      metadata: {
+        collectorType: 'cursor-db',
+        conversationTurns: 3,
+      },
+    });
+
+    expect(client.flushBatch()).toEqual({
+      schemaVersion: 'v1',
+      source: 'cursor-db',
+      events: [
+        {
+          eventType: 'session.recorded',
+          occurredAt: '2026-04-24T00:00:00.000Z',
+          payload: {
+            sessionId: 'cursor-session-1',
+            projectKey: 'aimetric',
+            repoName: 'AIMetric',
+            memberId: 'alice',
+            ruleVersion: 'v2',
+            ingestionKey:
+              'cursor-db:cursor-session-1:2026-04-24T00:00:00.000Z:abc',
+            collectorType: 'cursor-db',
+            conversationTurns: 3,
+          },
+        },
+      ],
+    });
+  });
 });
 
 const createWorkspaceWithConfig = (

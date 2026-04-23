@@ -10,9 +10,14 @@ CREATE TABLE IF NOT EXISTS metric_events (
   member_id TEXT,
   accepted_ai_lines INTEGER,
   commit_total_lines INTEGER,
+  ingestion_key TEXT,
   payload JSONB NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS metric_events_source_ingestion_key_unique
+ON metric_events (source, ingestion_key)
+WHERE ingestion_key IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS metric_snapshots (
   id BIGSERIAL PRIMARY KEY,

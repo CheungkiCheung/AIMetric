@@ -87,10 +87,16 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
           member_id TEXT,
           accepted_ai_lines INTEGER,
           commit_total_lines INTEGER,
+          ingestion_key TEXT,
           payload JSONB NOT NULL,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
       `).then(async () => {
+        await this.database.query(`
+          CREATE UNIQUE INDEX IF NOT EXISTS metric_events_source_ingestion_key_unique
+          ON metric_events (source, ingestion_key)
+          WHERE ingestion_key IS NOT NULL
+        `);
         await this.database.query(`
           CREATE TABLE IF NOT EXISTS metric_snapshots (
             id BIGSERIAL PRIMARY KEY,
@@ -133,9 +139,13 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
               member_id,
               accepted_ai_lines,
               commit_total_lines,
+              ingestion_key,
               payload
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb)
+            ON CONFLICT (source, ingestion_key)
+            WHERE ingestion_key IS NOT NULL
+            DO NOTHING
           `,
           [
             batch.schemaVersion,
@@ -151,6 +161,9 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
               : null,
             typeof event.payload.commitTotalLines === 'number'
               ? event.payload.commitTotalLines
+              : null,
+            typeof event.payload.ingestionKey === 'string'
+              ? event.payload.ingestionKey
               : null,
             JSON.stringify(event.payload),
           ],

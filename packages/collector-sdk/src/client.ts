@@ -12,6 +12,8 @@ export interface SessionRecordedInput {
   commitTotalLines?: number;
   userMessage?: string;
   assistantMessage?: string;
+  ingestionKey?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export type CollectorEvent = IngestionBatch['events'][number];
@@ -65,6 +67,10 @@ export class ConfiguredCollectorClient {
         ...(input.assistantMessage !== undefined
           ? { assistantMessage: input.assistantMessage }
           : {}),
+        ...(input.ingestionKey !== undefined
+          ? { ingestionKey: input.ingestionKey }
+          : {}),
+        ...(input.metadata ?? {}),
         ruleVersion: this.config.rules.version,
       },
     };

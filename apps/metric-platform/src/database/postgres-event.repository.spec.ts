@@ -143,6 +143,55 @@ describeIfDatabase('PostgresMetricEventRepository', () => {
 });
 
 describe('PostgresMetricEventRepository query mapping', () => {
+  it('includes ingestion_key in insert statements for deduplicated session events', async () => {
+    const queries: Array<{ text: string; values?: unknown[] }> = [];
+    const repository = new PostgresMetricEventRepository({
+      async query<T extends QueryResultRow = QueryResultRow>(
+        text: string,
+        values?: unknown[],
+      ) {
+        queries.push({ text, values });
+
+        return {
+          command: '',
+          rowCount: 0,
+          oid: 0,
+          fields: [],
+          rows: [] as T[],
+        };
+      },
+    });
+
+    await repository.saveIngestionBatch({
+      schemaVersion: 'v1',
+      source: 'cursor-db',
+      events: [
+        {
+          eventType: 'session.recorded',
+          occurredAt: '2026-04-24T00:00:00.000Z',
+          payload: {
+            sessionId: 'cursor-session-1',
+            projectKey: 'aimetric',
+            repoName: 'AIMetric',
+            memberId: 'alice',
+            ingestionKey:
+              'cursor-db:cursor-session-1:2026-04-24T00:00:00.000Z:abc',
+          },
+        },
+      ],
+    });
+
+    const insertQuery = queries.find((query) =>
+      query.text.includes('INSERT INTO metric_events'),
+    );
+
+    expect(insertQuery?.text).toContain('ingestion_key');
+    expect(insertQuery?.text).toContain('ON CONFLICT (source, ingestion_key)');
+    expect(insertQuery?.values?.[10]).toBe(
+      'cursor-db:cursor-session-1:2026-04-24T00:00:00.000Z:abc',
+    );
+  });
+
   it('aggregates MCP audit metrics from metric events', async () => {
     const queries: Array<{ text: string; values?: unknown[] }> = [];
     const repository = new PostgresMetricEventRepository({
