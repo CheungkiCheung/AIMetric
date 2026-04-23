@@ -1,0 +1,19 @@
+{
+  "name": "@aimetric/cli-adapter",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "aimetric-cli-record": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/cli.js",
+    "test": "vitest run",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@aimetric/event-schema": "workspace:*",
+    "@aimetric/collector-sdk": "workspace:*"
+  }
+}

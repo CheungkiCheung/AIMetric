@@ -7,7 +7,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 按最初的全量规划估算：
 
 - `Phase 1 主链路 MVP`：约 `100%` 完成
-- `全量文章同构系统`：约 `77%` 完成
+- `全量文章同构系统`：约 `79%` 完成
 
 已完成：
 
@@ -31,6 +31,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 - `dashboard` 新增规则中心管理视图，支持页面内启停灰度、调整比例、维护定向成员，并展示命中规则版本
 - `employee-onboarding` 员工接入原型，可生成 `.aimetric/config.json` 与 `.aimetric/mcp.json`
 - `employee-onboarding` 支持 `cursor / cli / vscode` 三种标准接入档，并生成对应适配文件
+- `cli-adapter` 已提供标准 CLI 会话采集入口，可直接上报 `session.recorded` 批次
 - `collector-sdk` 可读取 `.aimetric/config.json` 并生成标准 `IngestionBatch`
 - `mcp-server recordSession` 可读取员工接入配置并补齐项目、成员、仓库、规则版本
 - `dashboard` 个人出码视图、团队出码视图、自动刷新、项目/成员/时间范围筛选
@@ -67,6 +68,7 @@ MCP 工具 / SDK
 ```text
 apps/
   collector-gateway/   采集接入 HTTP 服务
+  cli-adapter/         CLI 标准采集入口
   dashboard/           前端指标看板
   mcp-server/          MCP 主链路工具与 stdio runtime
   metric-platform/     指标平台 HTTP 服务
@@ -278,6 +280,26 @@ node packages/employee-onboarding/dist/cli.js \
 - `cli`：`.aimetric/cli.env`
 
 后续插件/CLI 可以复用这两个文件，自动读取采集端点、员工身份、仓库名、当前激活规则版本和 MCP 工具列表。
+
+如果员工使用纯 CLI 工作流，现在还可以直接接入 `cli-adapter`：
+
+```bash
+corepack pnpm --filter @aimetric/cli-adapter build
+node apps/cli-adapter/dist/cli.js \
+  --workspaceDir=/path/to/employee/project \
+  --sessionId=cli_sess_1 \
+  --acceptedAiLines=12 \
+  --commitTotalLines=20 \
+  --userMessage='实现 CLI 适配器' \
+  --assistantMessage='已完成实现' \
+  --publish
+```
+
+说明：
+
+- 默认是 `dryRun`，会打印标准 `IngestionBatch`
+- 加 `--publish` 后会直接把批次投递到 `.aimetric/config.json` 中配置的 `collector.endpoint`
+- 这意味着员工最少只要生成一次 `.aimetric/config.json`，后续 CLI 采集和 MCP 采集都能复用同一套身份与规则上下文
 
 当前 `collector-sdk` 和 `recordSession` 已能读取 `.aimetric/config.json`，将员工身份、项目、仓库和规则版本写入 `session.recorded` 事件。
 
