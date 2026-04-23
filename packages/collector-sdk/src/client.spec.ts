@@ -32,6 +32,7 @@ describe('loadAimMetricConfig', () => {
 
     expect(config.projectKey).toBe('aimetric');
     expect(config.memberId).toBe('alice');
+    expect(config.toolProfile).toBe('cursor');
     expect(config.collector.endpoint).toBe('http://127.0.0.1:3000/ingestion');
   });
 
@@ -78,6 +79,33 @@ describe('CollectorClient', () => {
       ],
     });
   });
+
+  it('preserves non-cursor tool profiles in onboarding config and batch source', async () => {
+    const workspaceDir = createWorkspaceWithConfig({
+      toolProfile: 'cli',
+      collector: {
+        endpoint: 'http://127.0.0.1:3000/ingestion',
+        source: 'cli',
+      },
+      mcp: {
+        tools: [],
+        environment: {
+          AIMETRIC_TOOL_PROFILE: 'cli',
+        },
+      },
+    });
+    const config = await loadAimMetricConfig({ workspaceDir });
+    const client = CollectorClient.fromConfig(config, {
+      now: () => '2026-04-23T00:00:00.000Z',
+    });
+
+    client.recordSession({
+      sessionId: 'sess_cli',
+    });
+
+    expect(config.toolProfile).toBe('cli');
+    expect(client.flushBatch().source).toBe('cli');
+  });
 });
 
 const createWorkspaceWithConfig = (
@@ -94,6 +122,7 @@ const createWorkspaceWithConfig = (
         projectKey: 'aimetric',
         memberId: 'alice',
         repoName: 'AIMetric',
+        toolProfile: 'cursor',
         collector: {
           endpoint: 'http://127.0.0.1:3000/ingestion',
           source: 'cursor',

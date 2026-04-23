@@ -6,6 +6,7 @@ export const AimMetricConfigSchema = z.object({
   projectKey: z.string().min(1),
   memberId: z.string().min(1),
   repoName: z.string().min(1),
+  toolProfile: z.enum(['cursor', 'cli', 'vscode']).default('cursor'),
   collector: z.object({
     endpoint: z.string().url(),
     source: z.string().min(1),

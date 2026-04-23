@@ -24,6 +24,9 @@ const result = await writeEmployeeOnboardingFiles({
   projectKey: args.get('projectKey') ?? '',
   memberId: args.get('memberId') ?? '',
   repoName: args.get('repoName') ?? '',
+  toolProfile:
+    (args.get('toolProfile') as 'cursor' | 'cli' | 'vscode' | undefined) ??
+    undefined,
   collectorEndpoint: args.get('collectorEndpoint') || undefined,
   metricPlatformEndpoint: args.get('metricPlatformEndpoint') || undefined,
 });

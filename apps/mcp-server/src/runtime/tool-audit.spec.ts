@@ -96,6 +96,7 @@ describe('buildToolAuditIngestionBatch', () => {
           projectKey: 'aimetric',
           memberId: 'alice',
           repoName: 'AIMetric',
+          toolProfile: 'cursor',
           collector: {
             endpoint: 'http://127.0.0.1:3000/ingestion',
             source: 'cursor',

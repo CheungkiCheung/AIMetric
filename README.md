@@ -7,7 +7,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 按最初的全量规划估算：
 
 - `Phase 1 主链路 MVP`：约 `100%` 完成
-- `全量文章同构系统`：约 `75%` 完成
+- `全量文章同构系统`：约 `77%` 完成
 
 已完成：
 
@@ -30,6 +30,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 - `dashboard` 新增 MCP 采集质量视图，展示工具成功率、失败率和平均耗时
 - `dashboard` 新增规则中心管理视图，支持页面内启停灰度、调整比例、维护定向成员，并展示命中规则版本
 - `employee-onboarding` 员工接入原型，可生成 `.aimetric/config.json` 与 `.aimetric/mcp.json`
+- `employee-onboarding` 支持 `cursor / cli / vscode` 三种标准接入档，并生成对应适配文件
 - `collector-sdk` 可读取 `.aimetric/config.json` 并生成标准 `IngestionBatch`
 - `mcp-server recordSession` 可读取员工接入配置并补齐项目、成员、仓库、规则版本
 - `dashboard` 个人出码视图、团队出码视图、自动刷新、项目/成员/时间范围筛选
@@ -259,7 +260,8 @@ node packages/employee-onboarding/dist/cli.js \
   --workspaceDir=/path/to/employee/project \
   --projectKey=aimetric \
   --memberId=alice \
-  --repoName=AIMetric
+  --repoName=AIMetric \
+  --toolProfile=cursor
 ```
 
 执行后会生成：
@@ -268,6 +270,12 @@ node packages/employee-onboarding/dist/cli.js \
 .aimetric/config.json
 .aimetric/mcp.json
 ```
+
+不同 `toolProfile` 还会额外生成：
+
+- `cursor`：`.cursor/mcp.json`
+- `vscode`：`.vscode/mcp.json`
+- `cli`：`.aimetric/cli.env`
 
 后续插件/CLI 可以复用这两个文件，自动读取采集端点、员工身份、仓库名、当前激活规则版本和 MCP 工具列表。
 

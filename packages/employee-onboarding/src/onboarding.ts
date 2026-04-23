@@ -2,11 +2,14 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getProjectRulePack, getRuleTemplate } from '@aimetric/rule-engine';
 
+export type EmployeeToolProfile = 'cursor' | 'cli' | 'vscode';
+
 export interface EmployeeOnboardingInput {
   workspaceDir?: string;
   projectKey: string;
   memberId: string;
   repoName: string;
+  toolProfile?: EmployeeToolProfile;
   collectorEndpoint?: string;
   metricPlatformEndpoint?: string;
 }
@@ -15,6 +18,7 @@ export interface EmployeeOnboardingConfig {
   projectKey: string;
   memberId: string;
   repoName: string;
+  toolProfile: EmployeeToolProfile;
   collector: {
     endpoint: string;
     source: string;
@@ -38,11 +42,13 @@ export interface EmployeeOnboardingConfig {
 export interface EmployeeOnboardingWriteResult {
   configPath: string;
   mcpConfigPath: string;
+  adapterPaths: string[];
   nextSteps: string[];
 }
 
 const defaultCollectorEndpoint = 'http://127.0.0.1:3000/ingestion';
 const defaultMetricPlatformEndpoint = 'http://127.0.0.1:3001';
+const defaultToolProfile: EmployeeToolProfile = 'cursor';
 const mcpTools = [
   'beforeEditFile',
   'afterEditFile',
@@ -58,12 +64,34 @@ const mcpTools = [
   'searchKnowledge',
 ];
 
+const nextStepsByProfile: Record<EmployeeToolProfile, string[]> = {
+  cursor: [
+    'Install or point your MCP client at .aimetric/mcp.json',
+    'Restart Cursor so the AIMetric MCP server is loaded',
+    'Start collector-gateway before sending local events',
+    'Run recordSession at the end of an AI coding session',
+  ],
+  cli: [
+    'Load .aimetric/mcp.json into your CLI agent or Codex-compatible MCP settings',
+    'Export AIMETRIC_WORKSPACE_DIR or run the CLI from this workspace root',
+    'Start collector-gateway before sending local events',
+    'Run recordSession at the end of an AI coding session',
+  ],
+  vscode: [
+    'Import .aimetric/mcp.json into your VS Code MCP or agent extension settings',
+    'Reload the VS Code window so the AIMetric MCP server is loaded',
+    'Start collector-gateway before sending local events',
+    'Run recordSession at the end of an AI coding session',
+  ],
+};
+
 export function buildEmployeeOnboardingConfig(
   input: EmployeeOnboardingInput,
 ): EmployeeOnboardingConfig {
+  const toolProfile = input.toolProfile ?? defaultToolProfile;
   const rulePack = getProjectRulePack({
     projectKey: input.projectKey,
-    toolType: 'cursor',
+    toolType: toolProfile,
     sceneType: 'rule-query',
   });
   const ruleTemplate = getRuleTemplate({
@@ -78,9 +106,10 @@ export function buildEmployeeOnboardingConfig(
     projectKey: input.projectKey,
     memberId: input.memberId,
     repoName: input.repoName,
+    toolProfile,
     collector: {
       endpoint: collectorEndpoint,
-      source: 'cursor',
+      source: toolProfile,
     },
     metricPlatform: {
       endpoint: metricPlatformEndpoint,
@@ -101,6 +130,7 @@ export function buildEmployeeOnboardingConfig(
         AIMETRIC_COLLECTOR_ENDPOINT: collectorEndpoint,
         AIMETRIC_METRIC_PLATFORM_ENDPOINT: metricPlatformEndpoint,
         AIMETRIC_RULE_VERSION: rulePack.version,
+        AIMETRIC_TOOL_PROFILE: toolProfile,
       },
     },
   };
@@ -115,6 +145,15 @@ export async function writeEmployeeOnboardingFiles(
   const mcpConfigPath = join(aimetricDirectory, 'mcp.json');
 
   await mkdir(aimetricDirectory, { recursive: true });
+  const adapterPaths = await writeToolProfileArtifacts({
+    workspaceDir: input.workspaceDir,
+    toolProfile: config.toolProfile,
+    mcpEnvironment: {
+      ...config.mcp.environment,
+      AIMETRIC_WORKSPACE_DIR: input.workspaceDir,
+    },
+  });
+
   await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
   await writeFile(
     mcpConfigPath,
@@ -139,10 +178,72 @@ export async function writeEmployeeOnboardingFiles(
   return {
     configPath,
     mcpConfigPath,
-    nextSteps: [
-      'Install or point your MCP client at .aimetric/mcp.json',
-      'Start collector-gateway before sending local events',
-      'Run recordSession at the end of an AI coding session',
-    ],
+    adapterPaths,
+    nextSteps: nextStepsByProfile[config.toolProfile],
   };
 }
+
+const writeToolProfileArtifacts = async (input: {
+  workspaceDir: string;
+  toolProfile: EmployeeToolProfile;
+  mcpEnvironment: Record<string, string>;
+}): Promise<string[]> => {
+  if (input.toolProfile === 'cursor') {
+    const cursorDirectory = join(input.workspaceDir, '.cursor');
+    const cursorConfigPath = join(cursorDirectory, 'mcp.json');
+
+    await mkdir(cursorDirectory, { recursive: true });
+    await writeFile(
+      cursorConfigPath,
+      `${JSON.stringify(
+        {
+          mcpServers: {
+            aimetric: {
+              command: 'aimetric-mcp-server',
+              env: input.mcpEnvironment,
+            },
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      'utf8',
+    );
+
+    return [cursorConfigPath];
+  }
+
+  if (input.toolProfile === 'vscode') {
+    const vscodeDirectory = join(input.workspaceDir, '.vscode');
+    const vscodeConfigPath = join(vscodeDirectory, 'mcp.json');
+
+    await mkdir(vscodeDirectory, { recursive: true });
+    await writeFile(
+      vscodeConfigPath,
+      `${JSON.stringify(
+        {
+          servers: {
+            aimetric: {
+              command: 'aimetric-mcp-server',
+              env: input.mcpEnvironment,
+            },
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      'utf8',
+    );
+
+    return [vscodeConfigPath];
+  }
+
+  const cliEnvPath = join(input.workspaceDir, '.aimetric', 'cli.env');
+  const cliEnvContent = Object.entries(input.mcpEnvironment)
+    .map(([key, value]) => `export ${key}="${value}"`)
+    .join('\n');
+
+  await writeFile(cliEnvPath, `${cliEnvContent}\n`, 'utf8');
+
+  return [cliEnvPath];
+};

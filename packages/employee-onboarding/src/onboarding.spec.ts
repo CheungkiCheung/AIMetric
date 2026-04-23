@@ -32,6 +32,19 @@ describe('buildEmployeeOnboardingConfig', () => {
     expect(config.mcp.tools).toContain('evaluateRuleRollout');
     expect(config.collector.endpoint).toBe('http://127.0.0.1:3000/ingestion');
   });
+
+  it('supports a CLI onboarding profile with cli source metadata', () => {
+    const config = buildEmployeeOnboardingConfig({
+      projectKey: 'aimetric',
+      memberId: 'alice',
+      repoName: 'AIMetric',
+      toolProfile: 'cli',
+    });
+
+    expect(config.collector.source).toBe('cli');
+    expect(config.toolProfile).toBe('cli');
+    expect(config.mcp.environment.AIMETRIC_TOOL_PROFILE).toBe('cli');
+  });
 });
 
 describe('writeEmployeeOnboardingFiles', () => {
@@ -63,5 +76,51 @@ describe('writeEmployeeOnboardingFiles', () => {
     expect(mcp.mcpServers.aimetric.env.AIMETRIC_PROJECT_KEY).toBe('aimetric');
     expect(mcp.mcpServers.aimetric.env.AIMETRIC_WORKSPACE_DIR).toBe(workspaceDir);
     expect(result.nextSteps).toContain('Install or point your MCP client at .aimetric/mcp.json');
+    expect(result.adapterPaths).toContain(join(workspaceDir, '.cursor', 'mcp.json'));
+  });
+
+  it('writes tool-specific next steps for vscode onboarding', async () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), 'aimetric-onboarding-vscode-'));
+    temporaryWorkspaces.push(workspaceDir);
+
+    const result = await writeEmployeeOnboardingFiles({
+      workspaceDir,
+      projectKey: 'aimetric',
+      memberId: 'alice',
+      repoName: 'AIMetric',
+      toolProfile: 'vscode',
+    });
+
+    const config = JSON.parse(readFileSync(result.configPath, 'utf8')) as {
+      collector: { source: string };
+      toolProfile: string;
+    };
+
+    expect(config.collector.source).toBe('vscode');
+    expect(config.toolProfile).toBe('vscode');
+    expect(result.nextSteps).toContain(
+      'Import .aimetric/mcp.json into your VS Code MCP or agent extension settings',
+    );
+    expect(result.adapterPaths).toContain(join(workspaceDir, '.vscode', 'mcp.json'));
+  });
+
+  it('writes a CLI environment helper for cli onboarding', async () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), 'aimetric-onboarding-cli-'));
+    temporaryWorkspaces.push(workspaceDir);
+
+    const result = await writeEmployeeOnboardingFiles({
+      workspaceDir,
+      projectKey: 'aimetric',
+      memberId: 'alice',
+      repoName: 'AIMetric',
+      toolProfile: 'cli',
+    });
+
+    const cliEnvPath = join(workspaceDir, '.aimetric', 'cli.env');
+    const cliEnv = readFileSync(cliEnvPath, 'utf8');
+
+    expect(result.adapterPaths).toContain(cliEnvPath);
+    expect(cliEnv).toContain(`export AIMETRIC_WORKSPACE_DIR="${workspaceDir}"`);
+    expect(cliEnv).toContain('export AIMETRIC_TOOL_PROFILE="cli"');
   });
 });
