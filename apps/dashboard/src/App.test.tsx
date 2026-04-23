@@ -29,14 +29,24 @@ describe('App', () => {
             aiOutputRate: 0.625,
             totalSessionCount: 6,
           }),
+          getMcpAuditMetrics: async () => ({
+            totalToolCalls: 12,
+            successfulToolCalls: 10,
+            failedToolCalls: 2,
+            successRate: 10 / 12,
+            failureRate: 2 / 12,
+            averageDurationMs: 24,
+          }),
         }}
       />,
     );
 
     expect(await screen.findByText('个人出码视图')).toBeInTheDocument();
     expect(screen.getByText('团队出码视图')).toBeInTheDocument();
+    expect(screen.getByText('MCP 采集质量')).toBeInTheDocument();
     expect(screen.getByText('70.0%')).toBeInTheDocument();
     expect(screen.getByText('62.5%')).toBeInTheDocument();
+    expect(screen.getByText('83.3%')).toBeInTheDocument();
   });
 
   it('reloads metrics when filters change', async () => {
@@ -53,12 +63,21 @@ describe('App', () => {
       aiOutputRate: 0.625,
       totalSessionCount: 6,
     }));
+    const getMcpAuditMetrics = vi.fn(async (_filters?: DashboardFilters) => ({
+      totalToolCalls: 12,
+      successfulToolCalls: 10,
+      failedToolCalls: 2,
+      successRate: 10 / 12,
+      failureRate: 2 / 12,
+      averageDurationMs: 24,
+    }));
 
     render(
       <App
         client={{
           getPersonalSnapshot,
           getTeamSnapshot,
+          getMcpAuditMetrics,
         }}
       />,
     );
@@ -70,6 +89,9 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(getPersonalSnapshot).toHaveBeenLastCalledWith(
+        expect.objectContaining({ projectKey: 'navigation' }),
+      );
+      expect(getMcpAuditMetrics).toHaveBeenLastCalledWith(
         expect.objectContaining({ projectKey: 'navigation' }),
       );
     });
@@ -90,6 +112,14 @@ describe('App', () => {
       aiOutputRate: 0.625,
       totalSessionCount: 6,
     }));
+    const getMcpAuditMetrics = vi.fn(async () => ({
+      totalToolCalls: 12,
+      successfulToolCalls: 10,
+      failedToolCalls: 2,
+      successRate: 10 / 12,
+      failureRate: 2 / 12,
+      averageDurationMs: 24,
+    }));
 
     try {
       render(
@@ -98,6 +128,7 @@ describe('App', () => {
           client={{
             getPersonalSnapshot,
             getTeamSnapshot,
+            getMcpAuditMetrics,
           }}
         />,
       );
@@ -114,6 +145,7 @@ describe('App', () => {
 
       expect(getPersonalSnapshot).toHaveBeenCalledTimes(2);
       expect(getTeamSnapshot).toHaveBeenCalledTimes(2);
+      expect(getMcpAuditMetrics).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }

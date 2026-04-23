@@ -15,6 +15,15 @@ export interface MetricSnapshotFilters {
   to?: string;
 }
 
+export interface McpAuditMetrics {
+  totalToolCalls: number;
+  successfulToolCalls: number;
+  failedToolCalls: number;
+  successRate: number;
+  failureRate: number;
+  averageDurationMs: number;
+}
+
 export type MetricSnapshotScope = 'personal' | 'team';
 
 export interface MetricSnapshotRecord {
@@ -39,6 +48,7 @@ export interface MetricEventRepository {
   listMetricSnapshots(
     filters?: MetricSnapshotFilters,
   ): Promise<MetricSnapshotRecord[]>;
+  buildMcpAuditMetrics(filters?: MetricSnapshotFilters): Promise<McpAuditMetrics>;
   disconnect(): Promise<void>;
 }
 
@@ -199,6 +209,68 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
       commitTotalLines: event.commit_total_lines ?? 0,
       sessionCount: 1,
     }));
+  }
+
+  async buildMcpAuditMetrics(
+    filters: MetricSnapshotFilters = {},
+  ): Promise<McpAuditMetrics> {
+    await this.ensureSchema();
+
+    const values: string[] = [];
+    const whereClauses = [`event_type = 'mcp.tool.called'`];
+
+    if (filters.projectKey) {
+      values.push(filters.projectKey);
+      whereClauses.push(`project_key = $${values.length}`);
+    }
+
+    if (filters.memberId) {
+      values.push(filters.memberId);
+      whereClauses.push(`member_id = $${values.length}`);
+    }
+
+    if (filters.from) {
+      values.push(filters.from);
+      whereClauses.push(`occurred_at >= $${values.length}`);
+    }
+
+    if (filters.to) {
+      values.push(filters.to);
+      whereClauses.push(`occurred_at <= $${values.length}`);
+    }
+
+    const result = await this.database.query<{
+      total_tool_calls: string | number;
+      successful_tool_calls: string | number;
+      failed_tool_calls: string | number;
+      average_duration_ms: string | number | null;
+    }>(
+      `
+        SELECT
+          COUNT(*) AS total_tool_calls,
+          COUNT(*) FILTER (WHERE payload->>'status' = 'success') AS successful_tool_calls,
+          COUNT(*) FILTER (WHERE payload->>'status' = 'failure') AS failed_tool_calls,
+          COALESCE(AVG((payload->>'durationMs')::DOUBLE PRECISION), 0) AS average_duration_ms
+        FROM metric_events
+        WHERE ${whereClauses.join(' AND ')}
+      `,
+      values,
+    );
+    const row = result.rows[0];
+    const totalToolCalls = Number(row?.total_tool_calls ?? 0);
+    const successfulToolCalls = Number(row?.successful_tool_calls ?? 0);
+    const failedToolCalls = Number(row?.failed_tool_calls ?? 0);
+    const averageDurationMs = Number(row?.average_duration_ms ?? 0);
+
+    return {
+      totalToolCalls,
+      successfulToolCalls,
+      failedToolCalls,
+      successRate:
+        totalToolCalls === 0 ? 0 : successfulToolCalls / totalToolCalls,
+      failureRate: totalToolCalls === 0 ? 0 : failedToolCalls / totalToolCalls,
+      averageDurationMs,
+    };
   }
 
   async saveMetricSnapshots(snapshots: MetricSnapshotRecord[]): Promise<void> {

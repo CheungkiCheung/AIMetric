@@ -28,6 +28,14 @@ describe('AppModule', () => {
       listRecordedMetricEvents: vi.fn(async () => []),
       saveMetricSnapshots: vi.fn(async () => undefined),
       listMetricSnapshots: vi.fn(async () => []),
+      buildMcpAuditMetrics: vi.fn(async () => ({
+        totalToolCalls: 3,
+        successfulToolCalls: 2,
+        failedToolCalls: 1,
+        successRate: 2 / 3,
+        failureRate: 1 / 3,
+        averageDurationMs: 15,
+      })),
       disconnect: vi.fn(async () => undefined),
     };
 
@@ -60,6 +68,7 @@ describe('AppModule', () => {
       ]),
       saveMetricSnapshots: vi.fn(async () => undefined),
       listMetricSnapshots: vi.fn(async () => []),
+      buildMcpAuditMetrics: vi.fn(async () => emptyMcpAuditMetrics()),
       disconnect: vi.fn(async () => undefined),
     };
 
@@ -79,6 +88,7 @@ describe('AppModule', () => {
       listRecordedMetricEvents: vi.fn(async () => []),
       saveMetricSnapshots: vi.fn(async () => undefined),
       listMetricSnapshots: vi.fn(async () => []),
+      buildMcpAuditMetrics: vi.fn(async () => emptyMcpAuditMetrics()),
       disconnect: vi.fn(async () => undefined),
     };
     const filters = {
@@ -116,6 +126,7 @@ describe('AppModule', () => {
       ]),
       saveMetricSnapshots: vi.fn(async () => undefined),
       listMetricSnapshots: vi.fn(async () => []),
+      buildMcpAuditMetrics: vi.fn(async () => emptyMcpAuditMetrics()),
       disconnect: vi.fn(async () => undefined),
     };
     const filters = {
@@ -187,6 +198,7 @@ describe('AppModule', () => {
         },
       ]),
       disconnect: vi.fn(async () => undefined),
+      buildMcpAuditMetrics: vi.fn(async () => emptyMcpAuditMetrics()),
     };
     const filters = {
       projectKey: 'navigation',
@@ -198,4 +210,47 @@ describe('AppModule', () => {
     expect(repository.listMetricSnapshots).toHaveBeenCalledWith(filters);
     expect(snapshots).toHaveLength(1);
   });
+
+  it('builds MCP audit metrics through the repository', async () => {
+    const repository = {
+      saveIngestionBatch: vi.fn(async () => undefined),
+      listRecordedMetricEvents: vi.fn(async () => []),
+      saveMetricSnapshots: vi.fn(async () => undefined),
+      listMetricSnapshots: vi.fn(async () => []),
+      buildMcpAuditMetrics: vi.fn(async () => ({
+        totalToolCalls: 3,
+        successfulToolCalls: 2,
+        failedToolCalls: 1,
+        successRate: 2 / 3,
+        failureRate: 1 / 3,
+        averageDurationMs: 15,
+      })),
+      disconnect: vi.fn(async () => undefined),
+    };
+    const filters = {
+      projectKey: 'aimetric',
+    };
+
+    const appModule = new AppModule(repository);
+    const metrics = await appModule.buildMcpAuditMetrics(filters);
+
+    expect(repository.buildMcpAuditMetrics).toHaveBeenCalledWith(filters);
+    expect(metrics).toEqual({
+      totalToolCalls: 3,
+      successfulToolCalls: 2,
+      failedToolCalls: 1,
+      successRate: 2 / 3,
+      failureRate: 1 / 3,
+      averageDurationMs: 15,
+    });
+  });
+});
+
+const emptyMcpAuditMetrics = () => ({
+  totalToolCalls: 0,
+  successfulToolCalls: 0,
+  failedToolCalls: 0,
+  successRate: 0,
+  failureRate: 0,
+  averageDurationMs: 0,
 });

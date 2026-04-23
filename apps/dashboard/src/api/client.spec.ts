@@ -25,6 +25,20 @@ describe('createDashboardClient', () => {
         );
       }
 
+      if (url.endsWith('/metrics/mcp-audit')) {
+        return new Response(
+          JSON.stringify({
+            totalToolCalls: 12,
+            successfulToolCalls: 10,
+            failedToolCalls: 2,
+            successRate: 10 / 12,
+            failureRate: 2 / 12,
+            averageDurationMs: 24,
+          }),
+          { status: 200 },
+        );
+      }
+
       return new Response(
         JSON.stringify({
           memberCount: 3,
@@ -47,6 +61,12 @@ describe('createDashboardClient', () => {
       aiOutputRate: 0.75,
       memberCount: 3,
     });
+    await expect(client.getMcpAuditMetrics()).resolves.toMatchObject({
+      totalToolCalls: 12,
+      successfulToolCalls: 10,
+      failedToolCalls: 2,
+      averageDurationMs: 24,
+    });
   });
 
   it('passes dashboard filters as metric query parameters', async () => {
@@ -67,15 +87,21 @@ describe('createDashboardClient', () => {
 
     const client = createDashboardClient('http://127.0.0.1:3001');
 
-    await client.getPersonalSnapshot({
+    const filters = {
       projectKey: 'navigation',
       memberId: 'alice',
       from: '2026-04-23T00:00:00.000Z',
       to: '2026-04-24T00:00:00.000Z',
-    });
+    };
+
+    await client.getPersonalSnapshot(filters);
+    await client.getMcpAuditMetrics(filters);
 
     expect(requestedUrls[0]).toBe(
       'http://127.0.0.1:3001/metrics/personal?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+    );
+    expect(requestedUrls[1]).toBe(
+      'http://127.0.0.1:3001/metrics/mcp-audit?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
   });
 });

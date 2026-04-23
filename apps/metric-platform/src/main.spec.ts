@@ -47,6 +47,9 @@ describe('bootstrap', () => {
       async listMetricSnapshots() {
         return [];
       },
+      async buildMcpAuditMetrics() {
+        return emptyMcpAuditMetrics();
+      },
       async disconnect() {
         return undefined;
       },
@@ -132,6 +135,9 @@ describe('bootstrap', () => {
       async listMetricSnapshots() {
         return [];
       },
+      async buildMcpAuditMetrics() {
+        return emptyMcpAuditMetrics();
+      },
       async disconnect() {
         return undefined;
       },
@@ -174,6 +180,9 @@ describe('bootstrap', () => {
       },
       async listMetricSnapshots() {
         return [];
+      },
+      async buildMcpAuditMetrics() {
+        return emptyMcpAuditMetrics();
       },
       async disconnect() {
         return undefined;
@@ -231,6 +240,9 @@ describe('bootstrap', () => {
       },
       async listMetricSnapshots() {
         return [];
+      },
+      async buildMcpAuditMetrics() {
+        return emptyMcpAuditMetrics();
       },
       async disconnect() {
         return undefined;
@@ -291,6 +303,9 @@ describe('bootstrap', () => {
           },
         ];
       },
+      async buildMcpAuditMetrics() {
+        return emptyMcpAuditMetrics();
+      },
       async disconnect() {
         return undefined;
       },
@@ -312,4 +327,66 @@ describe('bootstrap', () => {
     ]);
     expect(listCalls[0]).toEqual({ projectKey: 'navigation' });
   });
+
+  it('serves MCP audit quality metrics over HTTP', async () => {
+    const auditMetricCalls: unknown[] = [];
+    const metricEventRepository: MetricEventRepository = {
+      async saveIngestionBatch() {
+        return undefined;
+      },
+      async listRecordedMetricEvents() {
+        return [];
+      },
+      async saveMetricSnapshots() {
+        return undefined;
+      },
+      async listMetricSnapshots() {
+        return [];
+      },
+      async buildMcpAuditMetrics(filters) {
+        auditMetricCalls.push(filters);
+        return {
+          totalToolCalls: 3,
+          successfulToolCalls: 2,
+          failedToolCalls: 1,
+          successRate: 2 / 3,
+          failureRate: 1 / 3,
+          averageDurationMs: 15,
+        };
+      },
+      async disconnect() {
+        return undefined;
+      },
+    };
+
+    const app = await bootstrap({ port: 0, metricEventRepository });
+    servers.push(app);
+
+    const response = await fetch(
+      `${app.baseUrl}/metrics/mcp-audit?projectKey=aimetric&memberId=alice`,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      totalToolCalls: 3,
+      successfulToolCalls: 2,
+      failedToolCalls: 1,
+      successRate: 2 / 3,
+      failureRate: 1 / 3,
+      averageDurationMs: 15,
+    });
+    expect(auditMetricCalls[0]).toEqual({
+      projectKey: 'aimetric',
+      memberId: 'alice',
+    });
+  });
+});
+
+const emptyMcpAuditMetrics = () => ({
+  totalToolCalls: 0,
+  successfulToolCalls: 0,
+  failedToolCalls: 0,
+  successRate: 0,
+  failureRate: 0,
+  averageDurationMs: 0,
 });

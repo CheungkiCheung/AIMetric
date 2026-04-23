@@ -149,6 +149,15 @@ const handleRequest = async (
     return;
   }
 
+  if (method === 'GET' && url.pathname === '/metrics/mcp-audit') {
+    writeJson(
+      response,
+      200,
+      await appModule.buildMcpAuditMetrics(getMetricSnapshotFilters(url)),
+    );
+    return;
+  }
+
   if (method === 'POST' && url.pathname === '/metrics/recalculate') {
     try {
       const body = await readJsonBody(request);

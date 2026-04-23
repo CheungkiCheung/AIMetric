@@ -81,6 +81,10 @@ export class AppModule {
   listMetricSnapshots(filters: MetricSnapshotFilters = {}) {
     return this.metricEventRepository.listMetricSnapshots(filters);
   }
+
+  buildMcpAuditMetrics(filters: MetricSnapshotFilters = {}) {
+    return this.metricEventRepository.buildMcpAuditMetrics(filters);
+  }
 }
 
 const buildMetricSnapshots = (

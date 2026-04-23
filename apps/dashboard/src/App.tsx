@@ -3,9 +3,11 @@ import {
   createDashboardClient,
   type DashboardClient,
   type DashboardFilters,
+  type McpAuditMetrics,
   type PersonalSnapshot,
   type TeamSnapshot,
 } from './api/client.js';
+import { McpAuditDashboard } from './pages/mcp-audit-dashboard.js';
 import { PersonalDashboard } from './pages/personal-dashboard.js';
 import { TeamDashboard } from './pages/team-dashboard.js';
 
@@ -74,15 +76,17 @@ export const App = ({
 }: AppProps) => {
   const [personalSnapshot, setPersonalSnapshot] = useState<PersonalSnapshot | null>(null);
   const [teamSnapshot, setTeamSnapshot] = useState<TeamSnapshot | null>(null);
+  const [mcpAuditMetrics, setMcpAuditMetrics] = useState<McpAuditMetrics | null>(null);
   const [filters, setFilters] = useState<DashboardFilters>({});
 
   useEffect(() => {
     let active = true;
 
     const load = async () => {
-      const [personal, team] = await Promise.all([
+      const [personal, team, auditMetrics] = await Promise.all([
         client.getPersonalSnapshot(filters),
         client.getTeamSnapshot(filters),
+        client.getMcpAuditMetrics(filters),
       ]);
 
       if (!active) {
@@ -91,6 +95,7 @@ export const App = ({
 
       setPersonalSnapshot(personal);
       setTeamSnapshot(team);
+      setMcpAuditMetrics(auditMetrics);
     };
 
     void load();
@@ -171,7 +176,7 @@ export const App = ({
     </section>
   );
 
-  if (!personalSnapshot || !teamSnapshot) {
+  if (!personalSnapshot || !teamSnapshot || !mcpAuditMetrics) {
     return (
       <main style={shellStyle}>
         <div style={panelStyle}>
@@ -215,6 +220,7 @@ export const App = ({
         {filterControls}
         <PersonalDashboard snapshot={personalSnapshot} />
         <TeamDashboard snapshot={teamSnapshot} />
+        <McpAuditDashboard metrics={mcpAuditMetrics} />
       </div>
     </main>
   );

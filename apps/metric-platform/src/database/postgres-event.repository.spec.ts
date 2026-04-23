@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import type { QueryResultRow } from 'pg';
 import { PostgresMetricEventRepository } from './postgres-event.repository.js';
 
 const describeIfDatabase =
@@ -138,5 +139,67 @@ describeIfDatabase('PostgresMetricEventRepository', () => {
       sessionCount: 2,
       memberCount: 2,
     });
+  });
+});
+
+describe('PostgresMetricEventRepository query mapping', () => {
+  it('aggregates MCP audit metrics from metric events', async () => {
+    const queries: Array<{ text: string; values?: unknown[] }> = [];
+    const repository = new PostgresMetricEventRepository({
+      async query<T extends QueryResultRow = QueryResultRow>(
+        text: string,
+        values?: unknown[],
+      ) {
+        queries.push({ text, values });
+
+        if (text.includes('CREATE TABLE')) {
+          return {
+            command: '',
+            rowCount: 0,
+            oid: 0,
+            fields: [],
+            rows: [],
+          };
+        }
+
+        return {
+          command: '',
+          rowCount: 1,
+          oid: 0,
+          fields: [],
+          rows: ([
+            {
+              total_tool_calls: '3',
+              successful_tool_calls: '2',
+              failed_tool_calls: '1',
+              average_duration_ms: '15',
+            },
+          ] as unknown) as T[],
+        };
+      },
+    });
+
+    const metrics = await repository.buildMcpAuditMetrics({
+      projectKey: 'aimetric',
+      memberId: 'alice',
+      from: '2026-04-23T00:00:00.000Z',
+      to: '2026-04-24T00:00:00.000Z',
+    });
+
+    expect(metrics).toEqual({
+      totalToolCalls: 3,
+      successfulToolCalls: 2,
+      failedToolCalls: 1,
+      successRate: 2 / 3,
+      failureRate: 1 / 3,
+      averageDurationMs: 15,
+    });
+    expect(queries.at(-1)?.text).toContain("event_type = 'mcp.tool.called'");
+    expect(queries.at(-1)?.values).toEqual([
+      'aimetric',
+      'alice',
+      '2026-04-23T00:00:00.000Z',
+      '2026-04-24T00:00:00.000Z',
+    ]);
   });
 });
