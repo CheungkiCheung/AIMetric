@@ -79,6 +79,41 @@ describe('writeEmployeeOnboardingFiles', () => {
     expect(result.adapterPaths).toContain(join(workspaceDir, '.cursor', 'mcp.json'));
   });
 
+  it('writes a cursor collector config for cursor onboarding', async () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), 'aimetric-onboarding-cursor-collector-'));
+    temporaryWorkspaces.push(workspaceDir);
+
+    const result = await writeEmployeeOnboardingFiles({
+      workspaceDir,
+      projectKey: 'aimetric',
+      memberId: 'alice',
+      repoName: 'AIMetric',
+      toolProfile: 'cursor',
+    });
+
+    const collectorConfigPath = join(
+      workspaceDir,
+      '.aimetric',
+      'cursor-collector.json',
+    );
+    const collectorConfig = JSON.parse(readFileSync(collectorConfigPath, 'utf8')) as {
+      enabled: boolean;
+      publish: boolean;
+      discovery: {
+        cursorProjectsDir: string | null;
+      };
+    };
+
+    expect(result.adapterPaths).toContain(join(workspaceDir, '.cursor', 'mcp.json'));
+    expect(result.adapterPaths).toContain(collectorConfigPath);
+    expect(collectorConfig.enabled).toBe(true);
+    expect(collectorConfig.publish).toBe(false);
+    expect(collectorConfig.discovery.cursorProjectsDir).toBeNull();
+    expect(result.nextSteps).toContain(
+      'Optionally run aimetric-cursor-sync for enhanced Cursor session collection',
+    );
+  });
+
   it('writes tool-specific next steps for vscode onboarding', async () => {
     const workspaceDir = mkdtempSync(join(tmpdir(), 'aimetric-onboarding-vscode-'));
     temporaryWorkspaces.push(workspaceDir);

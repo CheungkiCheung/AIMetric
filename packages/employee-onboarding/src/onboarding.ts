@@ -70,6 +70,7 @@ const nextStepsByProfile: Record<EmployeeToolProfile, string[]> = {
     'Restart Cursor so the AIMetric MCP server is loaded',
     'Start collector-gateway before sending local events',
     'Run recordSession at the end of an AI coding session',
+    'Optionally run aimetric-cursor-sync for enhanced Cursor session collection',
   ],
   cli: [
     'Load .aimetric/mcp.json into your CLI agent or Codex-compatible MCP settings',
@@ -191,6 +192,11 @@ const writeToolProfileArtifacts = async (input: {
   if (input.toolProfile === 'cursor') {
     const cursorDirectory = join(input.workspaceDir, '.cursor');
     const cursorConfigPath = join(cursorDirectory, 'mcp.json');
+    const cursorCollectorConfigPath = join(
+      input.workspaceDir,
+      '.aimetric',
+      'cursor-collector.json',
+    );
 
     await mkdir(cursorDirectory, { recursive: true });
     await writeFile(
@@ -209,8 +215,28 @@ const writeToolProfileArtifacts = async (input: {
       )}\n`,
       'utf8',
     );
+    await writeFile(
+      cursorCollectorConfigPath,
+      `${JSON.stringify(
+        {
+          enabled: true,
+          publish: false,
+          discovery: {
+            cursorProjectsDir: null,
+            cursorWorkspaceStorageDir: null,
+            cursorGlobalStorageDir: null,
+          },
+          schedule: {
+            suggestedCron: '*/15 * * * *',
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      'utf8',
+    );
 
-    return [cursorConfigPath];
+    return [cursorConfigPath, cursorCollectorConfigPath];
   }
 
   if (input.toolProfile === 'vscode') {
