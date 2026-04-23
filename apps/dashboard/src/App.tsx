@@ -86,21 +86,42 @@ export const App = ({
   const [ruleRolloutEvaluation, setRuleRolloutEvaluation] =
     useState<RuleRolloutEvaluation | null>(null);
   const [filters, setFilters] = useState<DashboardFilters>({});
+  const [savingRuleRollout, setSavingRuleRollout] = useState(false);
+
+  const loadDashboard = async (nextFilters: DashboardFilters) => {
+    const projectKey = nextFilters.projectKey ?? 'aimetric';
+    const [personal, team, auditMetrics, versions, rollout, rolloutEvaluation] =
+      await Promise.all([
+        client.getPersonalSnapshot(nextFilters),
+        client.getTeamSnapshot(nextFilters),
+        client.getMcpAuditMetrics(nextFilters),
+        client.getRuleVersions(projectKey),
+        client.getRuleRollout(projectKey),
+        client.getRuleRolloutEvaluation(projectKey, nextFilters.memberId),
+      ]);
+
+    return {
+      personal,
+      team,
+      auditMetrics,
+      versions,
+      rollout,
+      rolloutEvaluation,
+    };
+  };
 
   useEffect(() => {
     let active = true;
 
     const load = async () => {
-      const projectKey = filters.projectKey ?? 'aimetric';
-      const [personal, team, auditMetrics, versions, rollout, rolloutEvaluation] =
-        await Promise.all([
-        client.getPersonalSnapshot(filters),
-        client.getTeamSnapshot(filters),
-        client.getMcpAuditMetrics(filters),
-        client.getRuleVersions(projectKey),
-        client.getRuleRollout(projectKey),
-        client.getRuleRolloutEvaluation(projectKey, filters.memberId),
-      ]);
+      const {
+        personal,
+        team,
+        auditMetrics,
+        versions,
+        rollout,
+        rolloutEvaluation,
+      } = await loadDashboard(filters);
 
       if (!active) {
         return;
@@ -137,6 +158,31 @@ export const App = ({
         [key]: value,
       }),
     );
+  };
+
+  const saveRuleRollout = async (input: RuleRollout) => {
+    setSavingRuleRollout(true);
+
+    try {
+      await client.updateRuleRollout(input);
+      const {
+        personal,
+        team,
+        auditMetrics,
+        versions,
+        rollout,
+        rolloutEvaluation,
+      } = await loadDashboard(filters);
+
+      setPersonalSnapshot(personal);
+      setTeamSnapshot(team);
+      setMcpAuditMetrics(auditMetrics);
+      setRuleVersions(versions);
+      setRuleRollout(rollout);
+      setRuleRolloutEvaluation(rolloutEvaluation);
+    } finally {
+      setSavingRuleRollout(false);
+    }
   };
 
   const filterControls = (
@@ -248,6 +294,8 @@ export const App = ({
           versions={ruleVersions}
           rollout={ruleRollout}
           evaluation={ruleRolloutEvaluation}
+          saving={savingRuleRollout}
+          onSave={saveRuleRollout}
         />
       </div>
     </main>

@@ -79,6 +79,7 @@ export interface DashboardClient {
     projectKey?: string,
     memberId?: string,
   ): Promise<RuleRolloutEvaluation>;
+  updateRuleRollout(input: RuleRollout): Promise<RuleRollout>;
 }
 
 const fallbackPersonalSnapshot: PersonalSnapshot = {
@@ -140,6 +141,34 @@ const fetchJson = async <T>(url: string, fallback: T): Promise<T> => {
 
   try {
     const response = await fetch(url);
+
+    if (!response.ok) {
+      return fallback;
+    }
+
+    return (await response.json()) as T;
+  } catch {
+    return fallback;
+  }
+};
+
+const sendJson = async <T>(
+  url: string,
+  body: unknown,
+  fallback: T,
+): Promise<T> => {
+  if (typeof fetch !== 'function') {
+    return fallback;
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
 
     if (!response.ok) {
       return fallback;
@@ -226,5 +255,11 @@ export const createDashboardClient = (
     fetchJson<RuleRolloutEvaluation>(
       buildRuleUrl(baseUrl, '/rules/rollout/evaluate', projectKey, memberId),
       fallbackRuleRolloutEvaluation,
+    ),
+  updateRuleRollout: (input) =>
+    sendJson<RuleRollout>(
+      new URL('/rules/rollout', baseUrl).toString(),
+      input,
+      fallbackRuleRollout,
     ),
 });

@@ -132,6 +132,20 @@ describe('createDashboardClient', () => {
       matched: true,
       reason: 'included-member',
     });
+    await expect(
+      client.updateRuleRollout({
+        projectKey: 'aimetric',
+        enabled: true,
+        candidateVersion: 'v1',
+        percentage: 40,
+        includedMembers: ['alice', 'bob'],
+      }),
+    ).resolves.toMatchObject({
+      projectKey: 'aimetric',
+      enabled: true,
+      candidateVersion: 'v1',
+      percentage: 25,
+    });
   });
 
   it('passes dashboard filters as metric query parameters', async () => {
@@ -180,5 +194,54 @@ describe('createDashboardClient', () => {
     expect(requestedUrls[4]).toBe(
       'http://127.0.0.1:3001/rules/rollout/evaluate?projectKey=navigation&memberId=alice',
     );
+  });
+
+  it('posts rollout updates to the metric platform', async () => {
+    const requests: Array<{
+      url: string;
+      method: string;
+      body: string;
+    }> = [];
+
+    globalThis.fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      requests.push({
+        url: String(input),
+        method: init?.method ?? 'GET',
+        body: typeof init?.body === 'string' ? init.body : '',
+      });
+      return new Response(
+        JSON.stringify({
+          projectKey: 'aimetric',
+          enabled: true,
+          candidateVersion: 'v1',
+          percentage: 40,
+          includedMembers: ['alice', 'bob'],
+          updatedAt: '2026-04-24T00:00:00.000Z',
+        }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+
+    const client = createDashboardClient('http://127.0.0.1:3001');
+
+    await client.updateRuleRollout({
+      projectKey: 'aimetric',
+      enabled: true,
+      candidateVersion: 'v1',
+      percentage: 40,
+      includedMembers: ['alice', 'bob'],
+    });
+
+    expect(requests[0]).toEqual({
+      url: 'http://127.0.0.1:3001/rules/rollout',
+      method: 'POST',
+      body: JSON.stringify({
+        projectKey: 'aimetric',
+        enabled: true,
+        candidateVersion: 'v1',
+        percentage: 40,
+        includedMembers: ['alice', 'bob'],
+      }),
+    });
   });
 });

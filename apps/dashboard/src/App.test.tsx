@@ -4,7 +4,7 @@ import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App.js';
-import type { DashboardFilters } from './api/client.js';
+import type { DashboardFilters, RuleRollout } from './api/client.js';
 
 describe('App', () => {
   afterEach(() => {
@@ -69,6 +69,7 @@ describe('App', () => {
             matched: true,
             reason: 'included-member',
           }),
+          updateRuleRollout: async (input: RuleRollout) => input,
         }}
       />,
     );
@@ -144,6 +145,7 @@ describe('App', () => {
           getRuleVersions,
           getRuleRollout,
           getRuleRolloutEvaluation,
+          updateRuleRollout: async (input: RuleRollout) => input,
         }}
       />,
     );
@@ -229,6 +231,7 @@ describe('App', () => {
             getRuleVersions,
             getRuleRollout,
             getRuleRolloutEvaluation,
+            updateRuleRollout: async (input: RuleRollout) => input,
           }}
         />,
       );
@@ -252,5 +255,106 @@ describe('App', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('saves rollout updates from the rule center management view', async () => {
+    let currentRollout: RuleRollout = {
+      projectKey: 'aimetric',
+      enabled: false,
+      candidateVersion: undefined,
+      percentage: 0,
+      includedMembers: [],
+      updatedAt: undefined,
+    };
+    const updateRuleRollout = vi.fn(async (input: RuleRollout) => {
+      currentRollout = {
+        ...input,
+        updatedAt: '2026-04-24T00:00:00.000Z',
+      };
+
+      return currentRollout;
+    });
+    const client = {
+      getPersonalSnapshot: async () => ({
+        acceptedAiLines: 35,
+        commitTotalLines: 50,
+        aiOutputRate: 0.7,
+        sessionCount: 4,
+      }),
+      getTeamSnapshot: async () => ({
+        memberCount: 2,
+        totalAcceptedAiLines: 50,
+        totalCommitLines: 80,
+        aiOutputRate: 0.625,
+        totalSessionCount: 6,
+      }),
+      getMcpAuditMetrics: async () => ({
+        totalToolCalls: 12,
+        successfulToolCalls: 10,
+        failedToolCalls: 2,
+        successRate: 10 / 12,
+        failureRate: 2 / 12,
+        averageDurationMs: 24,
+      }),
+      getRuleVersions: async () => ({
+        projectKey: 'aimetric',
+        activeVersion: 'v2',
+        versions: [
+          {
+            version: 'v1',
+            status: 'deprecated' as const,
+            updatedAt: '2026-04-23',
+            summary: '历史版本',
+          },
+          {
+            version: 'v2',
+            status: 'active' as const,
+            updatedAt: '2026-04-24',
+            summary: '当前版本',
+          },
+        ],
+      }),
+      getRuleRollout: async () => currentRollout,
+      getRuleRolloutEvaluation: async () => ({
+        projectKey: 'aimetric',
+        memberId: 'alice',
+        enabled: currentRollout.enabled,
+        activeVersion: 'v2',
+        selectedVersion: currentRollout.enabled ? 'v1' : 'v2',
+        candidateVersion: currentRollout.candidateVersion,
+        percentage: currentRollout.percentage,
+        bucket: currentRollout.enabled ? 7 : undefined,
+        matched: currentRollout.enabled,
+        reason: currentRollout.enabled
+          ? ('included-member' as const)
+          : ('rollout-disabled' as const),
+      }),
+      updateRuleRollout,
+    };
+
+    render(<App client={client} />);
+
+    await screen.findByText('规则中心管理');
+    fireEvent.click(screen.getByLabelText('启用灰度发布'));
+    fireEvent.change(screen.getByLabelText('候选版本'), {
+      target: { value: 'v1' },
+    });
+    fireEvent.change(screen.getByLabelText('灰度比例'), {
+      target: { value: '40' },
+    });
+    fireEvent.change(screen.getByLabelText('定向成员'), {
+      target: { value: 'alice, bob' },
+    });
+    fireEvent.click(screen.getByText('保存灰度策略'));
+
+    await waitFor(() => {
+      expect(updateRuleRollout).toHaveBeenCalledWith({
+        projectKey: 'aimetric',
+        enabled: true,
+        candidateVersion: 'v1',
+        percentage: 40,
+        includedMembers: ['alice', 'bob'],
+      });
+    });
   });
 });
