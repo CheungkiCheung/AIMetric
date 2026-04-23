@@ -1,0 +1,19 @@
+{
+  "name": "@aimetric/cursor-adapter",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "aimetric-cursor-sync": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@aimetric/collector-sdk": "workspace:*",
+    "@aimetric/cursor-db-adapter": "workspace:*",
+    "@aimetric/event-schema": "workspace:*"
+  }
+}

@@ -8,6 +8,7 @@ export interface CollectorClientOptions {
 
 export interface SessionRecordedInput {
   sessionId: string;
+  occurredAt?: string;
   acceptedAiLines?: number;
   commitTotalLines?: number;
   userMessage?: string;
@@ -51,7 +52,7 @@ export class ConfiguredCollectorClient {
   recordSession(input: SessionRecordedInput) {
     const event: CollectorEvent = {
       eventType: 'session.recorded',
-      occurredAt: this.now(),
+      occurredAt: input.occurredAt ?? this.now(),
       payload: {
         sessionId: input.sessionId,
         projectKey: this.config.projectKey,
