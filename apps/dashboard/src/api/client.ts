@@ -22,6 +22,28 @@ export interface McpAuditMetrics {
   averageDurationMs: number;
 }
 
+export interface RuleVersionSummary {
+  version: string;
+  status: 'active' | 'deprecated';
+  updatedAt: string;
+  summary: string;
+}
+
+export interface RuleVersionCatalog {
+  projectKey: string;
+  activeVersion: string;
+  versions: RuleVersionSummary[];
+}
+
+export interface RuleRollout {
+  projectKey: string;
+  enabled: boolean;
+  candidateVersion?: string;
+  percentage: number;
+  includedMembers: string[];
+  updatedAt?: string;
+}
+
 export interface DashboardFilters {
   projectKey?: string;
   memberId?: string;
@@ -33,6 +55,8 @@ export interface DashboardClient {
   getPersonalSnapshot(filters?: DashboardFilters): Promise<PersonalSnapshot>;
   getTeamSnapshot(filters?: DashboardFilters): Promise<TeamSnapshot>;
   getMcpAuditMetrics(filters?: DashboardFilters): Promise<McpAuditMetrics>;
+  getRuleVersions(projectKey?: string): Promise<RuleVersionCatalog>;
+  getRuleRollout(projectKey?: string): Promise<RuleRollout>;
 }
 
 const fallbackPersonalSnapshot: PersonalSnapshot = {
@@ -57,6 +81,21 @@ const fallbackMcpAuditMetrics: McpAuditMetrics = {
   successRate: 0,
   failureRate: 0,
   averageDurationMs: 0,
+};
+
+const fallbackRuleVersions: RuleVersionCatalog = {
+  projectKey: 'aimetric',
+  activeVersion: 'v2',
+  versions: [],
+};
+
+const fallbackRuleRollout: RuleRollout = {
+  projectKey: 'aimetric',
+  enabled: false,
+  candidateVersion: undefined,
+  percentage: 0,
+  includedMembers: [],
+  updatedAt: undefined,
 };
 
 const fetchJson = async <T>(url: string, fallback: T): Promise<T> => {
@@ -101,6 +140,20 @@ const buildMetricUrl = (
   return url.toString();
 };
 
+const buildRuleUrl = (
+  baseUrl: string,
+  path: string,
+  projectKey?: string,
+): string => {
+  const url = new URL(path, baseUrl);
+
+  if (projectKey) {
+    url.searchParams.set('projectKey', projectKey);
+  }
+
+  return url.toString();
+};
+
 export const createDashboardClient = (
   baseUrl = 'http://localhost:3001',
 ): DashboardClient => ({
@@ -118,5 +171,15 @@ export const createDashboardClient = (
     fetchJson<McpAuditMetrics>(
       buildMetricUrl(baseUrl, '/metrics/mcp-audit', filters),
       fallbackMcpAuditMetrics,
+    ),
+  getRuleVersions: (projectKey) =>
+    fetchJson<RuleVersionCatalog>(
+      buildRuleUrl(baseUrl, '/rules/versions', projectKey),
+      fallbackRuleVersions,
+    ),
+  getRuleRollout: (projectKey) =>
+    fetchJson<RuleRollout>(
+      buildRuleUrl(baseUrl, '/rules/rollout', projectKey),
+      fallbackRuleRollout,
     ),
 });

@@ -122,6 +122,20 @@ export class AppModule {
     return this.ruleCenterService.setActiveVersion(input);
   }
 
+  getRuleRollout(projectKey: string) {
+    return this.ruleCenterService.getRollout(projectKey);
+  }
+
+  setRuleRollout(input: {
+    projectKey: string;
+    enabled: boolean;
+    candidateVersion?: string;
+    percentage?: number;
+    includedMembers?: string[];
+  }) {
+    return this.ruleCenterService.setRollout(input);
+  }
+
   searchKnowledge(input: { query: string; limit?: number }) {
     return this.knowledgeSearchService.search(input);
   }

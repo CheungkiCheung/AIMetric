@@ -83,6 +83,16 @@ describe('createMcpRuntime', () => {
         name: 'searchKnowledge',
       }),
     );
+    expect(result.tools).toContainEqual(
+      expect.objectContaining({
+        name: 'getRuleRollout',
+      }),
+    );
+    expect(result.tools).toContainEqual(
+      expect.objectContaining({
+        name: 'setRuleRollout',
+      }),
+    );
   });
 
   it('calls registered tools and returns structured MCP content', async () => {

@@ -235,6 +235,55 @@ const handleRequest = async (
     return;
   }
 
+  if (method === 'GET' && url.pathname === '/rules/rollout') {
+    writeJson(
+      response,
+      200,
+      appModule.getRuleRollout(url.searchParams.get('projectKey') ?? 'aimetric'),
+    );
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/rules/rollout') {
+    try {
+      const body = await readJsonBody(request);
+      const payload = body as Record<string, unknown>;
+
+      if (typeof payload.enabled !== 'boolean') {
+        writeJson(response, 400, { message: 'enabled is required' });
+        return;
+      }
+
+      writeJson(
+        response,
+        200,
+        appModule.setRuleRollout({
+          projectKey:
+            typeof payload.projectKey === 'string'
+              ? payload.projectKey
+              : 'aimetric',
+          enabled: payload.enabled,
+          candidateVersion:
+            typeof payload.candidateVersion === 'string'
+              ? payload.candidateVersion
+              : undefined,
+          percentage:
+            typeof payload.percentage === 'number'
+              ? payload.percentage
+              : undefined,
+          includedMembers: Array.isArray(payload.includedMembers)
+            ? payload.includedMembers.filter(
+                (member): member is string => typeof member === 'string',
+              )
+            : [],
+        }),
+      );
+    } catch {
+      writeJson(response, 400, { message: 'Invalid rule rollout request' });
+    }
+    return;
+  }
+
   if (method === 'GET' && url.pathname === '/knowledge/search') {
     writeJson(
       response,

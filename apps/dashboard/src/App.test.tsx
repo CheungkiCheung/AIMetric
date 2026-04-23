@@ -37,6 +37,26 @@ describe('App', () => {
             failureRate: 2 / 12,
             averageDurationMs: 24,
           }),
+          getRuleVersions: async () => ({
+            projectKey: 'aimetric',
+            activeVersion: 'v2',
+            versions: [
+              {
+                version: 'v2',
+                status: 'active',
+                updatedAt: '2026-04-24',
+                summary: '文件化模板与版本切换基础版',
+              },
+            ],
+          }),
+          getRuleRollout: async () => ({
+            projectKey: 'aimetric',
+            enabled: true,
+            candidateVersion: 'v1',
+            percentage: 25,
+            includedMembers: ['alice'],
+            updatedAt: '2026-04-24T00:00:00.000Z',
+          }),
         }}
       />,
     );
@@ -44,9 +64,11 @@ describe('App', () => {
     expect(await screen.findByText('个人出码视图')).toBeInTheDocument();
     expect(screen.getByText('团队出码视图')).toBeInTheDocument();
     expect(screen.getByText('MCP 采集质量')).toBeInTheDocument();
+    expect(screen.getByText('规则中心管理')).toBeInTheDocument();
     expect(screen.getByText('70.0%')).toBeInTheDocument();
     expect(screen.getByText('62.5%')).toBeInTheDocument();
     expect(screen.getByText('83.3%')).toBeInTheDocument();
+    expect(screen.getByText('25%')).toBeInTheDocument();
   });
 
   it('reloads metrics when filters change', async () => {
@@ -71,6 +93,19 @@ describe('App', () => {
       failureRate: 2 / 12,
       averageDurationMs: 24,
     }));
+    const getRuleVersions = vi.fn(async (_projectKey?: string) => ({
+      projectKey: 'aimetric',
+      activeVersion: 'v2',
+      versions: [],
+    }));
+    const getRuleRollout = vi.fn(async (_projectKey?: string) => ({
+      projectKey: 'aimetric',
+      enabled: false,
+      candidateVersion: undefined,
+      percentage: 0,
+      includedMembers: [],
+      updatedAt: undefined,
+    }));
 
     render(
       <App
@@ -78,6 +113,8 @@ describe('App', () => {
           getPersonalSnapshot,
           getTeamSnapshot,
           getMcpAuditMetrics,
+          getRuleVersions,
+          getRuleRollout,
         }}
       />,
     );
@@ -94,6 +131,8 @@ describe('App', () => {
       expect(getMcpAuditMetrics).toHaveBeenLastCalledWith(
         expect.objectContaining({ projectKey: 'navigation' }),
       );
+      expect(getRuleVersions).toHaveBeenLastCalledWith('navigation');
+      expect(getRuleRollout).toHaveBeenLastCalledWith('navigation');
     });
   });
 
@@ -120,6 +159,19 @@ describe('App', () => {
       failureRate: 2 / 12,
       averageDurationMs: 24,
     }));
+    const getRuleVersions = vi.fn(async () => ({
+      projectKey: 'aimetric',
+      activeVersion: 'v2',
+      versions: [],
+    }));
+    const getRuleRollout = vi.fn(async () => ({
+      projectKey: 'aimetric',
+      enabled: false,
+      candidateVersion: undefined,
+      percentage: 0,
+      includedMembers: [],
+      updatedAt: undefined,
+    }));
 
     try {
       render(
@@ -129,6 +181,8 @@ describe('App', () => {
             getPersonalSnapshot,
             getTeamSnapshot,
             getMcpAuditMetrics,
+            getRuleVersions,
+            getRuleRollout,
           }}
         />,
       );
@@ -146,6 +200,8 @@ describe('App', () => {
       expect(getPersonalSnapshot).toHaveBeenCalledTimes(2);
       expect(getTeamSnapshot).toHaveBeenCalledTimes(2);
       expect(getMcpAuditMetrics).toHaveBeenCalledTimes(2);
+      expect(getRuleVersions).toHaveBeenCalledTimes(2);
+      expect(getRuleRollout).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }

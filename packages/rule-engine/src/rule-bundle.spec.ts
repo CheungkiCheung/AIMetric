@@ -4,10 +4,12 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   getProjectRulePack,
+  getRuleRollout,
   getRuleTemplate,
   listRuleVersions,
   resolveRuleBundle,
   setActiveRuleVersion,
+  setRuleRollout,
   validateRuleTemplate,
 } from './rule-bundle.js';
 
@@ -155,6 +157,52 @@ describe('setActiveRuleVersion', () => {
         },
       ).version,
     ).toBe('v1');
+  });
+});
+
+describe('rule rollout management', () => {
+  it('returns a disabled rollout when the manifest has no rollout policy', () => {
+    const rollout = getRuleRollout('aimetric');
+
+    expect(rollout).toEqual({
+      projectKey: 'aimetric',
+      enabled: false,
+      candidateVersion: undefined,
+      percentage: 0,
+      includedMembers: [],
+      updatedAt: undefined,
+    });
+  });
+
+  it('persists a rule rollout policy in the manifest catalog', () => {
+    const catalogRoot = createTemporaryCatalogRoot();
+
+    const rollout = setRuleRollout(
+      {
+        projectKey: 'aimetric',
+        enabled: true,
+        candidateVersion: 'v1',
+        percentage: 25,
+        includedMembers: ['alice', 'bob'],
+      },
+      {
+        catalogRoot,
+      },
+    );
+
+    expect(rollout).toMatchObject({
+      projectKey: 'aimetric',
+      enabled: true,
+      candidateVersion: 'v1',
+      percentage: 25,
+      includedMembers: ['alice', 'bob'],
+    });
+    expect(rollout.updatedAt).toEqual(expect.any(String));
+    expect(
+      getRuleRollout('aimetric', {
+        catalogRoot,
+      }),
+    ).toEqual(rollout);
   });
 });
 

@@ -24,6 +24,15 @@ export interface RuleVersionSummary {
   summary: string;
 }
 
+export interface RuleRollout {
+  projectKey: string;
+  enabled: boolean;
+  candidateVersion?: string;
+  percentage: number;
+  includedMembers: string[];
+  updatedAt?: string;
+}
+
 export interface RuleTemplateSection {
   id: string;
   title: string;
@@ -62,6 +71,7 @@ interface ProjectRuleManifest {
   sceneMandatoryRules: Record<string, string[]>;
   sceneOnDemandRules: Record<string, string[]>;
   versions: RuleVersionSummary[];
+  rollout?: Omit<RuleRollout, 'projectKey'>;
 }
 
 const defaultCatalogRoot = fileURLToPath(new URL('./templates', import.meta.url));
@@ -173,6 +183,24 @@ export function listRuleVersions(
   };
 }
 
+export function getRuleRollout(
+  projectKey = defaultProjectKey,
+  options?: RuleCatalogOptions,
+): RuleRollout {
+  const manifest = readJsonFile<ProjectRuleManifest>(
+    getManifestPath(projectKey, options),
+  );
+
+  return {
+    projectKey: manifest.projectKey,
+    enabled: manifest.rollout?.enabled ?? false,
+    candidateVersion: manifest.rollout?.candidateVersion,
+    percentage: manifest.rollout?.percentage ?? 0,
+    includedMembers: manifest.rollout?.includedMembers ?? [],
+    updatedAt: manifest.rollout?.updatedAt,
+  };
+}
+
 export function getRuleTemplate(input: {
   projectKey?: string;
   version?: string;
@@ -270,5 +298,58 @@ export function setActiveRuleVersion(
     projectKey,
     previousVersion,
     activeVersion: input.version,
+  };
+}
+
+export function setRuleRollout(
+  input: {
+    projectKey?: string;
+    enabled: boolean;
+    candidateVersion?: string;
+    percentage?: number;
+    includedMembers?: string[];
+  },
+  options?: RuleCatalogOptions,
+): RuleRollout {
+  const projectKey = input.projectKey ?? defaultProjectKey;
+  const manifestPath = getManifestPath(projectKey, options);
+  const manifest = readJsonFile<ProjectRuleManifest>(manifestPath);
+  const percentage = input.percentage ?? 0;
+  const includedMembers = [...(input.includedMembers ?? [])];
+
+  if (percentage < 0 || percentage > 100) {
+    throw new Error('Rule rollout percentage must be between 0 and 100.');
+  }
+
+  if (
+    input.enabled &&
+    !manifest.versions.some((version) => version.version === input.candidateVersion)
+  ) {
+    throw new Error(
+      `Unknown rollout candidate version: ${projectKey}@${input.candidateVersion}`,
+    );
+  }
+
+  const rollout: Omit<RuleRollout, 'projectKey'> = {
+    enabled: input.enabled,
+    candidateVersion: input.candidateVersion,
+    percentage,
+    includedMembers,
+    updatedAt: new Date().toISOString(),
+  };
+  const updatedManifest: ProjectRuleManifest = {
+    ...manifest,
+    rollout,
+  };
+
+  writeFileSync(
+    manifestPath,
+    `${JSON.stringify(updatedManifest, null, 2)}\n`,
+    'utf8',
+  );
+
+  return {
+    projectKey: manifest.projectKey,
+    ...rollout,
   };
 }

@@ -1,11 +1,13 @@
 import { afterEditFile } from '../tools/after-edit-file.tool.js';
 import { beforeEditFile } from '../tools/before-edit-file.tool.js';
 import { getProjectRules } from '../tools/get-project-rules.tool.js';
+import { getRuleRollout } from '../tools/get-rule-rollout.tool.js';
 import { getRuleTemplate } from '../tools/get-rule-template.tool.js';
 import { listRuleVersions } from '../tools/list-rule-versions.tool.js';
 import { recordSession } from '../tools/record-session.tool.js';
 import { searchKnowledge } from '../tools/search-knowledge.tool.js';
 import { setActiveRuleVersion } from '../tools/set-active-rule-version.tool.js';
+import { setRuleRollout } from '../tools/set-rule-rollout.tool.js';
 import { validateRuleTemplate } from '../tools/validate-rule-template.tool.js';
 
 export interface JsonSchemaObject {
@@ -126,6 +128,40 @@ export const createToolRegistry = (
       }, ['projectKey', 'version']),
       invoke: (input) =>
         setActiveRuleVersion(input as Parameters<typeof setActiveRuleVersion>[0]),
+    },
+    {
+      name: 'getRuleRollout',
+      description: 'Read the current rule rollout policy for a project catalog.',
+      inputSchema: objectSchema({
+        projectKey: stringProperty('AIMetric project key.'),
+        catalogRoot: stringProperty('Optional local rule catalog root for tests or staging.'),
+      }, ['projectKey']),
+      invoke: (input) => getRuleRollout(input as Parameters<typeof getRuleRollout>[0]),
+    },
+    {
+      name: 'setRuleRollout',
+      description: 'Update the rule rollout policy for a project catalog.',
+      inputSchema: objectSchema({
+        projectKey: stringProperty('AIMetric project key.'),
+        enabled: {
+          type: 'boolean',
+          description: 'Whether rule rollout is enabled.',
+        },
+        candidateVersion: stringProperty('Candidate rule template version.'),
+        percentage: {
+          type: 'number',
+          description: 'Rollout percentage from 0 to 100.',
+        },
+        includedMembers: {
+          type: 'array',
+          description: 'Members that should always receive the rollout version.',
+          items: {
+            type: 'string',
+          },
+        },
+        catalogRoot: stringProperty('Optional local rule catalog root for tests or staging.'),
+      }, ['projectKey', 'enabled']),
+      invoke: (input) => setRuleRollout(input as Parameters<typeof setRuleRollout>[0]),
     },
     {
       name: 'searchKnowledge',

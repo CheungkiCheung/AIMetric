@@ -3,10 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { getProjectRules } from './get-project-rules.tool.js';
+import { getRuleRollout } from './get-rule-rollout.tool.js';
 import { getRuleTemplate } from './get-rule-template.tool.js';
 import { listRuleVersions } from './list-rule-versions.tool.js';
 import { searchKnowledge } from './search-knowledge.tool.js';
 import { setActiveRuleVersion } from './set-active-rule-version.tool.js';
+import { setRuleRollout } from './set-rule-rollout.tool.js';
 import { validateRuleTemplate } from './validate-rule-template.tool.js';
 import { beforeEditFile } from './before-edit-file.tool.js';
 import { afterEditFile } from './after-edit-file.tool.js';
@@ -164,6 +166,51 @@ describe('setActiveRuleVersion', () => {
     expect(result.projectKey).toBe('aimetric');
     expect(result.previousVersion).toBeDefined();
     expect(result.activeVersion).toBe('v1');
+  });
+});
+
+describe('rule rollout tools', () => {
+  it('returns the current rule rollout policy for MCP consumers', async () => {
+    const result = await getRuleRollout({
+      projectKey: 'aimetric',
+    });
+
+    expect(result).toMatchObject({
+      projectKey: 'aimetric',
+      enabled: false,
+      percentage: 0,
+      includedMembers: [],
+    });
+  });
+
+  it('updates the rule rollout policy for MCP consumers', async () => {
+    const catalogRoot = createTemporaryCatalogRoot();
+    const result = await setRuleRollout({
+      projectKey: 'aimetric',
+      enabled: true,
+      candidateVersion: 'v1',
+      percentage: 25,
+      includedMembers: ['alice'],
+      catalogRoot,
+    });
+
+    expect(result).toMatchObject({
+      projectKey: 'aimetric',
+      enabled: true,
+      candidateVersion: 'v1',
+      percentage: 25,
+      includedMembers: ['alice'],
+    });
+    await expect(
+      getRuleRollout({
+        projectKey: 'aimetric',
+        catalogRoot,
+      }),
+    ).resolves.toMatchObject({
+      enabled: true,
+      candidateVersion: 'v1',
+      percentage: 25,
+    });
   });
 });
 

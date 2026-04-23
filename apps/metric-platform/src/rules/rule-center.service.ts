@@ -1,8 +1,10 @@
 import {
   getProjectRulePack,
+  getRuleRollout,
   getRuleTemplate,
   listRuleVersions,
   setActiveRuleVersion,
+  setRuleRollout,
   validateRuleTemplate,
   type RuleCatalogOptions,
 } from '@aimetric/rule-engine';
@@ -32,5 +34,19 @@ export class RuleCenterService {
 
   setActiveVersion(input: { projectKey: string; version: string }) {
     return setActiveRuleVersion(input, this.options);
+  }
+
+  getRollout(projectKey: string) {
+    return getRuleRollout(projectKey, this.options);
+  }
+
+  setRollout(input: {
+    projectKey: string;
+    enabled: boolean;
+    candidateVersion?: string;
+    percentage?: number;
+    includedMembers?: string[];
+  }) {
+    return setRuleRollout(input, this.options);
   }
 }

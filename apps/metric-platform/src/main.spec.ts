@@ -412,11 +412,33 @@ describe('bootstrap', () => {
         version: 'v1',
       }),
     });
+    const defaultRolloutResponse = await fetch(
+      `${app.baseUrl}/rules/rollout?projectKey=aimetric`,
+    );
+    const rolloutUpdateResponse = await fetch(`${app.baseUrl}/rules/rollout`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        projectKey: 'aimetric',
+        enabled: true,
+        candidateVersion: 'v1',
+        percentage: 25,
+        includedMembers: ['alice'],
+      }),
+    });
+    const persistedRolloutResponse = await fetch(
+      `${app.baseUrl}/rules/rollout?projectKey=aimetric`,
+    );
 
     expect(versionsResponse.status).toBe(200);
     expect(templateResponse.status).toBe(200);
     expect(validationResponse.status).toBe(200);
     expect(activeResponse.status).toBe(200);
+    expect(defaultRolloutResponse.status).toBe(200);
+    expect(rolloutUpdateResponse.status).toBe(200);
+    expect(persistedRolloutResponse.status).toBe(200);
     await expect(versionsResponse.json()).resolves.toMatchObject({
       projectKey: 'aimetric',
       activeVersion: 'v2',
@@ -433,6 +455,26 @@ describe('bootstrap', () => {
       projectKey: 'aimetric',
       previousVersion: 'v2',
       activeVersion: 'v1',
+    });
+    await expect(defaultRolloutResponse.json()).resolves.toMatchObject({
+      projectKey: 'aimetric',
+      enabled: false,
+      percentage: 0,
+      includedMembers: [],
+    });
+    await expect(rolloutUpdateResponse.json()).resolves.toMatchObject({
+      projectKey: 'aimetric',
+      enabled: true,
+      candidateVersion: 'v1',
+      percentage: 25,
+      includedMembers: ['alice'],
+    });
+    await expect(persistedRolloutResponse.json()).resolves.toMatchObject({
+      projectKey: 'aimetric',
+      enabled: true,
+      candidateVersion: 'v1',
+      percentage: 25,
+      includedMembers: ['alice'],
     });
   });
 

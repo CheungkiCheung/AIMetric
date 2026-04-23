@@ -5,10 +5,13 @@ import {
   type DashboardFilters,
   type McpAuditMetrics,
   type PersonalSnapshot,
+  type RuleRollout,
+  type RuleVersionCatalog,
   type TeamSnapshot,
 } from './api/client.js';
 import { McpAuditDashboard } from './pages/mcp-audit-dashboard.js';
 import { PersonalDashboard } from './pages/personal-dashboard.js';
+import { RuleCenterDashboard } from './pages/rule-center-dashboard.js';
 import { TeamDashboard } from './pages/team-dashboard.js';
 
 const shellStyle = {
@@ -77,16 +80,21 @@ export const App = ({
   const [personalSnapshot, setPersonalSnapshot] = useState<PersonalSnapshot | null>(null);
   const [teamSnapshot, setTeamSnapshot] = useState<TeamSnapshot | null>(null);
   const [mcpAuditMetrics, setMcpAuditMetrics] = useState<McpAuditMetrics | null>(null);
+  const [ruleVersions, setRuleVersions] = useState<RuleVersionCatalog | null>(null);
+  const [ruleRollout, setRuleRollout] = useState<RuleRollout | null>(null);
   const [filters, setFilters] = useState<DashboardFilters>({});
 
   useEffect(() => {
     let active = true;
 
     const load = async () => {
-      const [personal, team, auditMetrics] = await Promise.all([
+      const projectKey = filters.projectKey ?? 'aimetric';
+      const [personal, team, auditMetrics, versions, rollout] = await Promise.all([
         client.getPersonalSnapshot(filters),
         client.getTeamSnapshot(filters),
         client.getMcpAuditMetrics(filters),
+        client.getRuleVersions(projectKey),
+        client.getRuleRollout(projectKey),
       ]);
 
       if (!active) {
@@ -96,6 +104,8 @@ export const App = ({
       setPersonalSnapshot(personal);
       setTeamSnapshot(team);
       setMcpAuditMetrics(auditMetrics);
+      setRuleVersions(versions);
+      setRuleRollout(rollout);
     };
 
     void load();
@@ -176,7 +186,13 @@ export const App = ({
     </section>
   );
 
-  if (!personalSnapshot || !teamSnapshot || !mcpAuditMetrics) {
+  if (
+    !personalSnapshot ||
+    !teamSnapshot ||
+    !mcpAuditMetrics ||
+    !ruleVersions ||
+    !ruleRollout
+  ) {
     return (
       <main style={shellStyle}>
         <div style={panelStyle}>
@@ -221,6 +237,7 @@ export const App = ({
         <PersonalDashboard snapshot={personalSnapshot} />
         <TeamDashboard snapshot={teamSnapshot} />
         <McpAuditDashboard metrics={mcpAuditMetrics} />
+        <RuleCenterDashboard versions={ruleVersions} rollout={ruleRollout} />
       </div>
     </main>
   );

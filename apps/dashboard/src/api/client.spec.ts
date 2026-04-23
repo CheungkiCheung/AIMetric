@@ -39,6 +39,38 @@ describe('createDashboardClient', () => {
         );
       }
 
+      if (url.endsWith('/rules/versions')) {
+        return new Response(
+          JSON.stringify({
+            projectKey: 'aimetric',
+            activeVersion: 'v2',
+            versions: [
+              {
+                version: 'v2',
+                status: 'active',
+                updatedAt: '2026-04-24',
+                summary: '文件化模板与版本切换基础版',
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+
+      if (url.endsWith('/rules/rollout')) {
+        return new Response(
+          JSON.stringify({
+            projectKey: 'aimetric',
+            enabled: true,
+            candidateVersion: 'v1',
+            percentage: 25,
+            includedMembers: ['alice'],
+            updatedAt: '2026-04-24T00:00:00.000Z',
+          }),
+          { status: 200 },
+        );
+      }
+
       return new Response(
         JSON.stringify({
           memberCount: 3,
@@ -66,6 +98,16 @@ describe('createDashboardClient', () => {
       successfulToolCalls: 10,
       failedToolCalls: 2,
       averageDurationMs: 24,
+    });
+    await expect(client.getRuleVersions()).resolves.toMatchObject({
+      projectKey: 'aimetric',
+      activeVersion: 'v2',
+    });
+    await expect(client.getRuleRollout()).resolves.toMatchObject({
+      projectKey: 'aimetric',
+      enabled: true,
+      candidateVersion: 'v1',
+      percentage: 25,
     });
   });
 
@@ -96,12 +138,20 @@ describe('createDashboardClient', () => {
 
     await client.getPersonalSnapshot(filters);
     await client.getMcpAuditMetrics(filters);
+    await client.getRuleVersions('navigation');
+    await client.getRuleRollout('navigation');
 
     expect(requestedUrls[0]).toBe(
       'http://127.0.0.1:3001/metrics/personal?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
     expect(requestedUrls[1]).toBe(
       'http://127.0.0.1:3001/metrics/mcp-audit?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+    );
+    expect(requestedUrls[2]).toBe(
+      'http://127.0.0.1:3001/rules/versions?projectKey=navigation',
+    );
+    expect(requestedUrls[3]).toBe(
+      'http://127.0.0.1:3001/rules/rollout?projectKey=navigation',
     );
   });
 });
