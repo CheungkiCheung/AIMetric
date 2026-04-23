@@ -1,18 +1,27 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createMcpRuntime,
   type JsonRpcResponse,
 } from './mcp-runtime.js';
 
 const temporaryWorkspaces: string[] = [];
+const originalFetch = globalThis.fetch;
 
 afterEach(() => {
   temporaryWorkspaces.splice(0).forEach((workspace) => {
     rmSync(workspace, { recursive: true, force: true });
   });
+  globalThis.fetch = originalFetch;
+  vi.restoreAllMocks();
 });
 
 describe('createMcpRuntime', () => {
@@ -258,6 +267,58 @@ describe('createMcpRuntime', () => {
         repoName: 'AIMetric',
       }),
     });
+  });
+
+  it('persists and uploads tool audit events when workspace config is available', async () => {
+    const workspaceDir = createWorkspaceWithAimMetricConfig();
+    globalThis.fetch = vi.fn(async () =>
+      new Response(JSON.stringify({ accepted: 1 }), { status: 200 }),
+    ) as typeof fetch;
+    const runtime = createMcpRuntime({
+      environment: {
+        AIMETRIC_WORKSPACE_DIR: workspaceDir,
+      },
+    });
+
+    await runtime.handleRequest({
+      jsonrpc: '2.0',
+      id: 'call-with-audit-upload',
+      method: 'tools/call',
+      params: {
+        name: 'recordSession',
+        arguments: {
+          sessionId: 'sess_1',
+          userMessage: 'change the file',
+          assistantMessage: 'file changed',
+        },
+      },
+    });
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:3000/ingestion',
+      expect.objectContaining({
+        method: 'POST',
+      }),
+    );
+    const uploadBody = JSON.parse(
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[1]
+        ?.body as string,
+    );
+    expect(uploadBody.events[0]).toEqual(
+      expect.objectContaining({
+        eventType: 'mcp.tool.called',
+        payload: expect.objectContaining({
+          projectKey: 'aimetric',
+          memberId: 'alice',
+          repoName: 'AIMetric',
+          toolName: 'recordSession',
+          status: 'success',
+        }),
+      }),
+    );
+    expect(
+      readFileSync(join(workspaceDir, '.aimetric', 'audit-events.jsonl'), 'utf8'),
+    ).toContain('"toolName":"recordSession"');
   });
 
   it('returns JSON-RPC errors for unknown tools', async () => {

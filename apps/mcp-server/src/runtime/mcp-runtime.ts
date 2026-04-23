@@ -1,5 +1,12 @@
 import { createToolRegistry, type McpTool } from './tool-registry.js';
-import { ToolAuditRecorder, type ToolAuditEvent } from './tool-audit.js';
+import {
+  ToolAuditRecorder,
+  createHttpToolAuditPublisherFromEnvironment,
+  createJsonlToolAuditStoreFromEnvironment,
+  type ToolAuditEvent,
+  type ToolAuditPublisher,
+  type ToolAuditStore,
+} from './tool-audit.js';
 
 export type JsonRpcId = string | number | null;
 
@@ -36,6 +43,8 @@ export interface McpRuntimeOptions {
   toolRegistry?: Map<string, McpTool>;
   environment?: Record<string, string | undefined>;
   auditRecorder?: ToolAuditRecorder;
+  auditPublisher?: ToolAuditPublisher;
+  auditStore?: ToolAuditStore;
   now?: () => Date;
 }
 
@@ -49,11 +58,18 @@ export const createMcpRuntime = (
     createToolRegistry({
       environment: options.environment,
     });
+  const environment = options.environment ?? process.env;
   const now = options.now ?? (() => new Date());
   const auditRecorder =
     options.auditRecorder ??
     new ToolAuditRecorder({
       now,
+      publisher:
+        options.auditPublisher ??
+        createHttpToolAuditPublisherFromEnvironment(environment),
+      store:
+        options.auditStore ??
+        createJsonlToolAuditStoreFromEnvironment(environment),
     });
 
   return {
@@ -130,7 +146,7 @@ const callTool = async (input: {
   const tool = toolRegistry.get(params.name);
 
   if (!tool) {
-    auditRecorder.record({
+    await auditRecorder.record({
       toolName: params.name,
       requestId: id,
       status: 'failure',
@@ -145,7 +161,7 @@ const callTool = async (input: {
 
   try {
     const toolResult = await tool.invoke(toolArguments);
-    auditRecorder.record({
+    await auditRecorder.record({
       toolName: tool.name,
       requestId: id,
       status: 'success',
@@ -164,7 +180,7 @@ const callTool = async (input: {
     });
   } catch (error_) {
     const errorMessage = toErrorMessage(error_);
-    auditRecorder.record({
+    await auditRecorder.record({
       toolName: tool.name,
       requestId: id,
       status: 'failure',
