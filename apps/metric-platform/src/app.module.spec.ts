@@ -244,6 +244,42 @@ describe('AppModule', () => {
       averageDurationMs: 15,
     });
   });
+
+  it('exposes rule center operations from the application module', () => {
+    const repository = createEmptyRepository();
+    const appModule = new AppModule(repository);
+
+    expect(appModule.listRuleVersions('aimetric')).toMatchObject({
+      projectKey: 'aimetric',
+      activeVersion: 'v2',
+    });
+    expect(
+      appModule.getRuleTemplate({
+        projectKey: 'aimetric',
+        version: 'v2',
+      }),
+    ).toMatchObject({
+      projectKey: 'aimetric',
+      version: 'v2',
+    });
+    expect(
+      appModule.validateRuleTemplate({
+        projectKey: 'aimetric',
+        version: 'v2',
+      }),
+    ).toMatchObject({
+      valid: true,
+    });
+  });
+});
+
+const createEmptyRepository = () => ({
+  saveIngestionBatch: vi.fn(async () => undefined),
+  listRecordedMetricEvents: vi.fn(async () => []),
+  saveMetricSnapshots: vi.fn(async () => undefined),
+  listMetricSnapshots: vi.fn(async () => []),
+  buildMcpAuditMetrics: vi.fn(async () => emptyMcpAuditMetrics()),
+  disconnect: vi.fn(async () => undefined),
 });
 
 const emptyMcpAuditMetrics = () => ({

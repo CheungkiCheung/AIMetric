@@ -7,20 +7,32 @@ import {
   type MetricSnapshotFilters,
   type RecordedMetricEvent,
 } from './database/postgres-event.repository.js';
+import { KnowledgeSearchService } from './knowledge/knowledge-search.service.js';
 import { MetricsController } from './metrics/metrics.controller.js';
 import { MetricsService } from './metrics/metrics.service.js';
+import { RuleCenterService } from './rules/rule-center.service.js';
 
 export class AppModule {
   readonly metricsController: MetricsController;
   readonly metricEventRepository: MetricEventRepository;
+  readonly ruleCenterService: RuleCenterService;
+  readonly knowledgeSearchService: KnowledgeSearchService;
 
   constructor(
     metricEventRepository: MetricEventRepository =
       new PostgresMetricEventRepository(),
+    options: {
+      ruleCatalogRoot?: string;
+      docsRoot?: string;
+    } = {},
   ) {
     this.metricEventRepository = metricEventRepository;
     const metricsService = new MetricsService();
     this.metricsController = new MetricsController(metricsService);
+    this.ruleCenterService = new RuleCenterService({
+      catalogRoot: options.ruleCatalogRoot,
+    });
+    this.knowledgeSearchService = new KnowledgeSearchService(options.docsRoot);
   }
 
   async importEvents(batch: IngestionBatch) {
@@ -84,6 +96,34 @@ export class AppModule {
 
   buildMcpAuditMetrics(filters: MetricSnapshotFilters = {}) {
     return this.metricEventRepository.buildMcpAuditMetrics(filters);
+  }
+
+  getProjectRules(input: {
+    projectKey: string;
+    toolType: string;
+    sceneType: string;
+  }) {
+    return this.ruleCenterService.getProjectRules(input);
+  }
+
+  listRuleVersions(projectKey: string) {
+    return this.ruleCenterService.listVersions(projectKey);
+  }
+
+  getRuleTemplate(input: { projectKey: string; version?: string }) {
+    return this.ruleCenterService.getTemplate(input);
+  }
+
+  validateRuleTemplate(input: { projectKey: string; version?: string }) {
+    return this.ruleCenterService.validateTemplate(input);
+  }
+
+  setActiveRuleVersion(input: { projectKey: string; version: string }) {
+    return this.ruleCenterService.setActiveVersion(input);
+  }
+
+  searchKnowledge(input: { query: string; limit?: number }) {
+    return this.knowledgeSearchService.search(input);
   }
 }
 

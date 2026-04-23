@@ -1,3 +1,6 @@
+import { cpSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { bootstrap } from './main.js';
 import type {
@@ -7,10 +10,14 @@ import type {
 
 describe('bootstrap', () => {
   const servers: Array<{ close: () => Promise<void> }> = [];
+  const temporaryDirectories: string[] = [];
 
   afterEach(async () => {
     await Promise.all(servers.map((server) => server.close()));
     servers.length = 0;
+    temporaryDirectories.splice(0).forEach((directory) => {
+      rmSync(directory, { recursive: true, force: true });
+    });
     vi.useRealTimers();
   });
 
@@ -380,6 +387,85 @@ describe('bootstrap', () => {
       memberId: 'alice',
     });
   });
+
+  it('serves rule center APIs over HTTP', async () => {
+    const catalogRoot = createTemporaryRuleCatalogRoot();
+    const app = await bootstrap({ port: 0, ruleCatalogRoot: catalogRoot });
+    servers.push(app);
+
+    const versionsResponse = await fetch(
+      `${app.baseUrl}/rules/versions?projectKey=aimetric`,
+    );
+    const templateResponse = await fetch(
+      `${app.baseUrl}/rules/template?projectKey=aimetric&version=v2`,
+    );
+    const validationResponse = await fetch(
+      `${app.baseUrl}/rules/validate?projectKey=aimetric&version=v2`,
+    );
+    const activeResponse = await fetch(`${app.baseUrl}/rules/active`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        projectKey: 'aimetric',
+        version: 'v1',
+      }),
+    });
+
+    expect(versionsResponse.status).toBe(200);
+    expect(templateResponse.status).toBe(200);
+    expect(validationResponse.status).toBe(200);
+    expect(activeResponse.status).toBe(200);
+    await expect(versionsResponse.json()).resolves.toMatchObject({
+      projectKey: 'aimetric',
+      activeVersion: 'v2',
+    });
+    await expect(templateResponse.json()).resolves.toMatchObject({
+      projectKey: 'aimetric',
+      version: 'v2',
+    });
+    await expect(validationResponse.json()).resolves.toMatchObject({
+      valid: true,
+      activeVersion: 'v2',
+    });
+    await expect(activeResponse.json()).resolves.toEqual({
+      projectKey: 'aimetric',
+      previousVersion: 'v2',
+      activeVersion: 'v1',
+    });
+  });
+
+  it('serves knowledge search over HTTP', async () => {
+    const app = await bootstrap({ port: 0 });
+    servers.push(app);
+
+    const response = await fetch(
+      `${app.baseUrl}/knowledge/search?query=${encodeURIComponent('规则分层')}&limit=2`,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      query: '规则分层',
+      matches: [expect.objectContaining({ filePath: expect.any(String) })],
+    });
+  });
+
+  const createTemporaryRuleCatalogRoot = (): string => {
+    const catalogRoot = mkdtempSync(join(tmpdir(), 'aimetric-rule-center-'));
+    temporaryDirectories.push(catalogRoot);
+
+    cpSync(
+      join(
+        '/Users/zhangqixiang/0_1WORK/zhongxing/AIMetric',
+        'packages/rule-engine/src/templates',
+      ),
+      catalogRoot,
+      { recursive: true },
+    );
+
+    return catalogRoot;
+  };
 });
 
 const emptyMcpAuditMetrics = () => ({

@@ -13,6 +13,7 @@
     "@aimetric/event-schema": "workspace:*",
     "@aimetric/git-attribution": "workspace:*",
     "@aimetric/metric-core": "workspace:*",
+    "@aimetric/rule-engine": "workspace:*",
     "pg": "^8.20.0"
   }
 }

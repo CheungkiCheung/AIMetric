@@ -20,6 +20,8 @@ export interface BootstrapOptions {
   host?: string;
   metricEventRepository?: MetricEventRepository;
   port?: number;
+  ruleCatalogRoot?: string;
+  docsRoot?: string;
   snapshotRecalculationFilters?: MetricSnapshotFilters;
   snapshotRecalculationIntervalMs?: number;
 }
@@ -158,6 +160,93 @@ const handleRequest = async (
     return;
   }
 
+  if (method === 'GET' && url.pathname === '/rules/project') {
+    writeJson(
+      response,
+      200,
+      appModule.getProjectRules({
+        projectKey: url.searchParams.get('projectKey') ?? 'aimetric',
+        toolType: url.searchParams.get('toolType') ?? 'cursor',
+        sceneType: url.searchParams.get('sceneType') ?? 'rule-query',
+      }),
+    );
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/rules/versions') {
+    writeJson(
+      response,
+      200,
+      appModule.listRuleVersions(
+        url.searchParams.get('projectKey') ?? 'aimetric',
+      ),
+    );
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/rules/template') {
+    writeJson(
+      response,
+      200,
+      appModule.getRuleTemplate({
+        projectKey: url.searchParams.get('projectKey') ?? 'aimetric',
+        version: url.searchParams.get('version') ?? undefined,
+      }),
+    );
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/rules/validate') {
+    writeJson(
+      response,
+      200,
+      appModule.validateRuleTemplate({
+        projectKey: url.searchParams.get('projectKey') ?? 'aimetric',
+        version: url.searchParams.get('version') ?? undefined,
+      }),
+    );
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/rules/active') {
+    try {
+      const body = await readJsonBody(request);
+      const payload = body as Record<string, unknown>;
+
+      if (typeof payload.version !== 'string') {
+        writeJson(response, 400, { message: 'version is required' });
+        return;
+      }
+
+      writeJson(
+        response,
+        200,
+        appModule.setActiveRuleVersion({
+          projectKey:
+            typeof payload.projectKey === 'string'
+              ? payload.projectKey
+              : 'aimetric',
+          version: payload.version,
+        }),
+      );
+    } catch {
+      writeJson(response, 400, { message: 'Invalid rule activation request' });
+    }
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/knowledge/search') {
+    writeJson(
+      response,
+      200,
+      await appModule.searchKnowledge({
+        query: url.searchParams.get('query') ?? '',
+        limit: Number(url.searchParams.get('limit') ?? 5),
+      }),
+    );
+    return;
+  }
+
   if (method === 'POST' && url.pathname === '/metrics/recalculate') {
     try {
       const body = await readJsonBody(request);
@@ -195,7 +284,10 @@ export async function bootstrap(
 ): Promise<MetricPlatformServer> {
   const host = options.host ?? '127.0.0.1';
   const port = options.port ?? 3001;
-  const appModule = new AppModule(options.metricEventRepository);
+  const appModule = new AppModule(options.metricEventRepository, {
+    ruleCatalogRoot: options.ruleCatalogRoot,
+    docsRoot: options.docsRoot,
+  });
   let snapshotScheduler: SnapshotRecalculationScheduler | undefined;
 
   const server = createServer((request, response) => {
