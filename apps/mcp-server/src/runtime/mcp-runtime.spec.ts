@@ -117,6 +117,109 @@ describe('createMcpRuntime', () => {
         isError: false,
       },
     });
+    expect(runtime.getAuditEvents()).toContainEqual(
+      expect.objectContaining({
+        toolName: 'recordSession',
+        requestId: 'call',
+        status: 'success',
+        errorMessage: undefined,
+      }),
+    );
+  });
+
+  it('returns MCP error content and audits failed tool calls', async () => {
+    const runtime = createMcpRuntime({
+      toolRegistry: new Map([
+        [
+          'unstableTool',
+          {
+            name: 'unstableTool',
+            description: 'A test tool that fails.',
+            inputSchema: {
+              type: 'object',
+              properties: {},
+              additionalProperties: false,
+            },
+            invoke: async () => {
+              throw new Error('collector gateway unavailable');
+            },
+          },
+        ],
+      ]),
+    });
+
+    const response = await runtime.handleRequest({
+      jsonrpc: '2.0',
+      id: 'failed-call',
+      method: 'tools/call',
+      params: {
+        name: 'unstableTool',
+        arguments: {},
+      },
+    });
+
+    expect(response).toEqual({
+      jsonrpc: '2.0',
+      id: 'failed-call',
+      result: {
+        content: [
+          {
+            type: 'text',
+            text: 'Tool unstableTool failed: collector gateway unavailable',
+          },
+        ],
+        structuredContent: {
+          toolName: 'unstableTool',
+          errorMessage: 'collector gateway unavailable',
+        },
+        isError: true,
+      },
+    });
+    expect(runtime.getAuditEvents()).toContainEqual(
+      expect.objectContaining({
+        toolName: 'unstableTool',
+        requestId: 'failed-call',
+        status: 'failure',
+        errorMessage: 'collector gateway unavailable',
+      }),
+    );
+  });
+
+  it('returns tool audit events through the AIMetric audit method', async () => {
+    const runtime = createMcpRuntime();
+
+    await runtime.handleRequest({
+      jsonrpc: '2.0',
+      id: 'call',
+      method: 'tools/call',
+      params: {
+        name: 'recordSession',
+        arguments: {
+          sessionId: 'sess_1',
+          userMessage: 'change the file',
+          assistantMessage: 'file changed',
+        },
+      },
+    });
+    const response = await runtime.handleRequest({
+      jsonrpc: '2.0',
+      id: 'audit',
+      method: 'aimetric/audit/list',
+    });
+
+    expect(response).toEqual({
+      jsonrpc: '2.0',
+      id: 'audit',
+      result: {
+        events: [
+          expect.objectContaining({
+            toolName: 'recordSession',
+            requestId: 'call',
+            status: 'success',
+          }),
+        ],
+      },
+    });
   });
 
   it('uses AIMETRIC_WORKSPACE_DIR as the default recordSession workspace', async () => {
@@ -178,6 +281,14 @@ describe('createMcpRuntime', () => {
         message: 'Unknown MCP tool: missingTool',
       },
     });
+    expect(runtime.getAuditEvents()).toContainEqual(
+      expect.objectContaining({
+        toolName: 'missingTool',
+        requestId: 'missing-tool',
+        status: 'failure',
+        errorMessage: 'Unknown MCP tool: missingTool',
+      }),
+    );
   });
 
   it('ignores initialized notifications', async () => {

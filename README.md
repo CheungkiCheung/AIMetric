@@ -6,8 +6,8 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 
 按最初的全量规划估算：
 
-- `Phase 1 主链路 MVP`：约 `98%` 完成
-- `全量文章同构系统`：约 `58%` 完成
+- `Phase 1 主链路 MVP`：约 `99%` 完成
+- `全量文章同构系统`：约 `60%` 完成
 
 已完成：
 
@@ -20,6 +20,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 - `rule-engine` 项目规则版本目录、文件化规则模板与激活版本 manifest
 - `mcp-server` 新增 `getProjectRules`、`listRuleVersions`、`getRuleTemplate`、`validateRuleTemplate`、`setActiveRuleVersion`、`searchKnowledge` 基础工具
 - `mcp-server` 新增最小 MCP JSON-RPC runtime，支持 `initialize`、`tools/list`、`tools/call` 与 stdio 启动入口
+- `mcp-server` 新增工具调用审计与失败补偿，支持 `aimetric/audit/list` 查询调用记录
 - `employee-onboarding` 员工接入原型，可生成 `.aimetric/config.json` 与 `.aimetric/mcp.json`
 - `collector-sdk` 可读取 `.aimetric/config.json` 并生成标准 `IngestionBatch`
 - `mcp-server recordSession` 可读取员工接入配置并补齐项目、成员、仓库、规则版本
@@ -31,7 +32,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 
 - 规则中心与知识库管理 API
 - 多 IDE/CLI 适配器扩展
-- MCP 工具调用审计与失败补偿
+- MCP 工具审计事件持久化与上传
 - Cursor 本地数据库逆向采集研究模块
 - RBAC、审计、可观测、回算、生产部署等准生产能力
 
@@ -285,11 +286,13 @@ corepack pnpm --filter @aimetric/mcp-server build
 corepack pnpm --filter @aimetric/mcp-server start
 ```
 
+runtime 会记录 `tools/call` 调用审计，包括工具名、请求 id、成功/失败、耗时和错误原因。工具内部异常会返回 `isError: true`，避免 MCP 进程直接崩溃；本地可通过 `aimetric/audit/list` 查询当前进程内审计事件。
+
 ## 下一步路线
 
 建议优先级：
 
-1. MCP 工具调用审计与失败补偿
+1. MCP 工具审计事件持久化与上传
 2. 规则中心与知识库管理 API
 3. 多 IDE/CLI 采集适配器
 4. 准生产能力：RBAC、审计、可观测、回算、部署文档

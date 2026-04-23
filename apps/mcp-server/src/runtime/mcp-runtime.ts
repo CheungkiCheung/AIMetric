@@ -1,6 +1,7 @@
 import { createToolRegistry, type McpTool } from './tool-registry.js';
+import { ToolAuditRecorder, type ToolAuditEvent } from './tool-audit.js';
 
-type JsonRpcId = string | number | null;
+export type JsonRpcId = string | number | null;
 
 export interface JsonRpcRequest {
   jsonrpc: '2.0';
@@ -28,11 +29,14 @@ export interface McpRuntime {
   handleRequest: (
     request: JsonRpcRequest,
   ) => Promise<JsonRpcResponse | undefined>;
+  getAuditEvents: () => ToolAuditEvent[];
 }
 
 export interface McpRuntimeOptions {
   toolRegistry?: Map<string, McpTool>;
   environment?: Record<string, string | undefined>;
+  auditRecorder?: ToolAuditRecorder;
+  now?: () => Date;
 }
 
 const defaultProtocolVersion = '2025-11-25';
@@ -44,6 +48,12 @@ export const createMcpRuntime = (
     options.toolRegistry ??
     createToolRegistry({
       environment: options.environment,
+    });
+  const now = options.now ?? (() => new Date());
+  const auditRecorder =
+    options.auditRecorder ??
+    new ToolAuditRecorder({
+      now,
     });
 
   return {
@@ -77,7 +87,18 @@ export const createMcpRuntime = (
           });
 
         case 'tools/call':
-          return callTool(request.id, request.params, toolRegistry);
+          return callTool({
+            id: request.id,
+            params: request.params,
+            toolRegistry,
+            auditRecorder,
+            now,
+          });
+
+        case 'aimetric/audit/list':
+          return result(request.id, {
+            events: auditRecorder.list(),
+          });
 
         default:
           return error(
@@ -87,37 +108,84 @@ export const createMcpRuntime = (
           );
       }
     },
+    getAuditEvents() {
+      return auditRecorder.list();
+    },
   };
 };
 
-const callTool = async (
-  id: JsonRpcId,
-  params: unknown,
-  toolRegistry: Map<string, McpTool>,
-): Promise<JsonRpcResponse> => {
+const callTool = async (input: {
+  id: JsonRpcId;
+  params: unknown;
+  toolRegistry: Map<string, McpTool>;
+  auditRecorder: ToolAuditRecorder;
+  now: () => Date;
+}): Promise<JsonRpcResponse> => {
+  const { id, params, toolRegistry, auditRecorder, now } = input;
   if (!isObject(params) || typeof params.name !== 'string') {
     return error(id, -32602, 'MCP tools/call requires a tool name.');
   }
 
+  const startedAt = now();
   const tool = toolRegistry.get(params.name);
 
   if (!tool) {
+    auditRecorder.record({
+      toolName: params.name,
+      requestId: id,
+      status: 'failure',
+      startedAt,
+      errorMessage: `Unknown MCP tool: ${params.name}`,
+    });
+
     return error(id, -32602, `Unknown MCP tool: ${params.name}`);
   }
 
   const toolArguments = isObject(params.arguments) ? params.arguments : {};
-  const toolResult = await tool.invoke(toolArguments);
 
-  return result(id, {
-    content: [
-      {
-        type: 'text',
-        text: JSON.stringify(toolResult, null, 2),
+  try {
+    const toolResult = await tool.invoke(toolArguments);
+    auditRecorder.record({
+      toolName: tool.name,
+      requestId: id,
+      status: 'success',
+      startedAt,
+    });
+
+    return result(id, {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(toolResult, null, 2),
+        },
+      ],
+      structuredContent: toolResult,
+      isError: false,
+    });
+  } catch (error_) {
+    const errorMessage = toErrorMessage(error_);
+    auditRecorder.record({
+      toolName: tool.name,
+      requestId: id,
+      status: 'failure',
+      startedAt,
+      errorMessage,
+    });
+
+    return result(id, {
+      content: [
+        {
+          type: 'text',
+          text: `Tool ${tool.name} failed: ${errorMessage}`,
+        },
+      ],
+      structuredContent: {
+        toolName: tool.name,
+        errorMessage,
       },
-    ],
-    structuredContent: toolResult,
-    isError: false,
-  });
+      isError: true,
+    });
+  }
 };
 
 const getClientProtocolVersion = (params: unknown): string => {
@@ -149,3 +217,11 @@ const error = (
 
 const isObject = (input: unknown): input is Record<string, unknown> =>
   typeof input === 'object' && input !== null && !Array.isArray(input);
+
+const toErrorMessage = (input: unknown): string => {
+  if (input instanceof Error) {
+    return input.message;
+  }
+
+  return String(input);
+};
