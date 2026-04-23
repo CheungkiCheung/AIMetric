@@ -1,0 +1,46 @@
+{
+  "projectKey": "aimetric",
+  "version": "v1",
+  "terminology": [
+    "采集平台层",
+    "数据采集层",
+    "平台能力层",
+    "指标展示层",
+    "规则中心",
+    "知识库查询"
+  ],
+  "sections": [
+    {
+      "id": "architecture",
+      "title": "文章同构架构",
+      "content": "保持采集平台层、数据采集层、平台能力层、指标展示层四层边界，新增模块需优先挂靠现有分层术语。"
+    },
+    {
+      "id": "metrics",
+      "title": "指标与快照",
+      "content": "涉及 AI 出码率、快照、回算、团队/个人口径时，优先复用现有指标平台与 PostgreSQL 快照链路。"
+    },
+    {
+      "id": "mcp",
+      "title": "MCP 工具约束",
+      "content": "所有新增工具优先走 MCP 标准化入口，并支持规则查询与知识查询的组合调用。"
+    }
+  ],
+  "rules": {
+    "must": [
+      "core.style",
+      "core.comments",
+      "mcp.before-after-recording",
+      "architecture.article-congruent-layering"
+    ],
+    "should": [
+      "metric.snapshot-recalculation",
+      "rule.dynamic-resolution"
+    ],
+    "onDemand": [
+      "knowledge.api-doc",
+      "knowledge.metric-calibration",
+      "knowledge.project-rules"
+    ]
+  }
+}

@@ -40,7 +40,7 @@ describe('getProjectRulePack', () => {
     });
 
     expect(rulePack.projectKey).toBe('aimetric');
-    expect(rulePack.version).toBe('v1');
+    expect(rulePack.version).toBe('v2');
     expect(rulePack.mandatoryRules).toContain('core.style');
     expect(rulePack.knowledgeRefs).toContain(
       'docs/superpowers/specs/2026-04-22-aimetric-article-congruent-design.md',
@@ -52,30 +52,46 @@ describe('listRuleVersions', () => {
   it('returns available rule versions with active version metadata', () => {
     const versions = listRuleVersions('aimetric');
 
-    expect(versions.activeVersion).toBe('v1');
+    expect(versions.activeVersion).toBe('v2');
+    expect(versions.versions).toContainEqual(
+      expect.objectContaining({
+        version: 'v2',
+        status: 'active',
+      }),
+    );
     expect(versions.versions).toContainEqual(
       expect.objectContaining({
         version: 'v1',
-        status: 'active',
+        status: 'deprecated',
       }),
     );
   });
 });
 
 describe('getRuleTemplate', () => {
-  it('returns a versioned project rule template', () => {
+  it('returns the active project rule template by default', () => {
     const template = getRuleTemplate({
       projectKey: 'aimetric',
-      version: 'v1',
     });
 
     expect(template.projectKey).toBe('aimetric');
-    expect(template.version).toBe('v1');
+    expect(template.version).toBe('v2');
     expect(template.sections).toContainEqual(
       expect.objectContaining({
         id: 'architecture',
       }),
     );
     expect(template.rules.must).toContain('architecture.article-congruent-layering');
+    expect(template.rules.must).toContain('rule.template-versioning');
+  });
+
+  it('returns a specific historical rule template version', () => {
+    const template = getRuleTemplate({
+      projectKey: 'aimetric',
+      version: 'v1',
+    });
+
+    expect(template.version).toBe('v1');
+    expect(template.rules.must).not.toContain('rule.template-versioning');
   });
 });

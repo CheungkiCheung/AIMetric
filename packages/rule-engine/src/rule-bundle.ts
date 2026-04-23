@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 type RuleContext = {
   projectKey?: string;
   projectType?: string;
@@ -41,7 +44,6 @@ export interface ProjectRuleTemplate {
 }
 
 type ProjectRuleCatalogEntry = Omit<ProjectRulePack, 'mandatoryRules' | 'onDemandRules'> & {
-  baseMandatoryRules: string[];
   sceneMandatoryRules: Record<string, string[]>;
   sceneOnDemandRules: Record<string, string[]>;
   activeVersion: string;
@@ -49,98 +51,50 @@ type ProjectRuleCatalogEntry = Omit<ProjectRulePack, 'mandatoryRules' | 'onDeman
   templates: Record<string, ProjectRuleTemplate>;
 };
 
+interface ProjectRuleManifest {
+  projectKey: string;
+  activeVersion: string;
+  knowledgeRefs: string[];
+  sceneMandatoryRules: Record<string, string[]>;
+  sceneOnDemandRules: Record<string, string[]>;
+  versions: RuleVersionSummary[];
+}
+
+const readJsonFile = <T>(fileUrl: URL): T =>
+  JSON.parse(readFileSync(fileURLToPath(fileUrl), 'utf8')) as T;
+
+const loadProjectRuleCatalogEntry = (projectKey: string): ProjectRuleCatalogEntry => {
+  const manifest = readJsonFile<ProjectRuleManifest>(
+    new URL(`./templates/${projectKey}/manifest.json`, import.meta.url),
+  );
+  const templates = Object.fromEntries(
+    manifest.versions.map((versionSummary) => [
+      versionSummary.version,
+      readJsonFile<ProjectRuleTemplate>(
+        new URL(
+          `./templates/${projectKey}/${versionSummary.version}.json`,
+          import.meta.url,
+        ),
+      ),
+    ]),
+  ) as Record<string, ProjectRuleTemplate>;
+  const activeTemplate = templates[manifest.activeVersion];
+
+  return {
+    projectKey: manifest.projectKey,
+    version: manifest.activeVersion,
+    activeVersion: manifest.activeVersion,
+    knowledgeRefs: manifest.knowledgeRefs,
+    terminology: activeTemplate.terminology,
+    sceneMandatoryRules: manifest.sceneMandatoryRules,
+    sceneOnDemandRules: manifest.sceneOnDemandRules,
+    versions: manifest.versions,
+    templates,
+  };
+};
+
 const projectRuleCatalog: Record<string, ProjectRuleCatalogEntry> = {
-  aimetric: {
-    projectKey: 'aimetric',
-    version: 'v1',
-    activeVersion: 'v1',
-    baseMandatoryRules: [
-      'core.style',
-      'core.comments',
-      'mcp.before-after-recording',
-      'architecture.article-congruent-layering',
-    ],
-    sceneMandatoryRules: {
-      'metric-analysis': ['metric.snapshot-recalculation'],
-      'rule-query': ['rule.dynamic-resolution'],
-    },
-    sceneOnDemandRules: {
-      'api-change': ['knowledge.api-doc'],
-      'metric-analysis': ['knowledge.metric-calibration'],
-      'rule-query': ['knowledge.project-rules'],
-    },
-    knowledgeRefs: [
-      'docs/superpowers/specs/2026-04-22-aimetric-article-congruent-design.md',
-      'docs/superpowers/plans/2026-04-23-aimetric-中文执行计划.md',
-    ],
-    terminology: [
-      '采集平台层',
-      '数据采集层',
-      '平台能力层',
-      '指标展示层',
-      '规则中心',
-      '知识库查询',
-    ],
-    versions: [
-      {
-        version: 'v1',
-        status: 'active',
-        updatedAt: '2026-04-23',
-        summary: '文章同构 Phase 1/Phase 2 基础版规则模板',
-      },
-    ],
-    templates: {
-      v1: {
-        projectKey: 'aimetric',
-        version: 'v1',
-        terminology: [
-          '采集平台层',
-          '数据采集层',
-          '平台能力层',
-          '指标展示层',
-          '规则中心',
-          '知识库查询',
-        ],
-        sections: [
-          {
-            id: 'architecture',
-            title: '文章同构架构',
-            content:
-              '保持采集平台层、数据采集层、平台能力层、指标展示层四层边界，新增模块需优先挂靠现有分层术语。',
-          },
-          {
-            id: 'metrics',
-            title: '指标与快照',
-            content:
-              '涉及 AI 出码率、快照、回算、团队/个人口径时，优先复用现有指标平台与 PostgreSQL 快照链路。',
-          },
-          {
-            id: 'mcp',
-            title: 'MCP 工具约束',
-            content:
-              '所有新增工具优先走 MCP 标准化入口，并支持规则查询与知识查询的组合调用。',
-          },
-        ],
-        rules: {
-          must: [
-            'core.style',
-            'core.comments',
-            'mcp.before-after-recording',
-            'architecture.article-congruent-layering',
-          ],
-          should: [
-            'metric.snapshot-recalculation',
-            'rule.dynamic-resolution',
-          ],
-          onDemand: [
-            'knowledge.api-doc',
-            'knowledge.metric-calibration',
-            'knowledge.project-rules',
-          ],
-        },
-      },
-    },
-  },
+  aimetric: loadProjectRuleCatalogEntry('aimetric'),
 };
 
 const defaultProjectKey = 'aimetric';
@@ -148,11 +102,13 @@ const defaultProjectKey = 'aimetric';
 export function resolveRuleBundle(context: RuleContext) {
   const projectKey = context.projectKey ?? defaultProjectKey;
   const projectConfig = projectRuleCatalog[projectKey] ?? projectRuleCatalog[defaultProjectKey];
+  const activeTemplate = projectConfig.templates[projectConfig.activeVersion];
   const mandatoryRules = [
-    ...projectConfig.baseMandatoryRules,
+    ...activeTemplate.rules.must,
     ...(projectConfig.sceneMandatoryRules[context.sceneType] ?? []),
   ];
   const onDemandRules = [
+    ...activeTemplate.rules.onDemand,
     ...(projectConfig.sceneOnDemandRules[context.sceneType] ?? []),
   ];
 

@@ -56,6 +56,7 @@ describe('getProjectRules', () => {
     });
 
     expect(result.projectKey).toBe('aimetric');
+    expect(result.version).toBe('v2');
     expect(result.mandatoryRules).toContain('core.style');
     expect(result.knowledgeRefs).toContain(
       'docs/superpowers/specs/2026-04-22-aimetric-article-congruent-design.md',
@@ -83,24 +84,24 @@ describe('listRuleVersions', () => {
     });
 
     expect(result.projectKey).toBe('aimetric');
-    expect(result.activeVersion).toBe('v1');
+    expect(result.activeVersion).toBe('v2');
     expect(result.versions).toContainEqual(
       expect.objectContaining({
-        version: 'v1',
+        version: 'v2',
       }),
     );
   });
 });
 
 describe('getRuleTemplate', () => {
-  it('returns a specific rule template version for MCP consumers', async () => {
+  it('returns the active rule template version for MCP consumers', async () => {
     const result = await getRuleTemplate({
       projectKey: 'aimetric',
-      version: 'v1',
     });
 
     expect(result.projectKey).toBe('aimetric');
-    expect(result.version).toBe('v1');
+    expect(result.version).toBe('v2');
     expect(result.rules.must).toContain('core.style');
+    expect(result.rules.must).toContain('rule.template-versioning');
   });
 });
