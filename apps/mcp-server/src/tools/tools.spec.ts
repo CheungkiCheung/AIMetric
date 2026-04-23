@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getProjectRules } from './get-project-rules.tool.js';
+import { getRuleTemplate } from './get-rule-template.tool.js';
+import { listRuleVersions } from './list-rule-versions.tool.js';
 import { searchKnowledge } from './search-knowledge.tool.js';
 import { beforeEditFile } from './before-edit-file.tool.js';
 import { afterEditFile } from './after-edit-file.tool.js';
@@ -71,5 +73,34 @@ describe('searchKnowledge', () => {
     expect(result.query).toBe('规则分层');
     expect(result.matches.length).toBeGreaterThan(0);
     expect(result.matches[0]?.filePath).toContain('docs/superpowers');
+  });
+});
+
+describe('listRuleVersions', () => {
+  it('returns version catalog for the project rule set', async () => {
+    const result = await listRuleVersions({
+      projectKey: 'aimetric',
+    });
+
+    expect(result.projectKey).toBe('aimetric');
+    expect(result.activeVersion).toBe('v1');
+    expect(result.versions).toContainEqual(
+      expect.objectContaining({
+        version: 'v1',
+      }),
+    );
+  });
+});
+
+describe('getRuleTemplate', () => {
+  it('returns a specific rule template version for MCP consumers', async () => {
+    const result = await getRuleTemplate({
+      projectKey: 'aimetric',
+      version: 'v1',
+    });
+
+    expect(result.projectKey).toBe('aimetric');
+    expect(result.version).toBe('v1');
+    expect(result.rules.must).toContain('core.style');
   });
 });

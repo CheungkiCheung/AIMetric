@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { getProjectRulePack, resolveRuleBundle } from './rule-bundle.js';
+import {
+  getProjectRulePack,
+  getRuleTemplate,
+  listRuleVersions,
+  resolveRuleBundle,
+} from './rule-bundle.js';
 
 describe('resolveRuleBundle', () => {
   it('returns mandatory rules and on-demand rules for matching scenes', () => {
@@ -40,5 +45,37 @@ describe('getProjectRulePack', () => {
     expect(rulePack.knowledgeRefs).toContain(
       'docs/superpowers/specs/2026-04-22-aimetric-article-congruent-design.md',
     );
+  });
+});
+
+describe('listRuleVersions', () => {
+  it('returns available rule versions with active version metadata', () => {
+    const versions = listRuleVersions('aimetric');
+
+    expect(versions.activeVersion).toBe('v1');
+    expect(versions.versions).toContainEqual(
+      expect.objectContaining({
+        version: 'v1',
+        status: 'active',
+      }),
+    );
+  });
+});
+
+describe('getRuleTemplate', () => {
+  it('returns a versioned project rule template', () => {
+    const template = getRuleTemplate({
+      projectKey: 'aimetric',
+      version: 'v1',
+    });
+
+    expect(template.projectKey).toBe('aimetric');
+    expect(template.version).toBe('v1');
+    expect(template.sections).toContainEqual(
+      expect.objectContaining({
+        id: 'architecture',
+      }),
+    );
+    expect(template.rules.must).toContain('architecture.article-congruent-layering');
   });
 });
