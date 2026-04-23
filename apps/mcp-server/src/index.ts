@@ -7,3 +7,6 @@ export * from './tools/get-rule-template.tool.js';
 export * from './tools/validate-rule-template.tool.js';
 export * from './tools/set-active-rule-version.tool.js';
 export * from './tools/search-knowledge.tool.js';
+export * from './runtime/mcp-runtime.js';
+export * from './runtime/stdio.js';
+export * from './runtime/tool-registry.js';

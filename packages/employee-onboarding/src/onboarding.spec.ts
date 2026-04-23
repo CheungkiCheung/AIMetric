@@ -49,11 +49,18 @@ describe('writeEmployeeOnboardingFiles', () => {
       rules: { version: string };
     };
     const mcp = JSON.parse(readFileSync(result.mcpConfigPath, 'utf8')) as {
-      tools: string[];
+      mcpServers: {
+        aimetric: {
+          command: string;
+          env: Record<string, string>;
+        };
+      };
     };
 
     expect(config.rules.version).toBe('v2');
-    expect(mcp.tools).toContain('searchKnowledge');
+    expect(mcp.mcpServers.aimetric.command).toBe('aimetric-mcp-server');
+    expect(mcp.mcpServers.aimetric.env.AIMETRIC_PROJECT_KEY).toBe('aimetric');
+    expect(mcp.mcpServers.aimetric.env.AIMETRIC_WORKSPACE_DIR).toBe(workspaceDir);
     expect(result.nextSteps).toContain('Install or point your MCP client at .aimetric/mcp.json');
   });
 });

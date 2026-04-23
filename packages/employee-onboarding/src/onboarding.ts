@@ -117,10 +117,15 @@ export async function writeEmployeeOnboardingFiles(
     mcpConfigPath,
     `${JSON.stringify(
       {
-        projectKey: config.projectKey,
-        ruleVersion: config.rules.version,
-        tools: config.mcp.tools,
-        env: config.mcp.environment,
+        mcpServers: {
+          aimetric: {
+            command: 'aimetric-mcp-server',
+            env: {
+              ...config.mcp.environment,
+              AIMETRIC_WORKSPACE_DIR: input.workspaceDir,
+            },
+          },
+        },
       },
       null,
       2,

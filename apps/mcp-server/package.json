@@ -3,12 +3,16 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
+  "bin": {
+    "aimetric-mcp-server": "./dist/cli.js"
+  },
   "dependencies": {
     "@aimetric/collector-sdk": "workspace:*",
     "@aimetric/rule-engine": "workspace:*"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "start": "node dist/cli.js",
     "test": "vitest run",
     "lint": "tsc -p tsconfig.json --noEmit"
   }
