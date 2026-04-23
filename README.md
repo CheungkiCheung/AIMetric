@@ -7,7 +7,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 按最初的全量规划估算：
 
 - `Phase 1 主链路 MVP`：约 `96%` 完成
-- `全量文章同构系统`：约 `39%` 完成
+- `全量文章同构系统`：约 `42%` 完成
 
 已完成：
 
@@ -16,6 +16,8 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 - MCP 主链路工具：`beforeEditFile`、`afterEditFile`、`recordSession`
 - `collector-gateway` 采集接入服务
 - `metric-platform` 事件导入、PostgreSQL 持久化、基础归因、个人/团队指标快照、快照表、手动/定时回算
+- `rule-engine` 项目规则包解析、文章同构术语与知识引用
+- `mcp-server` 新增 `getProjectRules`、`searchKnowledge` 基础工具
 - `dashboard` 个人出码视图、团队出码视图、自动刷新、项目/成员/时间范围筛选
 - 本地 `docker-compose.yml`，包含 PostgreSQL 和 Redis
 - 基础 README、设计文档、Phase 1 执行计划
@@ -214,6 +216,17 @@ apps/metric-platform/sql/schema.sql
 - `feat: add dashboard and team metric views`
 - `feat: add phase1 local runtime and http entrypoints`
 - `feat: wire collector ingestion into metric snapshots`
+
+## 规则与知识工具
+
+当前已经提供基础版规则/知识查询能力：
+
+```text
+getProjectRules(projectKey, toolType, sceneType)
+searchKnowledge(query, limit)
+```
+
+当前知识库直接使用仓库内 `docs/` 文档做轻量检索，便于后续继续升级为真正的规则中心和知识库查询 MCP。
 
 ## 下一步路线
 
