@@ -1,11 +1,24 @@
-import { describe, expect, it } from 'vitest';
+import { cpSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
 import { getProjectRules } from './get-project-rules.tool.js';
 import { getRuleTemplate } from './get-rule-template.tool.js';
 import { listRuleVersions } from './list-rule-versions.tool.js';
 import { searchKnowledge } from './search-knowledge.tool.js';
+import { setActiveRuleVersion } from './set-active-rule-version.tool.js';
+import { validateRuleTemplate } from './validate-rule-template.tool.js';
 import { beforeEditFile } from './before-edit-file.tool.js';
 import { afterEditFile } from './after-edit-file.tool.js';
 import { recordSession } from './record-session.tool.js';
+
+const temporaryCatalogRoots: string[] = [];
+
+afterEach(() => {
+  temporaryCatalogRoots.splice(0).forEach((catalogRoot) => {
+    rmSync(catalogRoot, { recursive: true, force: true });
+  });
+});
 
 describe('beforeEditFile', () => {
   it('captures a stable pre-edit snapshot', async () => {
@@ -105,3 +118,46 @@ describe('getRuleTemplate', () => {
     expect(result.rules.must).toContain('rule.template-versioning');
   });
 });
+
+describe('validateRuleTemplate', () => {
+  it('validates the active rule template for MCP consumers', async () => {
+    const result = await validateRuleTemplate({
+      projectKey: 'aimetric',
+      version: 'v2',
+    });
+
+    expect(result.valid).toBe(true);
+    expect(result.activeVersion).toBe('v2');
+  });
+});
+
+describe('setActiveRuleVersion', () => {
+  it('switches the active rule version for MCP consumers', async () => {
+    const catalogRoot = createTemporaryCatalogRoot();
+    const result = await setActiveRuleVersion({
+      projectKey: 'aimetric',
+      version: 'v1',
+      catalogRoot,
+    });
+
+    expect(result.projectKey).toBe('aimetric');
+    expect(result.previousVersion).toBeDefined();
+    expect(result.activeVersion).toBe('v1');
+  });
+});
+
+const createTemporaryCatalogRoot = (): string => {
+  const catalogRoot = mkdtempSync(join(tmpdir(), 'aimetric-mcp-rule-catalog-'));
+  temporaryCatalogRoots.push(catalogRoot);
+
+  cpSync(
+    join(
+      '/Users/zhangqixiang/0_1WORK/zhongxing/AIMetric',
+      'packages/rule-engine/src/templates',
+    ),
+    catalogRoot,
+    { recursive: true },
+  );
+
+  return catalogRoot;
+};

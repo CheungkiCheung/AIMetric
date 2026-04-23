@@ -7,7 +7,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 按最初的全量规划估算：
 
 - `Phase 1 主链路 MVP`：约 `96%` 完成
-- `全量文章同构系统`：约 `48%` 完成
+- `全量文章同构系统`：约 `50%` 完成
 
 已完成：
 
@@ -226,6 +226,8 @@ apps/metric-platform/sql/schema.sql
 getProjectRules(projectKey, toolType, sceneType)
 listRuleVersions(projectKey)
 getRuleTemplate(projectKey, version)
+validateRuleTemplate(projectKey, version)
+setActiveRuleVersion(projectKey, version)
 searchKnowledge(query, limit)
 ```
 
