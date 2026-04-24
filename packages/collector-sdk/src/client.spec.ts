@@ -1,17 +1,20 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LocalEventBuffer } from './buffer.js';
-import { CollectorClient } from './client.js';
+import { CollectorClient, publishIngestionBatch } from './client.js';
 import { loadAimMetricConfig } from './config.js';
 
 const temporaryWorkspaces: string[] = [];
+const originalFetch = globalThis.fetch;
 
 afterEach(() => {
   temporaryWorkspaces.splice(0).forEach((workspace) => {
     rmSync(workspace, { recursive: true, force: true });
   });
+  globalThis.fetch = originalFetch;
+  vi.restoreAllMocks();
 });
 
 describe('LocalEventBuffer', () => {
@@ -34,6 +37,21 @@ describe('loadAimMetricConfig', () => {
     expect(config.memberId).toBe('alice');
     expect(config.toolProfile).toBe('cursor');
     expect(config.collector.endpoint).toBe('http://127.0.0.1:3000/ingestion');
+  });
+
+  it('loads collector auth token environment names without storing token values', async () => {
+    const workspaceDir = createWorkspaceWithConfig({
+      collector: {
+        endpoint: 'http://127.0.0.1:3000/ingestion',
+        source: 'cursor',
+        authTokenEnv: 'AIMETRIC_COLLECTOR_TOKEN',
+      },
+    });
+
+    const config = await loadAimMetricConfig({ workspaceDir });
+
+    expect(config.collector.authTokenEnv).toBe('AIMETRIC_COLLECTOR_TOKEN');
+    expect(JSON.stringify(config)).not.toContain('secret-token');
   });
 
   it('rejects invalid onboarding config files', async () => {
@@ -193,6 +211,50 @@ describe('CollectorClient', () => {
         },
       ],
     });
+  });
+
+  it('publishes ingestion batches with bearer auth from the configured environment', async () => {
+    const requests: Array<{ url: string; authorization?: string }> = [];
+    const workspaceDir = createWorkspaceWithConfig({
+      collector: {
+        endpoint: 'http://127.0.0.1:3000/ingestion',
+        source: 'cursor',
+        authTokenEnv: 'AIMETRIC_COLLECTOR_TOKEN',
+      },
+    });
+    const config = await loadAimMetricConfig({ workspaceDir });
+    globalThis.fetch = vi.fn(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        const headers = new Headers(init?.headers);
+        requests.push({
+          url: String(input),
+          authorization: headers.get('authorization') ?? undefined,
+        });
+
+        return new Response(JSON.stringify({ accepted: 1 }), { status: 200 });
+      },
+    ) as typeof fetch;
+
+    await publishIngestionBatch(
+      config.collector,
+      {
+        schemaVersion: 'v1',
+        source: 'cursor',
+        events: [],
+      },
+      {
+        environment: {
+          AIMETRIC_COLLECTOR_TOKEN: 'secret-token',
+        },
+      },
+    );
+
+    expect(requests).toEqual([
+      {
+        url: 'http://127.0.0.1:3000/ingestion',
+        authorization: 'Bearer secret-token',
+      },
+    ]);
   });
 });
 

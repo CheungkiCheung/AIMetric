@@ -2,6 +2,7 @@ import type { IngestionBatch } from '@aimetric/event-schema';
 import {
   CollectorClient,
   loadAimMetricConfig,
+  publishIngestionBatch,
   type CollectorClientOptions,
   type SessionRecordedInput,
 } from '@aimetric/collector-sdk';
@@ -94,30 +95,13 @@ export async function recordCliSession(
     };
   }
 
-  await publishBatch(config.collector.endpoint, batch);
+  await publishIngestionBatch(config.collector, batch);
 
   return {
     batch,
     published: true,
   };
 }
-
-const publishBatch = async (
-  endpoint: string,
-  batch: IngestionBatch,
-): Promise<void> => {
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(batch),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to publish CLI session batch: ${response.status}`);
-  }
-};
 
 const readRequiredString = (
   value: string | boolean | undefined,

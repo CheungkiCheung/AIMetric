@@ -12,6 +12,7 @@ afterEach(() => {
     rmSync(workspace, { recursive: true, force: true });
   });
   globalThis.fetch = originalFetch;
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
@@ -56,12 +57,19 @@ describe('recordCliSession', () => {
 
   it('publishes the batch to collector-gateway when dryRun is disabled', async () => {
     const workspaceDir = createWorkspaceWithConfig();
-    const requests: Array<{ url: string; body: string }> = [];
+    const requests: Array<{
+      url: string;
+      body: string;
+      authorization?: string;
+    }> = [];
+    vi.stubEnv('AIMETRIC_COLLECTOR_TOKEN', 'secret-token');
 
     globalThis.fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
       requests.push({
         url: String(input),
         body: typeof init?.body === 'string' ? init.body : '',
+        authorization: headers.get('authorization') ?? undefined,
       });
 
       return new Response(JSON.stringify({ accepted: 1 }), { status: 200 });
@@ -77,6 +85,7 @@ describe('recordCliSession', () => {
     expect(result.published).toBe(true);
     expect(requests).toHaveLength(1);
     expect(requests[0]?.url).toBe('http://127.0.0.1:3000/ingestion');
+    expect(requests[0]?.authorization).toBe('Bearer secret-token');
     expect(JSON.parse(requests[0]?.body ?? '{}')).toMatchObject({
       source: 'cli',
       events: [
@@ -131,6 +140,7 @@ const createWorkspaceWithConfig = (): string => {
       collector: {
         endpoint: 'http://127.0.0.1:3000/ingestion',
         source: 'cli',
+        authTokenEnv: 'AIMETRIC_COLLECTOR_TOKEN',
       },
       metricPlatform: {
         endpoint: 'http://127.0.0.1:3001',

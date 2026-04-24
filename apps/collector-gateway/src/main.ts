@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { AppModule } from './app.module.js';
@@ -10,6 +11,7 @@ export interface CollectorGatewayServer {
 export interface BootstrapOptions {
   host?: string;
   port?: number;
+  collectorToken?: string;
 }
 
 const readJsonBody = async (request: IncomingMessage): Promise<unknown> =>
@@ -45,6 +47,7 @@ const handleRequest = async (
   request: IncomingMessage,
   response: ServerResponse,
   appModule: AppModule,
+  collectorToken?: string,
 ): Promise<void> => {
   const method = request.method ?? 'GET';
   const url = request.url ?? '/';
@@ -55,6 +58,11 @@ const handleRequest = async (
   }
 
   if (method === 'POST' && url === '/ingestion') {
+    if (!isAuthorizedIngestionRequest(request, collectorToken)) {
+      writeJson(response, 401, { message: 'Unauthorized ingestion request' });
+      return;
+    }
+
     try {
       const body = await readJsonBody(request);
       writeJson(response, 200, await appModule.ingestionController.ingest(body));
@@ -67,15 +75,44 @@ const handleRequest = async (
   writeJson(response, 404, { message: 'Not Found' });
 };
 
+const isAuthorizedIngestionRequest = (
+  request: IncomingMessage,
+  collectorToken?: string,
+): boolean => {
+  if (!collectorToken) {
+    return true;
+  }
+
+  const authorization = request.headers.authorization;
+  const token =
+    typeof authorization === 'string' && authorization.startsWith('Bearer ')
+      ? authorization.slice('Bearer '.length)
+      : '';
+
+  return compareTokens(token, collectorToken);
+};
+
+const compareTokens = (candidate: string, expected: string): boolean => {
+  const candidateBuffer = Buffer.from(candidate);
+  const expectedBuffer = Buffer.from(expected);
+
+  return (
+    candidateBuffer.length === expectedBuffer.length &&
+    timingSafeEqual(candidateBuffer, expectedBuffer)
+  );
+};
+
 export async function bootstrap(
   options: BootstrapOptions = {},
 ): Promise<CollectorGatewayServer> {
   const host = options.host ?? '127.0.0.1';
   const port = options.port ?? 3000;
+  const collectorToken =
+    options.collectorToken ?? process.env.AIMETRIC_COLLECTOR_TOKEN;
   const appModule = new AppModule();
 
   const server = createServer((request, response) => {
-    void handleRequest(request, response, appModule);
+    void handleRequest(request, response, appModule, collectorToken);
   });
 
   await new Promise<void>((resolve, reject) => {

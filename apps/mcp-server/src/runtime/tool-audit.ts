@@ -2,6 +2,7 @@ import { appendFile, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
   loadAimMetricConfig,
+  publishIngestionBatch,
   type AimMetricConfig,
 } from '@aimetric/collector-sdk';
 import type { IngestionBatch } from '@aimetric/event-schema';
@@ -109,12 +110,8 @@ export class HttpToolAuditPublisher implements ToolAuditPublisher {
       events: [event],
     });
 
-    await this.fetchImplementation(config.collector.endpoint, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify(batch),
+    await publishIngestionBatch(config.collector, batch, {
+      fetchImplementation: this.fetchImplementation,
     });
   }
 }

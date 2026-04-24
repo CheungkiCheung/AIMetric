@@ -11,6 +11,7 @@ export interface EmployeeOnboardingInput {
   repoName: string;
   toolProfile?: EmployeeToolProfile;
   collectorEndpoint?: string;
+  collectorAuthTokenEnv?: string;
   metricPlatformEndpoint?: string;
 }
 
@@ -22,6 +23,7 @@ export interface EmployeeOnboardingConfig {
   collector: {
     endpoint: string;
     source: string;
+    authTokenEnv: string;
   };
   metricPlatform: {
     endpoint: string;
@@ -47,6 +49,7 @@ export interface EmployeeOnboardingWriteResult {
 }
 
 const defaultCollectorEndpoint = 'http://127.0.0.1:3000/ingestion';
+const defaultCollectorAuthTokenEnv = 'AIMETRIC_COLLECTOR_TOKEN';
 const defaultMetricPlatformEndpoint = 'http://127.0.0.1:3001';
 const defaultToolProfile: EmployeeToolProfile = 'cursor';
 const mcpTools = [
@@ -100,6 +103,8 @@ export function buildEmployeeOnboardingConfig(
     version: rulePack.version,
   });
   const collectorEndpoint = input.collectorEndpoint ?? defaultCollectorEndpoint;
+  const collectorAuthTokenEnv =
+    input.collectorAuthTokenEnv ?? defaultCollectorAuthTokenEnv;
   const metricPlatformEndpoint =
     input.metricPlatformEndpoint ?? defaultMetricPlatformEndpoint;
 
@@ -111,6 +116,7 @@ export function buildEmployeeOnboardingConfig(
     collector: {
       endpoint: collectorEndpoint,
       source: toolProfile,
+      authTokenEnv: collectorAuthTokenEnv,
     },
     metricPlatform: {
       endpoint: metricPlatformEndpoint,

@@ -31,6 +31,8 @@ describe('buildEmployeeOnboardingConfig', () => {
     expect(config.mcp.tools).toContain('getProjectRules');
     expect(config.mcp.tools).toContain('evaluateRuleRollout');
     expect(config.collector.endpoint).toBe('http://127.0.0.1:3000/ingestion');
+    expect(config.collector.authTokenEnv).toBe('AIMETRIC_COLLECTOR_TOKEN');
+    expect(JSON.stringify(config)).not.toContain('secret-token');
   });
 
   it('supports a CLI onboarding profile with cli source metadata', () => {
@@ -60,6 +62,7 @@ describe('writeEmployeeOnboardingFiles', () => {
     });
 
     const config = JSON.parse(readFileSync(result.configPath, 'utf8')) as {
+      collector: { authTokenEnv: string };
       rules: { version: string };
     };
     const mcp = JSON.parse(readFileSync(result.mcpConfigPath, 'utf8')) as {
@@ -72,6 +75,7 @@ describe('writeEmployeeOnboardingFiles', () => {
     };
 
     expect(config.rules.version).toBe('v2');
+    expect(config.collector.authTokenEnv).toBe('AIMETRIC_COLLECTOR_TOKEN');
     expect(mcp.mcpServers.aimetric.command).toBe('aimetric-mcp-server');
     expect(mcp.mcpServers.aimetric.env.AIMETRIC_PROJECT_KEY).toBe('aimetric');
     expect(mcp.mcpServers.aimetric.env.AIMETRIC_WORKSPACE_DIR).toBe(workspaceDir);

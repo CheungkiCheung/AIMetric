@@ -6,6 +6,11 @@ export interface CollectorClientOptions {
   now?: () => string;
 }
 
+export interface PublishIngestionBatchOptions {
+  environment?: Record<string, string | undefined>;
+  fetchImplementation?: typeof fetch;
+}
+
 export interface SessionRecordedInput {
   sessionId: string;
   occurredAt?: string;
@@ -124,3 +129,39 @@ export class ConfiguredCollectorClient {
     };
   }
 }
+
+export async function publishIngestionBatch(
+  collector: AimMetricConfig['collector'],
+  batch: IngestionBatch,
+  options: PublishIngestionBatchOptions = {},
+): Promise<void> {
+  const fetchImplementation = options.fetchImplementation ?? globalThis.fetch;
+  const authToken = resolveCollectorAuthToken(
+    collector,
+    options.environment ?? process.env,
+  );
+  const response = await fetchImplementation(collector.endpoint, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(authToken ? { authorization: `Bearer ${authToken}` } : {}),
+    },
+    body: JSON.stringify(batch),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to publish ingestion batch: ${response.status}`);
+  }
+}
+
+const resolveCollectorAuthToken = (
+  collector: AimMetricConfig['collector'],
+  environment: Record<string, string | undefined>,
+): string | undefined => {
+  if (!collector.authTokenEnv) {
+    return undefined;
+  }
+
+  const token = environment[collector.authTokenEnv];
+  return token && token.length > 0 ? token : undefined;
+};

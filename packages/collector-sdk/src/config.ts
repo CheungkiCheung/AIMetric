@@ -10,6 +10,7 @@ export const AimMetricConfigSchema = z.object({
   collector: z.object({
     endpoint: z.string().url(),
     source: z.string().min(1),
+    authTokenEnv: z.string().min(1).optional(),
   }),
   metricPlatform: z.object({
     endpoint: z.string().url(),

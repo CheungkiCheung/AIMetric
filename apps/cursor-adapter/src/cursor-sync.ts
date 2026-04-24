@@ -5,6 +5,7 @@ import type { IngestionBatch } from '@aimetric/event-schema';
 import {
   CollectorClient,
   loadAimMetricConfig,
+  publishIngestionBatch,
   type CollectorClientOptions,
 } from '@aimetric/collector-sdk';
 import {
@@ -207,7 +208,7 @@ export async function syncCursorSessions(
     };
   }
 
-  await publishBatch(config.collector.endpoint, batch);
+  await publishIngestionBatch(config.collector, batch);
   await writeCursorSyncState(
     statePath,
     buildNextCursorSyncState(
@@ -240,23 +241,6 @@ const applyLimit = (
 
 const buildIngestionKey = (session: CursorSessionRecord): string =>
   `cursor-db:${session.sessionId}:${session.lastMessageAt}:${session.transcriptPathHash}`;
-
-const publishBatch = async (
-  endpoint: string,
-  batch: IngestionBatch,
-): Promise<void> => {
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(batch),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to publish Cursor session batch: ${response.status}`);
-  }
-};
 
 const collectTranscriptPaths = async (rootDirectory: string): Promise<string[]> => {
   try {

@@ -41,4 +41,54 @@ describe('collector gateway bootstrap', () => {
       schemaVersion: 'v1',
     });
   });
+
+  it('requires a bearer token when ingestion auth is configured', async () => {
+    const app = await bootstrap({
+      port: 0,
+      collectorToken: 'secret-token',
+    });
+    servers.push(app);
+
+    const unauthorizedResponse = await fetch(`${app.baseUrl}/ingestion`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(createIngestionBatch()),
+    });
+    const authorizedResponse = await fetch(`${app.baseUrl}/ingestion`, {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer secret-token',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(createIngestionBatch()),
+    });
+
+    expect(unauthorizedResponse.status).toBe(401);
+    await expect(unauthorizedResponse.json()).resolves.toEqual({
+      message: 'Unauthorized ingestion request',
+    });
+    expect(authorizedResponse.status).toBe(200);
+    await expect(authorizedResponse.json()).resolves.toMatchObject({
+      accepted: 1,
+      schemaVersion: 'v1',
+    });
+  });
+});
+
+const createIngestionBatch = () => ({
+  schemaVersion: 'v1',
+  source: 'cursor',
+  events: [
+    {
+      eventType: 'session.started',
+      occurredAt: '2026-04-23T00:00:00.000Z',
+      payload: {
+        sessionId: 'sess_1',
+        projectKey: 'proj',
+        repoName: 'repo',
+      },
+    },
+  ],
 });

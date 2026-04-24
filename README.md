@@ -7,7 +7,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 按最初的全量规划估算：
 
 - `Phase 1 主链路 MVP`：约 `100%` 完成
-- `全量文章同构系统`：约 `94%` 完成
+- `全量文章同构系统`：约 `95%` 完成
 
 已完成：
 
@@ -33,6 +33,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 - `dashboard` 新增规则中心管理视图，支持页面内启停灰度、调整比例、维护定向成员，并展示命中规则版本
 - `dashboard` 新增分析摘要、会话分析、出码分析视图，展示真实会话主线、编辑证据与 Tab 接受聚合
 - `employee-onboarding` 员工接入原型，可生成 `.aimetric/config.json` 与 `.aimetric/mcp.json`
+- `employee-onboarding` 会写入 `collector.authTokenEnv`，只保存环境变量名，不保存真实 token
 - `employee-onboarding` 支持 `cursor / cli / vscode` 三种标准接入档，并生成对应适配文件
 - `cli-adapter` 已提供标准 CLI 会话采集入口，可直接上报 `session.recorded` 批次
 - `cursor-adapter` 已提供 Cursor 增强采集入口，支持 transcript 扫描、增量状态和 `cursor-db` 上报
@@ -44,6 +45,8 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 - `metric-platform` 已新增分析查询 API：`GET /analysis/summary`、`GET /analysis/sessions`、`GET /analysis/output`
 - `cursor-adapter` 现在会把 `estimatedActiveMinutes`、`workspaceStorage/globalStorage state.vscdb` 证据摘要一起写入 `session.recorded`
 - `collector-sdk` 可读取 `.aimetric/config.json` 并生成标准 `IngestionBatch`
+- `collector-sdk` 提供带 Bearer Token 的统一采集批次发布入口
+- `collector-gateway` 支持通过 `AIMETRIC_COLLECTOR_TOKEN` 或启动参数开启采集端 Bearer Token 鉴权
 - `mcp-server recordSession` 可读取员工接入配置并补齐项目、成员、仓库、规则版本
 - `dashboard` 个人出码视图、团队出码视图、会话分析、出码分析、自动刷新、项目/成员/时间范围筛选
 - 本地 `docker-compose.yml`，包含 PostgreSQL 和 Redis
@@ -53,7 +56,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 
 - 多 IDE/CLI 适配器扩展
 - Cursor 更深层 SQLite 键级别编辑/Tab/本地数据库细粒度逆向采集
-- RBAC、审计、可观测、回算、生产部署等准生产能力
+- RBAC、管理端 API 鉴权、可观测、数据修复、生产部署等准生产能力
 
 ## 架构分层
 
@@ -129,6 +132,12 @@ corepack pnpm start:collector-gateway
 corepack pnpm start:metric-platform
 ```
 
+如需开启采集端身份认证，在启动 `collector-gateway` 前设置：
+
+```bash
+export AIMETRIC_COLLECTOR_TOKEN='replace-with-your-secret'
+```
+
 默认端口：
 
 - `collector-gateway`：`http://127.0.0.1:3000`
@@ -155,6 +164,7 @@ curl http://127.0.0.1:3001/health
 
 ```bash
 curl -X POST http://127.0.0.1:3000/ingestion \
+  -H 'authorization: Bearer replace-with-your-secret' \
   -H 'content-type: application/json' \
   -d '{
     "schemaVersion": "v1",
