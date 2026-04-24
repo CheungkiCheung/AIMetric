@@ -93,6 +93,74 @@ const createClient = (
       latestDiffSummary: '--- /repo/src/demo.ts',
     },
   ],
+  getEnterpriseMetricCatalog: async () => ({
+    dimensions: [
+      {
+        key: 'adoption',
+        name: '使用渗透',
+        question: 'AI 有没有真正被用起来',
+        primaryAudience: ['effectiveness-manager', 'engineering-manager'],
+      },
+      {
+        key: 'effective-output',
+        name: '有效产出',
+        question: 'AI 生成的内容有没有变成正式成果',
+        primaryAudience: ['effectiveness-manager', 'engineering-manager'],
+      },
+      {
+        key: 'delivery-efficiency',
+        name: '交付效率',
+        question: '用了 AI 之后，需求是否更快流向生产',
+        primaryAudience: ['engineering-manager'],
+      },
+      {
+        key: 'quality-risk',
+        name: '质量与风险',
+        question: '速度提升是否以返工或事故为代价',
+        primaryAudience: ['engineering-manager', 'platform-admin'],
+      },
+      {
+        key: 'experience-capability',
+        name: '体验与能力',
+        question: '开发者是否更轻松、更能学、更能协作',
+        primaryAudience: ['effectiveness-manager', 'employee'],
+      },
+      {
+        key: 'business-value',
+        name: '业务与经济价值',
+        question: 'AI 投入是否值得',
+        primaryAudience: ['engineering-manager', 'effectiveness-manager'],
+      },
+    ],
+    metrics: [
+      {
+        key: 'ai_ide_user_ratio',
+        name: 'AI-IDE 使用人数比例',
+        dimension: 'adoption',
+        question: '目标开发者里有多少人真正使用了 AI-IDE。',
+        formula: 'AI-IDE 活跃使用人数 / 目标开发者人数',
+        dataSources: ['mcp-events', 'tool-adapter-events', 'organization-directory'],
+        automationLevel: 'high',
+        updateFrequency: 'daily',
+        dashboardPlacement: 'effectiveness-management',
+        assessmentUsage: 'observe-only',
+        antiGamingNote: '只看比例容易鼓励刷打开次数，必须结合活跃天数、会话质量和有效产出一起看。',
+      },
+      {
+        key: 'lead_time_ai_vs_non_ai',
+        name: 'AI 参与需求 Lead Time 对比',
+        dimension: 'delivery-efficiency',
+        question: 'AI 参与需求是否比非 AI 需求更快流向生产。',
+        formula: 'AI 参与需求平均 Lead Time 与非 AI 参与需求平均 Lead Time 的差异',
+        dataSources: ['delivery-tracker', 'pr-provider', 'deployment-provider', 'mcp-events'],
+        automationLevel: 'medium',
+        updateFrequency: 'daily',
+        dashboardPlacement: 'engineering-management',
+        assessmentUsage: 'team-improvement',
+        antiGamingNote: '必须按需求规模和类型分层对比，避免简单平均造成误判。',
+      },
+    ],
+  }),
   updateRuleRollout: async (input: RuleRollout) => input,
   ...overrides,
 });
@@ -147,6 +215,10 @@ describe('App', () => {
     expect(screen.getByText('团队出码视图')).toBeInTheDocument();
     expect(screen.getByText('MCP 采集质量')).toBeInTheDocument();
     expect(screen.getByText('规则中心管理')).toBeInTheDocument();
+    expect(screen.getByText('企业指标语义层')).toBeInTheDocument();
+    expect(screen.getByText('六类核心维度')).toBeInTheDocument();
+    expect(screen.getByText('AI-IDE 使用人数比例')).toBeInTheDocument();
+    expect(screen.getByText('必须按需求规模和类型分层对比，避免简单平均造成误判。')).toBeInTheDocument();
     expect(screen.getByText('会话分析')).toBeInTheDocument();
     expect(screen.getByText('出码分析')).toBeInTheDocument();
     expect(screen.getByText('编辑证据数')).toBeInTheDocument();
@@ -216,6 +288,9 @@ describe('App', () => {
     }));
     const getSessionAnalysisRows = vi.fn(async (_filters?: DashboardFilters) => []);
     const getOutputAnalysisRows = vi.fn(async (_filters?: DashboardFilters) => []);
+    const getEnterpriseMetricCatalog = vi.fn(
+      createClient().getEnterpriseMetricCatalog,
+    );
 
     render(
       <App
@@ -229,6 +304,7 @@ describe('App', () => {
           getAnalysisSummary,
           getSessionAnalysisRows,
           getOutputAnalysisRows,
+          getEnterpriseMetricCatalog,
         })}
       />,
     );
@@ -260,6 +336,7 @@ describe('App', () => {
       expect(getOutputAnalysisRows).toHaveBeenLastCalledWith(
         expect.objectContaining({ projectKey: 'navigation' }),
       );
+      expect(getEnterpriseMetricCatalog).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -319,6 +396,9 @@ describe('App', () => {
     }));
     const getSessionAnalysisRows = vi.fn(async () => []);
     const getOutputAnalysisRows = vi.fn(async () => []);
+    const getEnterpriseMetricCatalog = vi.fn(
+      createClient().getEnterpriseMetricCatalog,
+    );
 
     try {
       render(
@@ -334,6 +414,7 @@ describe('App', () => {
             getAnalysisSummary,
             getSessionAnalysisRows,
             getOutputAnalysisRows,
+            getEnterpriseMetricCatalog,
           })}
         />,
       );
@@ -357,6 +438,7 @@ describe('App', () => {
       expect(getAnalysisSummary).toHaveBeenCalledTimes(2);
       expect(getSessionAnalysisRows).toHaveBeenCalledTimes(2);
       expect(getOutputAnalysisRows).toHaveBeenCalledTimes(2);
+      expect(getEnterpriseMetricCatalog).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
     }

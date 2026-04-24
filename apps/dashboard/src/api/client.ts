@@ -1,3 +1,11 @@
+import {
+  getEnterpriseMetricCatalog,
+  type EnterpriseMetricCatalog,
+  type EnterpriseMetricDashboardPlacement,
+  type EnterpriseMetricDefinition,
+  type EnterpriseMetricDimension,
+} from '@aimetric/metric-core';
+
 export interface PersonalSnapshot {
   acceptedAiLines: number;
   commitTotalLines: number;
@@ -121,8 +129,16 @@ export interface DashboardClient {
     projectKey?: string,
     memberId?: string,
   ): Promise<RuleRolloutEvaluation>;
+  getEnterpriseMetricCatalog(): Promise<EnterpriseMetricCatalog>;
   updateRuleRollout(input: RuleRollout): Promise<RuleRollout>;
 }
+
+export type {
+  EnterpriseMetricCatalog,
+  EnterpriseMetricDashboardPlacement,
+  EnterpriseMetricDefinition,
+  EnterpriseMetricDimension,
+};
 
 const fallbackPersonalSnapshot: PersonalSnapshot = {
   acceptedAiLines: 35,
@@ -182,6 +198,8 @@ const fallbackRuleRolloutEvaluation: RuleRolloutEvaluation = {
   matched: false,
   reason: 'rollout-disabled',
 };
+
+const fallbackEnterpriseMetricCatalog = getEnterpriseMetricCatalog();
 
 const fetchJson = async <T>(url: string, fallback: T): Promise<T> => {
   if (typeof fetch !== 'function') {
@@ -319,6 +337,11 @@ export const createDashboardClient = (
     fetchJson<RuleRolloutEvaluation>(
       buildRuleUrl(baseUrl, '/rules/rollout/evaluate', projectKey, memberId),
       fallbackRuleRolloutEvaluation,
+    ),
+  getEnterpriseMetricCatalog: () =>
+    fetchJson<EnterpriseMetricCatalog>(
+      new URL('/enterprise-metrics/catalog', baseUrl).toString(),
+      fallbackEnterpriseMetricCatalog,
     ),
   updateRuleRollout: (input) =>
     sendJson<RuleRollout>(

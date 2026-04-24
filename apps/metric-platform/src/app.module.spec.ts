@@ -3,6 +3,36 @@ import type { IngestionBatch } from '@aimetric/event-schema';
 import { AppModule } from './app.module.js';
 
 describe('AppModule', () => {
+  it('exposes the enterprise metric catalog for management analysis', () => {
+    const appModule = new AppModule(createEmptyRepository());
+    const catalog = appModule.getEnterpriseMetricCatalog();
+
+    expect(catalog.dimensions.map((dimension) => dimension.key)).toEqual([
+      'adoption',
+      'effective-output',
+      'delivery-efficiency',
+      'quality-risk',
+      'experience-capability',
+      'business-value',
+    ]);
+    expect(catalog.metrics).toContainEqual(
+      expect.objectContaining({
+        key: 'ai_ide_user_ratio',
+        dashboardPlacement: 'effectiveness-management',
+        assessmentUsage: 'observe-only',
+      }),
+    );
+  });
+
+  it('filters enterprise metrics by dimension', () => {
+    const appModule = new AppModule(createEmptyRepository());
+    const metrics = appModule.listEnterpriseMetricsByDimension('quality-risk');
+
+    expect(metrics.length).toBeGreaterThan(0);
+    expect(metrics.every((metric) => metric.dimension === 'quality-risk')).toBe(true);
+    expect(metrics.map((metric) => metric.key)).toContain('change_failure_rate');
+  });
+
   it('persists imported batches through the repository abstraction', async () => {
     const batch: IngestionBatch = {
       schemaVersion: 'v1',

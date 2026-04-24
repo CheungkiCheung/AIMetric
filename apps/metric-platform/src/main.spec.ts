@@ -130,6 +130,80 @@ describe('bootstrap', () => {
     expect(teamSnapshot.memberCount).toBe(2);
   });
 
+  it('serves the enterprise metric catalog over HTTP', async () => {
+    const app = await bootstrap({
+      port: 0,
+      metricEventRepository: createEmptyRepository(),
+    });
+    servers.push(app);
+
+    const response = await fetch(`${app.baseUrl}/enterprise-metrics/catalog`);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      dimensions: [
+        expect.objectContaining({
+          key: 'adoption',
+          name: '使用渗透',
+        }),
+        expect.objectContaining({
+          key: 'effective-output',
+          name: '有效产出',
+        }),
+        expect.objectContaining({
+          key: 'delivery-efficiency',
+          name: '交付效率',
+        }),
+        expect.objectContaining({
+          key: 'quality-risk',
+          name: '质量与风险',
+        }),
+        expect.objectContaining({
+          key: 'experience-capability',
+          name: '体验与能力',
+        }),
+        expect.objectContaining({
+          key: 'business-value',
+          name: '业务与经济价值',
+        }),
+      ],
+      metrics: expect.arrayContaining([
+        expect.objectContaining({
+          key: 'ai_ide_user_ratio',
+          dashboardPlacement: 'effectiveness-management',
+        }),
+        expect.objectContaining({
+          key: 'lead_time_ai_vs_non_ai',
+          dashboardPlacement: 'engineering-management',
+        }),
+      ]),
+    });
+  });
+
+  it('serves enterprise metrics filtered by dimension over HTTP', async () => {
+    const app = await bootstrap({
+      port: 0,
+      metricEventRepository: createEmptyRepository(),
+    });
+    servers.push(app);
+
+    const response = await fetch(
+      `${app.baseUrl}/enterprise-metrics?dimension=quality-risk`,
+    );
+    const metrics = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(metrics.length).toBeGreaterThan(0);
+    expect(
+      metrics.every(
+        (metric: { dimension: string }) => metric.dimension === 'quality-risk',
+      ),
+    ).toBe(true);
+    expect(metrics).toContainEqual(
+      expect.objectContaining({ key: 'change_failure_rate' }),
+    );
+  });
+
   it('passes metric query parameters from HTTP requests to the repository', async () => {
     const listCalls: unknown[] = [];
     const metricEventRepository: MetricEventRepository = {

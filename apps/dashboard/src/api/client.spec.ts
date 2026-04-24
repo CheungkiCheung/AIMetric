@@ -89,6 +89,41 @@ describe('createDashboardClient', () => {
         );
       }
 
+      if (url.endsWith('/enterprise-metrics/catalog')) {
+        return new Response(
+          JSON.stringify({
+            dimensions: [
+              {
+                key: 'adoption',
+                name: '使用渗透',
+                question: 'AI 有没有真正被用起来',
+                primaryAudience: ['effectiveness-manager', 'engineering-manager'],
+              },
+            ],
+            metrics: [
+              {
+                key: 'ai_ide_user_ratio',
+                name: 'AI-IDE 使用人数比例',
+                dimension: 'adoption',
+                question: 'AI 有没有真正被用起来',
+                formula: 'AI-IDE 活跃使用人数 / 目标开发者人数',
+                dataSources: [
+                  'mcp-events',
+                  'tool-adapter-events',
+                  'organization-directory',
+                ],
+                automationLevel: 'high',
+                updateFrequency: 'daily',
+                dashboardPlacement: 'effectiveness-management',
+                assessmentUsage: 'observe-only',
+                antiGamingNote: '结合有效产出判断，避免刷打开次数。',
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+
       return new Response(
         JSON.stringify({
           memberCount: 3,
@@ -131,6 +166,20 @@ describe('createDashboardClient', () => {
       selectedVersion: 'v1',
       matched: true,
       reason: 'included-member',
+    });
+    await expect(client.getEnterpriseMetricCatalog()).resolves.toMatchObject({
+      dimensions: expect.arrayContaining([
+        expect.objectContaining({
+          key: 'adoption',
+          name: '使用渗透',
+        }),
+      ]),
+      metrics: expect.arrayContaining([
+        expect.objectContaining({
+          key: 'ai_ide_user_ratio',
+          dashboardPlacement: 'effectiveness-management',
+        }),
+      ]),
     });
     await expect(
       client.updateRuleRollout({
@@ -178,6 +227,7 @@ describe('createDashboardClient', () => {
     await client.getRuleVersions('navigation');
     await client.getRuleRollout('navigation');
     await client.getRuleRolloutEvaluation('navigation', 'alice');
+    await client.getEnterpriseMetricCatalog();
 
     expect(requestedUrls[0]).toBe(
       'http://127.0.0.1:3001/metrics/personal?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
@@ -193,6 +243,31 @@ describe('createDashboardClient', () => {
     );
     expect(requestedUrls[4]).toBe(
       'http://127.0.0.1:3001/rules/rollout/evaluate?projectKey=navigation&memberId=alice',
+    );
+    expect(requestedUrls[5]).toBe(
+      'http://127.0.0.1:3001/enterprise-metrics/catalog',
+    );
+  });
+
+  it('falls back to the bundled enterprise metric catalog when backend is unavailable', async () => {
+    globalThis.fetch = vi.fn(async () => new Response('', { status: 503 })) as typeof fetch;
+
+    const client = createDashboardClient('http://127.0.0.1:3001');
+    const catalog = await client.getEnterpriseMetricCatalog();
+
+    expect(catalog.dimensions.map((dimension) => dimension.key)).toEqual([
+      'adoption',
+      'effective-output',
+      'delivery-efficiency',
+      'quality-risk',
+      'experience-capability',
+      'business-value',
+    ]);
+    expect(catalog.metrics).toContainEqual(
+      expect.objectContaining({
+        key: 'lead_time_ai_vs_non_ai',
+        dimension: 'delivery-efficiency',
+      }),
     );
   });
 

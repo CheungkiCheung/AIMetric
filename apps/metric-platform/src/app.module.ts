@@ -1,5 +1,10 @@
 import type { IngestionBatch } from '@aimetric/event-schema';
-import { calculateAiOutputRate } from '@aimetric/metric-core';
+import {
+  calculateAiOutputRate,
+  getEnterpriseMetricCatalog,
+  listEnterpriseMetricsByDimension,
+  type EnterpriseMetricDimensionKey,
+} from '@aimetric/metric-core';
 import {
   PostgresMetricEventRepository,
   type EditEvidenceFilters,
@@ -124,6 +129,14 @@ export class AppModule {
 
   async listOutputAnalysisRows(filters: MetricSnapshotFilters = {}) {
     return (await this.metricEventRepository.listOutputAnalysisRows?.(filters)) ?? [];
+  }
+
+  getEnterpriseMetricCatalog() {
+    return getEnterpriseMetricCatalog();
+  }
+
+  listEnterpriseMetricsByDimension(dimension: EnterpriseMetricDimensionKey) {
+    return listEnterpriseMetricsByDimension(dimension);
   }
 
   getProjectRules(input: {

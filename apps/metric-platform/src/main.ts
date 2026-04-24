@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { IngestionBatchSchema } from '@aimetric/event-schema';
+import type { EnterpriseMetricDimensionKey } from '@aimetric/metric-core';
 import { AppModule } from './app.module.js';
 import type {
   EditEvidenceFilters,
@@ -148,6 +149,27 @@ const getMetricSnapshotFiltersFromBody = (body: unknown): MetricSnapshotFilters 
   return filters;
 };
 
+const enterpriseMetricDimensionKeys = new Set<EnterpriseMetricDimensionKey>([
+  'adoption',
+  'effective-output',
+  'delivery-efficiency',
+  'quality-risk',
+  'experience-capability',
+  'business-value',
+]);
+
+const parseEnterpriseMetricDimension = (
+  value: string | null,
+): EnterpriseMetricDimensionKey | undefined => {
+  if (!value) {
+    return undefined;
+  }
+
+  return enterpriseMetricDimensionKeys.has(value as EnterpriseMetricDimensionKey)
+    ? (value as EnterpriseMetricDimensionKey)
+    : undefined;
+};
+
 const handleRequest = async (
   request: IncomingMessage,
   response: ServerResponse,
@@ -228,6 +250,25 @@ const handleRequest = async (
       200,
       await appModule.buildMcpAuditMetrics(getMetricSnapshotFilters(url)),
     );
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/enterprise-metrics/catalog') {
+    writeJson(response, 200, appModule.getEnterpriseMetricCatalog());
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/enterprise-metrics') {
+    const dimension = parseEnterpriseMetricDimension(
+      url.searchParams.get('dimension'),
+    );
+
+    if (!dimension) {
+      writeJson(response, 400, { message: 'Valid dimension is required' });
+      return;
+    }
+
+    writeJson(response, 200, appModule.listEnterpriseMetricsByDimension(dimension));
     return;
   }
 

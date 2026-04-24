@@ -4,6 +4,7 @@ import {
   type AnalysisSummary,
   type DashboardClient,
   type DashboardFilters,
+  type EnterpriseMetricCatalog,
   type McpAuditMetrics,
   type OutputAnalysisRow,
   type PersonalSnapshot,
@@ -14,6 +15,7 @@ import {
   type TeamSnapshot,
 } from './api/client.js';
 import { AnalysisSummarySection } from './pages/analysis-summary.js';
+import { EnterpriseMetricCatalogPanel } from './pages/enterprise-metric-catalog.js';
 import { McpAuditDashboard } from './pages/mcp-audit-dashboard.js';
 import { OutputAnalysisTable } from './pages/output-analysis-table.js';
 import { PersonalDashboard } from './pages/personal-dashboard.js';
@@ -87,6 +89,8 @@ export const App = ({
   const [analysisSummary, setAnalysisSummary] = useState<AnalysisSummary | null>(null);
   const [sessionAnalysisRows, setSessionAnalysisRows] = useState<SessionAnalysisRow[]>([]);
   const [outputAnalysisRows, setOutputAnalysisRows] = useState<OutputAnalysisRow[]>([]);
+  const [enterpriseMetricCatalog, setEnterpriseMetricCatalog] =
+    useState<EnterpriseMetricCatalog | null>(null);
   const [personalSnapshot, setPersonalSnapshot] = useState<PersonalSnapshot | null>(null);
   const [teamSnapshot, setTeamSnapshot] = useState<TeamSnapshot | null>(null);
   const [mcpAuditMetrics, setMcpAuditMetrics] = useState<McpAuditMetrics | null>(null);
@@ -180,6 +184,24 @@ export const App = ({
       }
     };
   }, [client, filters, refreshIntervalMs]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadCatalog = async () => {
+      const catalog = await client.getEnterpriseMetricCatalog();
+
+      if (active) {
+        setEnterpriseMetricCatalog(catalog);
+      }
+    };
+
+    void loadCatalog();
+
+    return () => {
+      active = false;
+    };
+  }, [client]);
 
   const updateFilter = (key: keyof DashboardFilters, value: string) => {
     setFilters((currentFilters) =>
@@ -279,6 +301,7 @@ export const App = ({
     !personalSnapshot ||
     !teamSnapshot ||
     !mcpAuditMetrics ||
+    !enterpriseMetricCatalog ||
     !ruleVersions ||
     !ruleRollout ||
     !ruleRolloutEvaluation
@@ -324,6 +347,7 @@ export const App = ({
           </p>
         </header>
         {filterControls}
+        <EnterpriseMetricCatalogPanel catalog={enterpriseMetricCatalog} />
         <AnalysisSummarySection summary={analysisSummary} />
         <SessionAnalysisTable rows={sessionAnalysisRows} />
         <OutputAnalysisTable rows={outputAnalysisRows} />
