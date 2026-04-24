@@ -17,6 +17,16 @@ export interface SessionRecordedInput {
   metadata?: Record<string, unknown>;
 }
 
+export interface TabAcceptedInput {
+  sessionId: string;
+  occurredAt?: string;
+  acceptedLines: number;
+  filePath?: string;
+  language?: string;
+  ingestionKey?: string;
+  metadata?: Record<string, unknown>;
+}
+
 export type CollectorEvent = IngestionBatch['events'][number];
 
 export class CollectorClient<T = unknown> {
@@ -68,6 +78,31 @@ export class ConfiguredCollectorClient {
         ...(input.assistantMessage !== undefined
           ? { assistantMessage: input.assistantMessage }
           : {}),
+        ...(input.ingestionKey !== undefined
+          ? { ingestionKey: input.ingestionKey }
+          : {}),
+        ...(input.metadata ?? {}),
+        ruleVersion: this.config.rules.version,
+      },
+    };
+
+    this.buffer.push(event);
+
+    return event;
+  }
+
+  recordTabAccepted(input: TabAcceptedInput) {
+    const event: CollectorEvent = {
+      eventType: 'tab.accepted',
+      occurredAt: input.occurredAt ?? this.now(),
+      payload: {
+        sessionId: input.sessionId,
+        projectKey: this.config.projectKey,
+        repoName: this.config.repoName,
+        memberId: this.config.memberId,
+        acceptedLines: input.acceptedLines,
+        ...(input.filePath !== undefined ? { filePath: input.filePath } : {}),
+        ...(input.language !== undefined ? { language: input.language } : {}),
         ...(input.ingestionKey !== undefined
           ? { ingestionKey: input.ingestionKey }
           : {}),

@@ -37,6 +37,7 @@ describe('AppModule', () => {
         averageDurationMs: 15,
       })),
       listEditSpanEvidence: vi.fn(async () => []),
+      listTabAcceptedEvents: vi.fn(async () => []),
       disconnect: vi.fn(async () => undefined),
     };
 
@@ -71,6 +72,7 @@ describe('AppModule', () => {
       listMetricSnapshots: vi.fn(async () => []),
       buildMcpAuditMetrics: vi.fn(async () => emptyMcpAuditMetrics()),
       listEditSpanEvidence: vi.fn(async () => []),
+      listTabAcceptedEvents: vi.fn(async () => []),
       disconnect: vi.fn(async () => undefined),
     };
 
@@ -92,6 +94,7 @@ describe('AppModule', () => {
       listMetricSnapshots: vi.fn(async () => []),
       buildMcpAuditMetrics: vi.fn(async () => emptyMcpAuditMetrics()),
       listEditSpanEvidence: vi.fn(async () => []),
+      listTabAcceptedEvents: vi.fn(async () => []),
       disconnect: vi.fn(async () => undefined),
     };
     const filters = {
@@ -131,6 +134,7 @@ describe('AppModule', () => {
       listMetricSnapshots: vi.fn(async () => []),
       buildMcpAuditMetrics: vi.fn(async () => emptyMcpAuditMetrics()),
       listEditSpanEvidence: vi.fn(async () => []),
+      listTabAcceptedEvents: vi.fn(async () => []),
       disconnect: vi.fn(async () => undefined),
     };
     const filters = {
@@ -203,6 +207,7 @@ describe('AppModule', () => {
       ]),
       buildMcpAuditMetrics: vi.fn(async () => emptyMcpAuditMetrics()),
       listEditSpanEvidence: vi.fn(async () => []),
+      listTabAcceptedEvents: vi.fn(async () => []),
       disconnect: vi.fn(async () => undefined),
     };
     const filters = {
@@ -231,6 +236,7 @@ describe('AppModule', () => {
         averageDurationMs: 15,
       })),
       listEditSpanEvidence: vi.fn(async () => []),
+      listTabAcceptedEvents: vi.fn(async () => []),
       disconnect: vi.fn(async () => undefined),
     };
     const filters = {
@@ -270,6 +276,7 @@ describe('AppModule', () => {
           toolProfile: 'cursor',
         },
       ]),
+      listTabAcceptedEvents: vi.fn(async () => []),
       disconnect: vi.fn(async () => undefined),
     };
     const filters = {
@@ -285,6 +292,43 @@ describe('AppModule', () => {
       expect.objectContaining({
         editSpanId: 'edit-span-1',
         sessionId: 'sess_1',
+      }),
+    ]);
+  });
+
+  it('lists tab accepted events through the repository', async () => {
+    const repository = {
+      saveIngestionBatch: vi.fn(async () => undefined),
+      listRecordedMetricEvents: vi.fn(async () => []),
+      saveMetricSnapshots: vi.fn(async () => undefined),
+      listMetricSnapshots: vi.fn(async () => []),
+      buildMcpAuditMetrics: vi.fn(async () => emptyMcpAuditMetrics()),
+      listEditSpanEvidence: vi.fn(async () => []),
+      listTabAcceptedEvents: vi.fn(async () => [
+        {
+          sessionId: 'sess_1',
+          occurredAt: '2026-04-24T00:03:00.000Z',
+          acceptedLines: 2,
+          filePath: '/repo/src/demo.ts',
+          language: 'typescript',
+          ingestionKey: 'cursor-tab:sess_1:2026-04-24T00:03:00.000Z:abc',
+        },
+      ]),
+      disconnect: vi.fn(async () => undefined),
+    };
+    const filters = {
+      projectKey: 'aimetric',
+      sessionId: 'sess_1',
+    };
+
+    const appModule = new AppModule(repository);
+    const events = await appModule.listTabAcceptedEvents(filters);
+
+    expect(repository.listTabAcceptedEvents).toHaveBeenCalledWith(filters);
+    expect(events).toEqual([
+      expect.objectContaining({
+        sessionId: 'sess_1',
+        acceptedLines: 2,
       }),
     ]);
   });
@@ -324,6 +368,7 @@ const createEmptyRepository = () => ({
   listMetricSnapshots: vi.fn(async () => []),
   buildMcpAuditMetrics: vi.fn(async () => emptyMcpAuditMetrics()),
   listEditSpanEvidence: vi.fn(async () => []),
+  listTabAcceptedEvents: vi.fn(async () => []),
   disconnect: vi.fn(async () => undefined),
 });
 

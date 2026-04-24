@@ -103,6 +103,10 @@ export class AppModule {
     return this.metricEventRepository.listEditSpanEvidence(filters);
   }
 
+  listTabAcceptedEvents(filters: EditEvidenceFilters = {}) {
+    return this.metricEventRepository.listTabAcceptedEvents(filters);
+  }
+
   getProjectRules(input: {
     projectKey: string;
     toolType: string;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCursorTranscript } from './transcript.js';
+import { parseCursorTabAcceptedEvents, parseCursorTranscript } from './transcript.js';
 
 describe('parseCursorTranscript', () => {
   it('builds a CursorSessionRecord from transcript jsonl lines', async () => {
@@ -53,5 +53,32 @@ describe('parseCursorTranscript', () => {
 
     expect(session.sessionId).toBe('cursor-session-2');
     expect(session.userMessageCount).toBe(1);
+  });
+
+  it('extracts tab accepted events from transcript jsonl lines', async () => {
+    const events = await parseCursorTabAcceptedEvents(
+      [
+        JSON.stringify({
+          sessionId: 'cursor-session-1',
+          timestamp: '2026-04-24T00:03:00.000Z',
+          eventType: 'tab.accepted',
+          acceptedLines: 2,
+          filePath: '/repo/src/demo.ts',
+          language: 'typescript',
+        }),
+      ],
+      '/tmp/transcript.jsonl',
+    );
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        sessionId: 'cursor-session-1',
+        occurredAt: '2026-04-24T00:03:00.000Z',
+        acceptedLines: 2,
+        filePath: '/repo/src/demo.ts',
+        language: 'typescript',
+        ingestionKey: expect.stringContaining('cursor-tab:cursor-session-1'),
+      }),
+    ]);
   });
 });

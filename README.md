@@ -7,7 +7,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 按最初的全量规划估算：
 
 - `Phase 1 主链路 MVP`：约 `100%` 完成
-- `全量文章同构系统`：约 `87%` 完成
+- `全量文章同构系统`：约 `89%` 完成
 
 已完成：
 
@@ -38,6 +38,8 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 - `cursor-db-adapter` 已提供跨平台路径发现、会话主线 transcript 解析与定时扫描状态管理
 - `metric-platform` 已支持 `ingestion_key` 幂等去重，保障定时扫描不重复记数
 - `edit-evidence` 已提供文件级 `edit span` 证据建模、快照 hash、diff 与幂等键生成
+- `collector-sdk`、`cursor-db-adapter`、`cursor-adapter` 已支持 `tab.accepted` 增强事件采集
+- `metric-platform` 已新增 Tab 补全事件查询 API：`GET /evidence/tab-completions`
 - `collector-sdk` 可读取 `.aimetric/config.json` 并生成标准 `IngestionBatch`
 - `mcp-server recordSession` 可读取员工接入配置并补齐项目、成员、仓库、规则版本
 - `dashboard` 个人出码视图、团队出码视图、自动刷新、项目/成员/时间范围筛选
@@ -177,6 +179,7 @@ curl -X POST http://127.0.0.1:3000/ingestion \
 curl http://127.0.0.1:3001/metrics/personal
 curl http://127.0.0.1:3001/metrics/team
 curl http://127.0.0.1:3001/evidence/edits
+curl http://127.0.0.1:3001/evidence/tab-completions
 ```
 
 支持按项目、成员、时间范围筛选：
@@ -185,6 +188,7 @@ curl http://127.0.0.1:3001/evidence/edits
 curl 'http://127.0.0.1:3001/metrics/personal?projectKey=proj&memberId=alice&from=2026-04-23T00:00:00.000Z&to=2026-04-24T00:00:00.000Z'
 curl 'http://127.0.0.1:3001/metrics/team?projectKey=proj&from=2026-04-23T00:00:00.000Z&to=2026-04-24T00:00:00.000Z'
 curl 'http://127.0.0.1:3001/evidence/edits?projectKey=proj&sessionId=sess_1&filePath=/repo/src/demo.ts'
+curl 'http://127.0.0.1:3001/evidence/tab-completions?projectKey=proj&sessionId=sess_1&filePath=/repo/src/demo.ts'
 ```
 
 ### 回算与查询指标快照

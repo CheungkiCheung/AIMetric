@@ -10,6 +10,7 @@ import {
 import {
   buildNextCursorSyncState,
   filterExportableSessions,
+  parseCursorTabAcceptedEvents,
   parseCursorTranscript,
   readCursorSyncState,
   resolveCursorDataRoots,
@@ -114,6 +115,19 @@ export async function syncCursorSessions(
       ),
     ),
   );
+  const discoveredTabAcceptedEvents = (
+    await Promise.all(
+      transcriptPaths.map(async (transcriptPath) =>
+        parseCursorTabAcceptedEvents(
+          (await readFile(transcriptPath, 'utf8'))
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0),
+          transcriptPath,
+        ),
+      ),
+    )
+  ).flat();
   const statePath = join(
     input.workspaceDir ?? process.cwd(),
     '.aimetric',
@@ -154,6 +168,20 @@ export async function syncCursorSessions(
         ...(session.workspacePath ? { workspacePath: session.workspacePath } : {}),
         projectFingerprint: session.projectFingerprint,
         transcriptPathHash: session.transcriptPathHash,
+      },
+    });
+  });
+  discoveredTabAcceptedEvents.forEach((event) => {
+    client.recordTabAccepted({
+      sessionId: event.sessionId,
+      occurredAt: event.occurredAt,
+      acceptedLines: event.acceptedLines,
+      ...(event.filePath ? { filePath: event.filePath } : {}),
+      ...(event.language ? { language: event.language } : {}),
+      ingestionKey: event.ingestionKey,
+      metadata: {
+        collectorType: 'cursor-db',
+        sourceSessionKind: 'cursor-tab-accept',
       },
     });
   });

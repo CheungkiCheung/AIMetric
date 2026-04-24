@@ -186,6 +186,15 @@ const handleRequest = async (
     return;
   }
 
+  if (method === 'GET' && url.pathname === '/evidence/tab-completions') {
+    writeJson(
+      response,
+      200,
+      await appModule.listTabAcceptedEvents(getEditEvidenceFilters(url)),
+    );
+    return;
+  }
+
   if (method === 'GET' && url.pathname === '/rules/project') {
     writeJson(
       response,

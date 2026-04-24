@@ -55,6 +55,15 @@ export interface EditSpanEvidenceRecord {
   toolProfile?: string;
 }
 
+export interface TabAcceptedEventRecord {
+  sessionId: string;
+  occurredAt: string;
+  acceptedLines: number;
+  ingestionKey: string;
+  filePath?: string;
+  language?: string;
+}
+
 export interface MetricEventRepository {
   saveIngestionBatch(batch: IngestionBatch): Promise<void>;
   listRecordedMetricEvents(
@@ -68,6 +77,9 @@ export interface MetricEventRepository {
   listEditSpanEvidence(
     filters?: EditEvidenceFilters,
   ): Promise<EditSpanEvidenceRecord[]>;
+  listTabAcceptedEvents(
+    filters?: EditEvidenceFilters,
+  ): Promise<TabAcceptedEventRecord[]>;
   disconnect(): Promise<void>;
 }
 
@@ -379,6 +391,77 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
       beforeSnapshotHash: event.before_snapshot_hash,
       afterSnapshotHash: event.after_snapshot_hash,
       ...(event.tool_profile ? { toolProfile: event.tool_profile } : {}),
+    }));
+  }
+
+  async listTabAcceptedEvents(
+    filters: EditEvidenceFilters = {},
+  ): Promise<TabAcceptedEventRecord[]> {
+    await this.ensureSchema();
+
+    const values: string[] = [];
+    const whereClauses = [`event_type = 'tab.accepted'`];
+
+    if (filters.projectKey) {
+      values.push(filters.projectKey);
+      whereClauses.push(`project_key = $${values.length}`);
+    }
+
+    if (filters.memberId) {
+      values.push(filters.memberId);
+      whereClauses.push(`member_id = $${values.length}`);
+    }
+
+    if (filters.sessionId) {
+      values.push(filters.sessionId);
+      whereClauses.push(`session_id = $${values.length}`);
+    }
+
+    if (filters.filePath) {
+      values.push(filters.filePath);
+      whereClauses.push(`payload->>'filePath' = $${values.length}`);
+    }
+
+    if (filters.from) {
+      values.push(filters.from);
+      whereClauses.push(`occurred_at >= $${values.length}`);
+    }
+
+    if (filters.to) {
+      values.push(filters.to);
+      whereClauses.push(`occurred_at <= $${values.length}`);
+    }
+
+    const metricEvents = await this.database.query<{
+      session_id: string;
+      occurred_at: Date | string;
+      accepted_lines: number | null;
+      file_path: string | null;
+      language: string | null;
+      ingestion_key: string;
+    }>(
+      `
+        SELECT
+          session_id,
+          occurred_at,
+          (payload->>'acceptedLines')::INTEGER AS accepted_lines,
+          payload->>'filePath' AS file_path,
+          payload->>'language' AS language,
+          payload->>'ingestionKey' AS ingestion_key
+        FROM metric_events
+        WHERE ${whereClauses.join(' AND ')}
+        ORDER BY occurred_at ASC, id ASC
+      `,
+      values,
+    );
+
+    return metricEvents.rows.map((event) => ({
+      sessionId: event.session_id,
+      occurredAt: new Date(event.occurred_at).toISOString(),
+      acceptedLines: event.accepted_lines ?? 0,
+      ingestionKey: event.ingestion_key,
+      ...(event.file_path ? { filePath: event.file_path } : {}),
+      ...(event.language ? { language: event.language } : {}),
     }));
   }
 

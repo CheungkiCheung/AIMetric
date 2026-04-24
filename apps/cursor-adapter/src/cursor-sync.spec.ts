@@ -45,6 +45,17 @@ describe('syncCursorSessions', () => {
         ingestionKey: expect.stringContaining('cursor-db:cursor-session-1'),
       },
     });
+    expect(result.batch?.events[1]).toMatchObject({
+      eventType: 'tab.accepted',
+      occurredAt: '2026-04-24T00:03:00.000Z',
+      payload: {
+        sessionId: 'cursor-session-1',
+        acceptedLines: 2,
+        filePath: '/repo/src/demo.ts',
+        language: 'typescript',
+        ingestionKey: expect.stringContaining('cursor-tab:cursor-session-1'),
+      },
+    });
   });
 
   it('posts the cursor-db batch and persists sync state when publish is enabled', async () => {
@@ -149,6 +160,14 @@ const createWorkspaceWithCursorTranscript = (): {
         text: 'Implement the collector',
         workspaceId: 'workspace-1',
         workspacePath: '/repo',
+      }),
+      JSON.stringify({
+        sessionId: 'cursor-session-1',
+        timestamp: '2026-04-24T00:03:00.000Z',
+        eventType: 'tab.accepted',
+        acceptedLines: 2,
+        filePath: '/repo/src/demo.ts',
+        language: 'typescript',
       }),
       JSON.stringify({
         sessionId: 'cursor-session-1',

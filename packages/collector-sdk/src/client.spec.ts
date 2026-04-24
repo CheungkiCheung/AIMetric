@@ -150,6 +150,50 @@ describe('CollectorClient', () => {
       ],
     });
   });
+
+  it('builds tab accepted ingestion events from onboarding config', async () => {
+    const workspaceDir = createWorkspaceWithConfig({
+      collector: {
+        endpoint: 'http://127.0.0.1:3000/ingestion',
+        source: 'cursor-db',
+      },
+    });
+    const config = await loadAimMetricConfig({ workspaceDir });
+    const client = CollectorClient.fromConfig(config, {
+      now: () => '2026-04-24T00:00:00.000Z',
+    });
+
+    client.recordTabAccepted({
+      sessionId: 'cursor-session-1',
+      acceptedLines: 3,
+      filePath: '/repo/src/demo.ts',
+      language: 'typescript',
+      ingestionKey: 'cursor-tab:cursor-session-1:2026-04-24T00:00:00.000Z:abc',
+    });
+
+    expect(client.flushBatch()).toEqual({
+      schemaVersion: 'v1',
+      source: 'cursor-db',
+      events: [
+        {
+          eventType: 'tab.accepted',
+          occurredAt: '2026-04-24T00:00:00.000Z',
+          payload: {
+            sessionId: 'cursor-session-1',
+            projectKey: 'aimetric',
+            repoName: 'AIMetric',
+            memberId: 'alice',
+            ruleVersion: 'v2',
+            acceptedLines: 3,
+            filePath: '/repo/src/demo.ts',
+            language: 'typescript',
+            ingestionKey:
+              'cursor-tab:cursor-session-1:2026-04-24T00:00:00.000Z:abc',
+          },
+        },
+      ],
+    });
+  });
 });
 
 const createWorkspaceWithConfig = (

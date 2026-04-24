@@ -321,4 +321,70 @@ describe('PostgresMetricEventRepository query mapping', () => {
       '2026-04-24T00:00:00.000Z',
     ]);
   });
+
+  it('lists tab accepted events from metric events with filters', async () => {
+    const queries: Array<{ text: string; values?: unknown[] }> = [];
+    const repository = new PostgresMetricEventRepository({
+      async query<T extends QueryResultRow = QueryResultRow>(
+        text: string,
+        values?: unknown[],
+      ) {
+        queries.push({ text, values });
+
+        if (text.includes('CREATE TABLE')) {
+          return {
+            command: '',
+            rowCount: 0,
+            oid: 0,
+            fields: [],
+            rows: [],
+          };
+        }
+
+        return {
+          command: '',
+          rowCount: 1,
+          oid: 0,
+          fields: [],
+          rows: ([
+            {
+              session_id: 'sess_1',
+              occurred_at: new Date('2026-04-24T00:03:00.000Z'),
+              accepted_lines: 2,
+              file_path: '/repo/src/demo.ts',
+              language: 'typescript',
+              ingestion_key: 'cursor-tab:sess_1:2026-04-24T00:03:00.000Z:abc',
+            },
+          ] as unknown) as T[],
+        };
+      },
+    });
+
+    const events = await repository.listTabAcceptedEvents({
+      projectKey: 'aimetric',
+      sessionId: 'sess_1',
+      filePath: '/repo/src/demo.ts',
+      from: '2026-04-23T00:00:00.000Z',
+      to: '2026-04-24T00:00:00.000Z',
+    });
+
+    expect(events).toEqual([
+      {
+        sessionId: 'sess_1',
+        occurredAt: '2026-04-24T00:03:00.000Z',
+        acceptedLines: 2,
+        filePath: '/repo/src/demo.ts',
+        language: 'typescript',
+        ingestionKey: 'cursor-tab:sess_1:2026-04-24T00:03:00.000Z:abc',
+      },
+    ]);
+    expect(queries.at(-1)?.text).toContain("event_type = 'tab.accepted'");
+    expect(queries.at(-1)?.values).toEqual([
+      'aimetric',
+      'sess_1',
+      '/repo/src/demo.ts',
+      '2026-04-23T00:00:00.000Z',
+      '2026-04-24T00:00:00.000Z',
+    ]);
+  });
 });

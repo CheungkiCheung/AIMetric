@@ -7,6 +7,7 @@ import type {
   EditSpanEvidenceRecord,
   MetricEventRepository,
   RecordedMetricEvent,
+  TabAcceptedEventRecord,
 } from './database/postgres-event.repository.js';
 
 describe('bootstrap', () => {
@@ -59,6 +60,9 @@ describe('bootstrap', () => {
         return emptyMcpAuditMetrics();
       },
       async listEditSpanEvidence() {
+        return [];
+      },
+      async listTabAcceptedEvents() {
         return [];
       },
       async disconnect() {
@@ -152,6 +156,9 @@ describe('bootstrap', () => {
       async listEditSpanEvidence() {
         return [];
       },
+      async listTabAcceptedEvents() {
+        return [];
+      },
       async disconnect() {
         return undefined;
       },
@@ -199,6 +206,9 @@ describe('bootstrap', () => {
         return emptyMcpAuditMetrics();
       },
       async listEditSpanEvidence() {
+        return [];
+      },
+      async listTabAcceptedEvents() {
         return [];
       },
       async disconnect() {
@@ -262,6 +272,9 @@ describe('bootstrap', () => {
         return emptyMcpAuditMetrics();
       },
       async listEditSpanEvidence() {
+        return [];
+      },
+      async listTabAcceptedEvents() {
         return [];
       },
       async disconnect() {
@@ -329,6 +342,9 @@ describe('bootstrap', () => {
       async listEditSpanEvidence() {
         return [];
       },
+      async listTabAcceptedEvents() {
+        return [];
+      },
       async disconnect() {
         return undefined;
       },
@@ -378,6 +394,9 @@ describe('bootstrap', () => {
         };
       },
       async listEditSpanEvidence() {
+        return [];
+      },
+      async listTabAcceptedEvents() {
         return [];
       },
       async disconnect() {
@@ -441,6 +460,9 @@ describe('bootstrap', () => {
         evidenceCalls.push(filters);
         return editEvidence;
       },
+      async listTabAcceptedEvents() {
+        return [];
+      },
       async disconnect() {
         return undefined;
       },
@@ -456,6 +478,62 @@ describe('bootstrap', () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual(editEvidence);
     expect(evidenceCalls[0]).toEqual({
+      projectKey: 'aimetric',
+      sessionId: 'sess_1',
+      filePath: '/repo/src/demo.ts',
+    });
+  });
+
+  it('serves tab accepted events over HTTP', async () => {
+    const eventCalls: unknown[] = [];
+    const tabEvents: TabAcceptedEventRecord[] = [
+      {
+        sessionId: 'sess_1',
+        occurredAt: '2026-04-24T00:03:00.000Z',
+        acceptedLines: 2,
+        filePath: '/repo/src/demo.ts',
+        language: 'typescript',
+        ingestionKey: 'cursor-tab:sess_1:2026-04-24T00:03:00.000Z:abc',
+      },
+    ];
+    const metricEventRepository: MetricEventRepository = {
+      async saveIngestionBatch() {
+        return undefined;
+      },
+      async listRecordedMetricEvents() {
+        return [];
+      },
+      async saveMetricSnapshots() {
+        return undefined;
+      },
+      async listMetricSnapshots() {
+        return [];
+      },
+      async buildMcpAuditMetrics() {
+        return emptyMcpAuditMetrics();
+      },
+      async listEditSpanEvidence() {
+        return [];
+      },
+      async listTabAcceptedEvents(filters) {
+        eventCalls.push(filters);
+        return tabEvents;
+      },
+      async disconnect() {
+        return undefined;
+      },
+    };
+
+    const app = await bootstrap({ port: 0, metricEventRepository });
+    servers.push(app);
+
+    const response = await fetch(
+      `${app.baseUrl}/evidence/tab-completions?projectKey=aimetric&sessionId=sess_1&filePath=%2Frepo%2Fsrc%2Fdemo.ts`,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(tabEvents);
+    expect(eventCalls[0]).toEqual({
       projectKey: 'aimetric',
       sessionId: 'sess_1',
       filePath: '/repo/src/demo.ts',
