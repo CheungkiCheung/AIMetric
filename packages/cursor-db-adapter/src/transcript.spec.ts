@@ -29,6 +29,7 @@ describe('parseCursorTranscript', () => {
       workspacePath: '/repo',
       firstMessageAt: '2026-04-24T00:00:00.000Z',
       lastMessageAt: '2026-04-24T00:05:00.000Z',
+      estimatedActiveMinutes: 5,
       userMessageCount: 1,
       assistantMessageCount: 1,
       conversationTurns: 1,

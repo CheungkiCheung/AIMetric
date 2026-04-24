@@ -1,4 +1,11 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -42,6 +49,11 @@ describe('syncCursorSessions', () => {
         sessionId: 'cursor-session-1',
         collectorType: 'cursor-db',
         conversationTurns: 1,
+        estimatedActiveMinutes: 5,
+        workspaceStorageStateDbPathHash: expect.any(String),
+        workspaceStorageStateDbUpdatedAt: '2026-04-24T00:06:00.000Z',
+        globalStorageStateDbPathHash: expect.any(String),
+        globalStorageStateDbUpdatedAt: '2026-04-24T00:07:00.000Z',
         ingestionKey: expect.stringContaining('cursor-db:cursor-session-1'),
       },
     });
@@ -114,10 +126,29 @@ const createWorkspaceWithCursorTranscript = (): {
   const aimetricDir = join(workspaceDir, '.aimetric');
   const cursorProjectsDir = join(workspaceDir, '.cursor', 'projects');
   const transcriptDirectory = join(cursorProjectsDir, 'project-a', 'agent-transcripts');
+  const workspaceStorageDirectory = join(
+    workspaceDir,
+    'Library',
+    'Application Support',
+    'Cursor',
+    'User',
+    'workspaceStorage',
+    'workspace-1',
+  );
+  const globalStorageDirectory = join(
+    workspaceDir,
+    'Library',
+    'Application Support',
+    'Cursor',
+    'User',
+    'globalStorage',
+  );
   temporaryDirectories.push(workspaceDir);
 
   mkdirSync(aimetricDir, { recursive: true });
   mkdirSync(transcriptDirectory, { recursive: true });
+  mkdirSync(workspaceStorageDirectory, { recursive: true });
+  mkdirSync(globalStorageDirectory, { recursive: true });
   writeFileSync(
     join(aimetricDir, 'config.json'),
     JSON.stringify(
@@ -177,6 +208,18 @@ const createWorkspaceWithCursorTranscript = (): {
       }),
     ].join('\n'),
     'utf8',
+  );
+  writeFileSync(join(workspaceStorageDirectory, 'state.vscdb'), 'workspace-db', 'utf8');
+  writeFileSync(join(globalStorageDirectory, 'state.vscdb'), 'global-db', 'utf8');
+  utimesSync(
+    join(workspaceStorageDirectory, 'state.vscdb'),
+    new Date('2026-04-24T00:00:00.000Z'),
+    new Date('2026-04-24T00:06:00.000Z'),
+  );
+  utimesSync(
+    join(globalStorageDirectory, 'state.vscdb'),
+    new Date('2026-04-24T00:00:00.000Z'),
+    new Date('2026-04-24T00:07:00.000Z'),
   );
 
   return {

@@ -9,7 +9,9 @@ import {
 } from '@aimetric/collector-sdk';
 import {
   buildNextCursorSyncState,
+  discoverCursorStateDatabases,
   filterExportableSessions,
+  matchCursorStateDatabases,
   parseCursorTabAcceptedEvents,
   parseCursorTranscript,
   readCursorSyncState,
@@ -115,6 +117,10 @@ export async function syncCursorSessions(
       ),
     ),
   );
+  const stateDatabases = await discoverCursorStateDatabases({
+    workspaceStorageDir: roots.workspaceStorageDir,
+    globalStorageDir: roots.globalStorageDir,
+  });
   const discoveredTabAcceptedEvents = (
     await Promise.all(
       transcriptPaths.map(async (transcriptPath) =>
@@ -161,6 +167,7 @@ export async function syncCursorSessions(
         sourceSessionKind: 'cursor-transcript',
         firstMessageAt: session.firstMessageAt,
         lastMessageAt: session.lastMessageAt,
+        estimatedActiveMinutes: session.estimatedActiveMinutes,
         userMessageCount: session.userMessageCount,
         assistantMessageCount: session.assistantMessageCount,
         conversationTurns: session.conversationTurns,
@@ -168,6 +175,7 @@ export async function syncCursorSessions(
         ...(session.workspacePath ? { workspacePath: session.workspacePath } : {}),
         projectFingerprint: session.projectFingerprint,
         transcriptPathHash: session.transcriptPathHash,
+        ...matchCursorStateDatabases(session, stateDatabases),
       },
     });
   });

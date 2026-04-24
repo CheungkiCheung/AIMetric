@@ -9,6 +9,7 @@ export interface CursorSessionRecord {
   transcriptPathHash: string;
   firstMessageAt: string;
   lastMessageAt: string;
+  estimatedActiveMinutes: number;
   userMessageCount: number;
   assistantMessageCount: number;
   conversationTurns: number;
@@ -79,6 +80,14 @@ export async function parseCursorTranscript(
     transcriptPathHash: buildHash(transcriptPath),
     firstMessageAt: firstMessage.timestamp!,
     lastMessageAt: lastMessage.timestamp!,
+    estimatedActiveMinutes: Math.max(
+      1,
+      Math.ceil(
+        (new Date(lastMessage.timestamp!).getTime() -
+          new Date(firstMessage.timestamp!).getTime()) /
+          60_000,
+      ),
+    ),
     userMessageCount: userMessages.length,
     assistantMessageCount: assistantMessages.length,
     conversationTurns: Math.min(
