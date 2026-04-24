@@ -248,6 +248,72 @@ describe('bootstrap', () => {
     );
   });
 
+  it('requires admin bearer auth for management writes and exposes audit events', async () => {
+    const metricEventRepository: MetricEventRepository = createEmptyRepository();
+    const app = await bootstrap({
+      port: 0,
+      adminToken: 'admin-secret',
+      metricEventRepository,
+    });
+    servers.push(app);
+
+    const unauthorizedResponse = await fetch(`${app.baseUrl}/metrics/recalculate`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ projectKey: 'navigation' }),
+    });
+    const authorizedResponse = await fetch(`${app.baseUrl}/metrics/recalculate`, {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer admin-secret',
+        'content-type': 'application/json',
+        'x-aimetric-actor': 'platform-admin',
+      },
+      body: JSON.stringify({ projectKey: 'navigation' }),
+    });
+    const auditResponse = await fetch(`${app.baseUrl}/admin/audit`, {
+      headers: {
+        authorization: 'Bearer admin-secret',
+      },
+    });
+
+    expect(unauthorizedResponse.status).toBe(401);
+    await expect(unauthorizedResponse.json()).resolves.toEqual({
+      message: 'Unauthorized admin request',
+    });
+    expect(authorizedResponse.status).toBe(200);
+    expect(auditResponse.status).toBe(200);
+    await expect(auditResponse.json()).resolves.toEqual([
+      expect.objectContaining({
+        action: 'metrics.recalculate',
+        actor: 'platform-admin',
+        status: 'success',
+      }),
+    ]);
+  });
+
+  it('serves readiness and prometheus metrics endpoints', async () => {
+    const metricEventRepository: MetricEventRepository = createEmptyRepository();
+    const app = await bootstrap({ port: 0, metricEventRepository });
+    servers.push(app);
+
+    const readyResponse = await fetch(`${app.baseUrl}/ready`);
+    const metricsResponse = await fetch(`${app.baseUrl}/metrics`);
+
+    expect(readyResponse.status).toBe(200);
+    await expect(readyResponse.json()).resolves.toEqual({
+      status: 'ready',
+      service: 'metric-platform',
+    });
+    expect(metricsResponse.status).toBe(200);
+    expect(metricsResponse.headers.get('content-type')).toContain('text/plain');
+    await expect(metricsResponse.text()).resolves.toContain(
+      'aimetric_metric_platform_uptime_seconds',
+    );
+  });
+
   it('can run snapshot recalculation on a configured interval', async () => {
     vi.useFakeTimers();
     const savedSnapshots: unknown[] = [];
@@ -842,4 +908,40 @@ const emptyAnalysisSummary = (): AnalysisSummaryRecord => ({
   editSpanCount: 0,
   tabAcceptedCount: 0,
   tabAcceptedLines: 0,
+});
+
+const createEmptyRepository = (): MetricEventRepository => ({
+  async saveIngestionBatch() {
+    return undefined;
+  },
+  async listRecordedMetricEvents() {
+    return [];
+  },
+  async saveMetricSnapshots() {
+    return undefined;
+  },
+  async listMetricSnapshots() {
+    return [];
+  },
+  async buildMcpAuditMetrics() {
+    return emptyMcpAuditMetrics();
+  },
+  async listEditSpanEvidence() {
+    return [];
+  },
+  async listTabAcceptedEvents() {
+    return [];
+  },
+  async buildAnalysisSummary() {
+    return emptyAnalysisSummary();
+  },
+  async listSessionAnalysisRows() {
+    return [];
+  },
+  async listOutputAnalysisRows() {
+    return [];
+  },
+  async disconnect() {
+    return undefined;
+  },
 });

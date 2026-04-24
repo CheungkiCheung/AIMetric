@@ -7,7 +7,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 按最初的全量规划估算：
 
 - `Phase 1 主链路 MVP`：约 `100%` 完成
-- `全量文章同构系统`：约 `95%` 完成
+- `全量文章同构系统`：约 `98%` 完成
 
 已完成：
 
@@ -47,16 +47,19 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 - `collector-sdk` 可读取 `.aimetric/config.json` 并生成标准 `IngestionBatch`
 - `collector-sdk` 提供带 Bearer Token 的统一采集批次发布入口
 - `collector-gateway` 支持通过 `AIMETRIC_COLLECTOR_TOKEN` 或启动参数开启采集端 Bearer Token 鉴权
+- `metric-platform` 支持通过 `METRIC_PLATFORM_ADMIN_TOKEN` 开启管理端 Bearer Token 鉴权
+- `metric-platform` 新增管理审计查询 API：`GET /admin/audit`
+- `collector-gateway` 与 `metric-platform` 已提供 `/ready` 和 Prometheus 文本 `/metrics`
 - `mcp-server recordSession` 可读取员工接入配置并补齐项目、成员、仓库、规则版本
 - `dashboard` 个人出码视图、团队出码视图、会话分析、出码分析、自动刷新、项目/成员/时间范围筛选
 - 本地 `docker-compose.yml`，包含 PostgreSQL 和 Redis
+- 准生产运维手册：[production-runbook.md](docs/operations/production-runbook.md)
 - 基础 README、设计文档、Phase 1 执行计划
 
 未完成：
 
-- 多 IDE/CLI 适配器扩展
 - Cursor 更深层 SQLite 键级别编辑/Tab/本地数据库细粒度逆向采集
-- RBAC、管理端 API 鉴权、可观测、数据修复、生产部署等准生产能力
+- 企业级 SSO、持久化审计、完整 Kubernetes Helm Chart 等生产集成
 
 ## 架构分层
 
@@ -138,6 +141,12 @@ corepack pnpm start:metric-platform
 export AIMETRIC_COLLECTOR_TOKEN='replace-with-your-secret'
 ```
 
+如需开启管理端鉴权，在启动 `metric-platform` 前设置：
+
+```bash
+export METRIC_PLATFORM_ADMIN_TOKEN='replace-with-admin-secret'
+```
+
 默认端口：
 
 - `collector-gateway`：`http://127.0.0.1:3000`
@@ -157,7 +166,11 @@ corepack pnpm dev:dashboard
 
 ```bash
 curl http://127.0.0.1:3000/health
+curl http://127.0.0.1:3000/ready
+curl http://127.0.0.1:3000/metrics
 curl http://127.0.0.1:3001/health
+curl http://127.0.0.1:3001/ready
+curl http://127.0.0.1:3001/metrics
 ```
 
 ### 上报采集批次
@@ -214,6 +227,7 @@ curl 'http://127.0.0.1:3001/analysis/output?projectKey=proj&memberId=alice'
 
 ```bash
 curl -X POST http://127.0.0.1:3001/metrics/recalculate \
+  -H 'authorization: Bearer replace-with-admin-secret' \
   -H 'content-type: application/json' \
   -d '{
     "projectKey": "proj",
@@ -222,6 +236,13 @@ curl -X POST http://127.0.0.1:3001/metrics/recalculate \
   }'
 
 curl 'http://127.0.0.1:3001/metrics/snapshots?projectKey=proj&from=2026-04-23T00:00:00.000Z&to=2026-04-24T00:00:00.000Z'
+```
+
+### 查询管理审计
+
+```bash
+curl http://127.0.0.1:3001/admin/audit \
+  -H 'authorization: Bearer replace-with-admin-secret'
 ```
 
 如需启动指标平台时自动定时回算，可设置：

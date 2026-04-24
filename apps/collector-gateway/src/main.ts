@@ -43,17 +43,56 @@ const writeJson = (
   response.end(JSON.stringify(body));
 };
 
+const writeText = (
+  response: ServerResponse,
+  statusCode: number,
+  body: string,
+): void => {
+  response.writeHead(statusCode, {
+    'content-type': 'text/plain; version=0.0.4; charset=utf-8',
+  });
+  response.end(body);
+};
+
 const handleRequest = async (
   request: IncomingMessage,
   response: ServerResponse,
   appModule: AppModule,
   collectorToken?: string,
+  metrics: { startedAt: number; requestCount: number } = {
+    startedAt: Date.now(),
+    requestCount: 0,
+  },
 ): Promise<void> => {
   const method = request.method ?? 'GET';
   const url = request.url ?? '/';
+  metrics.requestCount += 1;
 
   if (method === 'GET' && url === '/health') {
     writeJson(response, 200, { status: 'ok', service: 'collector-gateway' });
+    return;
+  }
+
+  if (method === 'GET' && url === '/ready') {
+    writeJson(response, 200, { status: 'ready', service: 'collector-gateway' });
+    return;
+  }
+
+  if (method === 'GET' && url === '/metrics') {
+    const uptimeSeconds = Math.max(0, (Date.now() - metrics.startedAt) / 1_000);
+    writeText(
+      response,
+      200,
+      [
+        '# HELP aimetric_collector_gateway_uptime_seconds Collector gateway uptime in seconds',
+        '# TYPE aimetric_collector_gateway_uptime_seconds gauge',
+        `aimetric_collector_gateway_uptime_seconds ${uptimeSeconds.toFixed(3)}`,
+        '# HELP aimetric_collector_gateway_requests_total Collector gateway HTTP requests',
+        '# TYPE aimetric_collector_gateway_requests_total counter',
+        `aimetric_collector_gateway_requests_total ${metrics.requestCount}`,
+        '',
+      ].join('\n'),
+    );
     return;
   }
 
@@ -110,9 +149,13 @@ export async function bootstrap(
   const collectorToken =
     options.collectorToken ?? process.env.AIMETRIC_COLLECTOR_TOKEN;
   const appModule = new AppModule();
+  const metrics = {
+    startedAt: Date.now(),
+    requestCount: 0,
+  };
 
   const server = createServer((request, response) => {
-    void handleRequest(request, response, appModule, collectorToken);
+    void handleRequest(request, response, appModule, collectorToken, metrics);
   });
 
   await new Promise<void>((resolve, reject) => {

@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { IngestionBatchSchema } from '@aimetric/event-schema';
@@ -19,12 +20,20 @@ export interface MetricPlatformServer {
 
 export interface BootstrapOptions {
   host?: string;
+  adminToken?: string;
   metricEventRepository?: MetricEventRepository;
   port?: number;
   ruleCatalogRoot?: string;
   docsRoot?: string;
   snapshotRecalculationFilters?: MetricSnapshotFilters;
   snapshotRecalculationIntervalMs?: number;
+}
+
+interface AdminAuditEvent {
+  action: string;
+  actor: string;
+  occurredAt: string;
+  status: 'success';
 }
 
 const writeJson = (
@@ -36,6 +45,17 @@ const writeJson = (
     'content-type': 'application/json; charset=utf-8',
   });
   response.end(JSON.stringify(body));
+};
+
+const writeText = (
+  response: ServerResponse,
+  statusCode: number,
+  body: string,
+): void => {
+  response.writeHead(statusCode, {
+    'content-type': 'text/plain; version=0.0.4; charset=utf-8',
+  });
+  response.end(body);
 };
 
 const readJsonBody = async (request: IncomingMessage): Promise<unknown> =>
@@ -132,12 +152,46 @@ const handleRequest = async (
   request: IncomingMessage,
   response: ServerResponse,
   appModule: AppModule,
+  runtime: {
+    adminToken?: string;
+    adminAuditEvents: AdminAuditEvent[];
+    startedAt: number;
+    requestCount: number;
+    now: () => string;
+  },
 ): Promise<void> => {
   const method = request.method ?? 'GET';
   const url = parseRequestUrl(request);
+  runtime.requestCount += 1;
 
   if (method === 'GET' && url.pathname === '/health') {
     writeJson(response, 200, { status: 'ok', service: 'metric-platform' });
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/ready') {
+    writeJson(response, 200, { status: 'ready', service: 'metric-platform' });
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/metrics') {
+    const uptimeSeconds = Math.max(0, (Date.now() - runtime.startedAt) / 1_000);
+    writeText(
+      response,
+      200,
+      [
+        '# HELP aimetric_metric_platform_uptime_seconds Metric platform uptime in seconds',
+        '# TYPE aimetric_metric_platform_uptime_seconds gauge',
+        `aimetric_metric_platform_uptime_seconds ${uptimeSeconds.toFixed(3)}`,
+        '# HELP aimetric_metric_platform_requests_total Metric platform HTTP requests',
+        '# TYPE aimetric_metric_platform_requests_total counter',
+        `aimetric_metric_platform_requests_total ${runtime.requestCount}`,
+        '# HELP aimetric_metric_platform_admin_audit_events_total Metric platform admin audit events',
+        '# TYPE aimetric_metric_platform_admin_audit_events_total counter',
+        `aimetric_metric_platform_admin_audit_events_total ${runtime.adminAuditEvents.length}`,
+        '',
+      ].join('\n'),
+    );
     return;
   }
 
@@ -272,6 +326,11 @@ const handleRequest = async (
   }
 
   if (method === 'POST' && url.pathname === '/rules/active') {
+    if (!isAuthorizedAdminRequest(request, runtime.adminToken)) {
+      writeJson(response, 401, { message: 'Unauthorized admin request' });
+      return;
+    }
+
     try {
       const body = await readJsonBody(request);
       const payload = body as Record<string, unknown>;
@@ -281,17 +340,15 @@ const handleRequest = async (
         return;
       }
 
-      writeJson(
-        response,
-        200,
-        appModule.setActiveRuleVersion({
+      const result = appModule.setActiveRuleVersion({
           projectKey:
             typeof payload.projectKey === 'string'
               ? payload.projectKey
               : 'aimetric',
           version: payload.version,
-        }),
-      );
+        });
+      recordAdminAudit(runtime, request, 'rules.active.set');
+      writeJson(response, 200, result);
     } catch {
       writeJson(response, 400, { message: 'Invalid rule activation request' });
     }
@@ -320,6 +377,11 @@ const handleRequest = async (
   }
 
   if (method === 'POST' && url.pathname === '/rules/rollout') {
+    if (!isAuthorizedAdminRequest(request, runtime.adminToken)) {
+      writeJson(response, 401, { message: 'Unauthorized admin request' });
+      return;
+    }
+
     try {
       const body = await readJsonBody(request);
       const payload = body as Record<string, unknown>;
@@ -329,10 +391,7 @@ const handleRequest = async (
         return;
       }
 
-      writeJson(
-        response,
-        200,
-        appModule.setRuleRollout({
+      const result = appModule.setRuleRollout({
           projectKey:
             typeof payload.projectKey === 'string'
               ? payload.projectKey
@@ -351,8 +410,9 @@ const handleRequest = async (
                 (member): member is string => typeof member === 'string',
               )
             : [],
-        }),
-      );
+        });
+      recordAdminAudit(runtime, request, 'rules.rollout.set');
+      writeJson(response, 200, result);
     } catch {
       writeJson(response, 400, { message: 'Invalid rule rollout request' });
     }
@@ -372,16 +432,19 @@ const handleRequest = async (
   }
 
   if (method === 'POST' && url.pathname === '/metrics/recalculate') {
+    if (!isAuthorizedAdminRequest(request, runtime.adminToken)) {
+      writeJson(response, 401, { message: 'Unauthorized admin request' });
+      return;
+    }
+
     try {
       const body = await readJsonBody(request);
 
-      writeJson(
-        response,
-        200,
-        await appModule.recalculateMetricSnapshots(
-          getMetricSnapshotFiltersFromBody(body),
-        ),
+      const result = await appModule.recalculateMetricSnapshots(
+        getMetricSnapshotFiltersFromBody(body),
       );
+      recordAdminAudit(runtime, request, 'metrics.recalculate');
+      writeJson(response, 200, result);
     } catch {
       writeJson(response, 400, { message: 'Invalid recalculation request' });
     }
@@ -400,7 +463,65 @@ const handleRequest = async (
     return;
   }
 
+  if (method === 'GET' && url.pathname === '/admin/audit') {
+    if (!isAuthorizedAdminRequest(request, runtime.adminToken)) {
+      writeJson(response, 401, { message: 'Unauthorized admin request' });
+      return;
+    }
+
+    writeJson(response, 200, runtime.adminAuditEvents);
+    return;
+  }
+
   writeJson(response, 404, { message: 'Not Found' });
+};
+
+const isAuthorizedAdminRequest = (
+  request: IncomingMessage,
+  adminToken?: string,
+): boolean => {
+  if (!adminToken) {
+    return true;
+  }
+
+  const authorization = request.headers.authorization;
+  const token =
+    typeof authorization === 'string' && authorization.startsWith('Bearer ')
+      ? authorization.slice('Bearer '.length)
+      : '';
+
+  return compareTokens(token, adminToken);
+};
+
+const compareTokens = (candidate: string, expected: string): boolean => {
+  const candidateBuffer = Buffer.from(candidate);
+  const expectedBuffer = Buffer.from(expected);
+
+  return (
+    candidateBuffer.length === expectedBuffer.length &&
+    timingSafeEqual(candidateBuffer, expectedBuffer)
+  );
+};
+
+const recordAdminAudit = (
+  runtime: {
+    adminAuditEvents: AdminAuditEvent[];
+    now: () => string;
+  },
+  request: IncomingMessage,
+  action: string,
+): void => {
+  runtime.adminAuditEvents.push({
+    action,
+    actor: readAdminActor(request),
+    occurredAt: runtime.now(),
+    status: 'success',
+  });
+};
+
+const readAdminActor = (request: IncomingMessage): string => {
+  const actor = request.headers['x-aimetric-actor'];
+  return typeof actor === 'string' && actor.length > 0 ? actor : 'admin';
 };
 
 export async function bootstrap(
@@ -408,14 +529,22 @@ export async function bootstrap(
 ): Promise<MetricPlatformServer> {
   const host = options.host ?? '127.0.0.1';
   const port = options.port ?? 3001;
+  const adminToken = options.adminToken ?? process.env.METRIC_PLATFORM_ADMIN_TOKEN;
   const appModule = new AppModule(options.metricEventRepository, {
     ruleCatalogRoot: options.ruleCatalogRoot,
     docsRoot: options.docsRoot,
   });
   let snapshotScheduler: SnapshotRecalculationScheduler | undefined;
+  const runtime = {
+    adminToken,
+    adminAuditEvents: [] as AdminAuditEvent[],
+    startedAt: Date.now(),
+    requestCount: 0,
+    now: () => new Date().toISOString(),
+  };
 
   const server = createServer((request, response) => {
-    void handleRequest(request, response, appModule);
+    void handleRequest(request, response, appModule, runtime);
   });
 
   await new Promise<void>((resolve, reject) => {

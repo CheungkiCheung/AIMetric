@@ -75,6 +75,25 @@ describe('collector gateway bootstrap', () => {
       schemaVersion: 'v1',
     });
   });
+
+  it('serves readiness and prometheus metrics endpoints', async () => {
+    const app = await bootstrap({ port: 0 });
+    servers.push(app);
+
+    const readyResponse = await fetch(`${app.baseUrl}/ready`);
+    const metricsResponse = await fetch(`${app.baseUrl}/metrics`);
+
+    expect(readyResponse.status).toBe(200);
+    await expect(readyResponse.json()).resolves.toEqual({
+      status: 'ready',
+      service: 'collector-gateway',
+    });
+    expect(metricsResponse.status).toBe(200);
+    expect(metricsResponse.headers.get('content-type')).toContain('text/plain');
+    await expect(metricsResponse.text()).resolves.toContain(
+      'aimetric_collector_gateway_uptime_seconds',
+    );
+  });
 });
 
 const createIngestionBatch = () => ({
