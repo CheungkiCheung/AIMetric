@@ -36,6 +36,7 @@ describe('AppModule', () => {
         failureRate: 1 / 3,
         averageDurationMs: 15,
       })),
+      listEditSpanEvidence: vi.fn(async () => []),
       disconnect: vi.fn(async () => undefined),
     };
 
@@ -69,6 +70,7 @@ describe('AppModule', () => {
       saveMetricSnapshots: vi.fn(async () => undefined),
       listMetricSnapshots: vi.fn(async () => []),
       buildMcpAuditMetrics: vi.fn(async () => emptyMcpAuditMetrics()),
+      listEditSpanEvidence: vi.fn(async () => []),
       disconnect: vi.fn(async () => undefined),
     };
 
@@ -89,6 +91,7 @@ describe('AppModule', () => {
       saveMetricSnapshots: vi.fn(async () => undefined),
       listMetricSnapshots: vi.fn(async () => []),
       buildMcpAuditMetrics: vi.fn(async () => emptyMcpAuditMetrics()),
+      listEditSpanEvidence: vi.fn(async () => []),
       disconnect: vi.fn(async () => undefined),
     };
     const filters = {
@@ -127,6 +130,7 @@ describe('AppModule', () => {
       saveMetricSnapshots: vi.fn(async () => undefined),
       listMetricSnapshots: vi.fn(async () => []),
       buildMcpAuditMetrics: vi.fn(async () => emptyMcpAuditMetrics()),
+      listEditSpanEvidence: vi.fn(async () => []),
       disconnect: vi.fn(async () => undefined),
     };
     const filters = {
@@ -197,8 +201,9 @@ describe('AppModule', () => {
           memberCount: 2,
         },
       ]),
-      disconnect: vi.fn(async () => undefined),
       buildMcpAuditMetrics: vi.fn(async () => emptyMcpAuditMetrics()),
+      listEditSpanEvidence: vi.fn(async () => []),
+      disconnect: vi.fn(async () => undefined),
     };
     const filters = {
       projectKey: 'navigation',
@@ -225,6 +230,7 @@ describe('AppModule', () => {
         failureRate: 1 / 3,
         averageDurationMs: 15,
       })),
+      listEditSpanEvidence: vi.fn(async () => []),
       disconnect: vi.fn(async () => undefined),
     };
     const filters = {
@@ -243,6 +249,44 @@ describe('AppModule', () => {
       failureRate: 1 / 3,
       averageDurationMs: 15,
     });
+  });
+
+  it('lists edit span evidence through the repository', async () => {
+    const repository = {
+      saveIngestionBatch: vi.fn(async () => undefined),
+      listRecordedMetricEvents: vi.fn(async () => []),
+      saveMetricSnapshots: vi.fn(async () => undefined),
+      listMetricSnapshots: vi.fn(async () => []),
+      buildMcpAuditMetrics: vi.fn(async () => emptyMcpAuditMetrics()),
+      listEditSpanEvidence: vi.fn(async () => [
+        {
+          editSpanId: 'edit-span-1',
+          sessionId: 'sess_1',
+          filePath: '/repo/src/demo.ts',
+          occurredAt: '2026-04-24T00:00:00.000Z',
+          diff: '--- /repo/src/demo.ts',
+          beforeSnapshotHash: 'before-hash',
+          afterSnapshotHash: 'after-hash',
+          toolProfile: 'cursor',
+        },
+      ]),
+      disconnect: vi.fn(async () => undefined),
+    };
+    const filters = {
+      projectKey: 'aimetric',
+      sessionId: 'sess_1',
+    };
+
+    const appModule = new AppModule(repository);
+    const evidence = await appModule.listEditSpanEvidence(filters);
+
+    expect(repository.listEditSpanEvidence).toHaveBeenCalledWith(filters);
+    expect(evidence).toEqual([
+      expect.objectContaining({
+        editSpanId: 'edit-span-1',
+        sessionId: 'sess_1',
+      }),
+    ]);
   });
 
   it('exposes rule center operations from the application module', () => {
@@ -279,6 +323,7 @@ const createEmptyRepository = () => ({
   saveMetricSnapshots: vi.fn(async () => undefined),
   listMetricSnapshots: vi.fn(async () => []),
   buildMcpAuditMetrics: vi.fn(async () => emptyMcpAuditMetrics()),
+  listEditSpanEvidence: vi.fn(async () => []),
   disconnect: vi.fn(async () => undefined),
 });
 

@@ -15,6 +15,11 @@ export interface MetricSnapshotFilters {
   to?: string;
 }
 
+export interface EditEvidenceFilters extends MetricSnapshotFilters {
+  sessionId?: string;
+  filePath?: string;
+}
+
 export interface McpAuditMetrics {
   totalToolCalls: number;
   successfulToolCalls: number;
@@ -39,6 +44,17 @@ export interface MetricSnapshotRecord {
   memberCount: number;
 }
 
+export interface EditSpanEvidenceRecord {
+  editSpanId: string;
+  sessionId: string;
+  filePath: string;
+  occurredAt: string;
+  diff: string;
+  beforeSnapshotHash: string;
+  afterSnapshotHash: string;
+  toolProfile?: string;
+}
+
 export interface MetricEventRepository {
   saveIngestionBatch(batch: IngestionBatch): Promise<void>;
   listRecordedMetricEvents(
@@ -49,6 +65,9 @@ export interface MetricEventRepository {
     filters?: MetricSnapshotFilters,
   ): Promise<MetricSnapshotRecord[]>;
   buildMcpAuditMetrics(filters?: MetricSnapshotFilters): Promise<McpAuditMetrics>;
+  listEditSpanEvidence(
+    filters?: EditEvidenceFilters,
+  ): Promise<EditSpanEvidenceRecord[]>;
   disconnect(): Promise<void>;
 }
 
@@ -284,6 +303,83 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
       failureRate: totalToolCalls === 0 ? 0 : failedToolCalls / totalToolCalls,
       averageDurationMs,
     };
+  }
+
+  async listEditSpanEvidence(
+    filters: EditEvidenceFilters = {},
+  ): Promise<EditSpanEvidenceRecord[]> {
+    await this.ensureSchema();
+
+    const values: string[] = [];
+    const whereClauses = [`event_type = 'edit.span.recorded'`];
+
+    if (filters.projectKey) {
+      values.push(filters.projectKey);
+      whereClauses.push(`project_key = $${values.length}`);
+    }
+
+    if (filters.memberId) {
+      values.push(filters.memberId);
+      whereClauses.push(`member_id = $${values.length}`);
+    }
+
+    if (filters.sessionId) {
+      values.push(filters.sessionId);
+      whereClauses.push(`session_id = $${values.length}`);
+    }
+
+    if (filters.filePath) {
+      values.push(filters.filePath);
+      whereClauses.push(`payload->>'filePath' = $${values.length}`);
+    }
+
+    if (filters.from) {
+      values.push(filters.from);
+      whereClauses.push(`occurred_at >= $${values.length}`);
+    }
+
+    if (filters.to) {
+      values.push(filters.to);
+      whereClauses.push(`occurred_at <= $${values.length}`);
+    }
+
+    const metricEvents = await this.database.query<{
+      edit_span_id: string;
+      session_id: string;
+      file_path: string;
+      occurred_at: Date | string;
+      diff: string;
+      before_snapshot_hash: string;
+      after_snapshot_hash: string;
+      tool_profile: string | null;
+    }>(
+      `
+        SELECT
+          payload->>'editSpanId' AS edit_span_id,
+          session_id,
+          payload->>'filePath' AS file_path,
+          occurred_at,
+          payload->>'diff' AS diff,
+          payload->>'beforeSnapshotHash' AS before_snapshot_hash,
+          payload->>'afterSnapshotHash' AS after_snapshot_hash,
+          payload->>'toolProfile' AS tool_profile
+        FROM metric_events
+        WHERE ${whereClauses.join(' AND ')}
+        ORDER BY occurred_at ASC, id ASC
+      `,
+      values,
+    );
+
+    return metricEvents.rows.map((event) => ({
+      editSpanId: event.edit_span_id,
+      sessionId: event.session_id,
+      filePath: event.file_path,
+      occurredAt: new Date(event.occurred_at).toISOString(),
+      diff: event.diff,
+      beforeSnapshotHash: event.before_snapshot_hash,
+      afterSnapshotHash: event.after_snapshot_hash,
+      ...(event.tool_profile ? { toolProfile: event.tool_profile } : {}),
+    }));
   }
 
   async saveMetricSnapshots(snapshots: MetricSnapshotRecord[]): Promise<void> {

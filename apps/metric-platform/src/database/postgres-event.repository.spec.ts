@@ -251,4 +251,74 @@ describe('PostgresMetricEventRepository query mapping', () => {
       '2026-04-24T00:00:00.000Z',
     ]);
   });
+
+  it('lists edit span evidence from metric events with filters', async () => {
+    const queries: Array<{ text: string; values?: unknown[] }> = [];
+    const repository = new PostgresMetricEventRepository({
+      async query<T extends QueryResultRow = QueryResultRow>(
+        text: string,
+        values?: unknown[],
+      ) {
+        queries.push({ text, values });
+
+        if (text.includes('CREATE TABLE')) {
+          return {
+            command: '',
+            rowCount: 0,
+            oid: 0,
+            fields: [],
+            rows: [],
+          };
+        }
+
+        return {
+          command: '',
+          rowCount: 1,
+          oid: 0,
+          fields: [],
+          rows: ([
+            {
+              edit_span_id: 'edit-span-1',
+              session_id: 'sess_1',
+              file_path: '/repo/src/demo.ts',
+              occurred_at: new Date('2026-04-24T00:00:00.000Z'),
+              diff: '--- /repo/src/demo.ts',
+              before_snapshot_hash: 'before-hash',
+              after_snapshot_hash: 'after-hash',
+              tool_profile: 'cursor',
+            },
+          ] as unknown) as T[],
+        };
+      },
+    });
+
+    const evidence = await repository.listEditSpanEvidence({
+      projectKey: 'aimetric',
+      sessionId: 'sess_1',
+      filePath: '/repo/src/demo.ts',
+      from: '2026-04-23T00:00:00.000Z',
+      to: '2026-04-24T00:00:00.000Z',
+    });
+
+    expect(evidence).toEqual([
+      {
+        editSpanId: 'edit-span-1',
+        sessionId: 'sess_1',
+        filePath: '/repo/src/demo.ts',
+        occurredAt: '2026-04-24T00:00:00.000Z',
+        diff: '--- /repo/src/demo.ts',
+        beforeSnapshotHash: 'before-hash',
+        afterSnapshotHash: 'after-hash',
+        toolProfile: 'cursor',
+      },
+    ]);
+    expect(queries.at(-1)?.text).toContain("event_type = 'edit.span.recorded'");
+    expect(queries.at(-1)?.values).toEqual([
+      'aimetric',
+      'sess_1',
+      '/repo/src/demo.ts',
+      '2026-04-23T00:00:00.000Z',
+      '2026-04-24T00:00:00.000Z',
+    ]);
+  });
 });

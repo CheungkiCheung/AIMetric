@@ -72,6 +72,7 @@ export function buildEditSpanEvidence(
         repoName: input.repoName,
         memberId: input.memberId,
         ruleVersion: input.ruleVersion,
+        ingestionKey: editSpanId,
         editSpanId,
         filePath: input.filePath,
         beforeSnapshotHash,

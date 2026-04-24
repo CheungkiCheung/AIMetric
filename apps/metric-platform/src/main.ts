@@ -3,6 +3,7 @@ import { pathToFileURL } from 'node:url';
 import { IngestionBatchSchema } from '@aimetric/event-schema';
 import { AppModule } from './app.module.js';
 import type {
+  EditEvidenceFilters,
   MetricEventRepository,
   MetricSnapshotFilters,
 } from './database/postgres-event.repository.js';
@@ -84,6 +85,22 @@ const getMetricSnapshotFilters = (url: URL): MetricSnapshotFilters => {
   return filters;
 };
 
+const getEditEvidenceFilters = (url: URL): EditEvidenceFilters => {
+  const filters: EditEvidenceFilters = getMetricSnapshotFilters(url);
+  const sessionId = url.searchParams.get('sessionId');
+  const filePath = url.searchParams.get('filePath');
+
+  if (sessionId) {
+    filters.sessionId = sessionId;
+  }
+
+  if (filePath) {
+    filters.filePath = filePath;
+  }
+
+  return filters;
+};
+
 const getMetricSnapshotFiltersFromBody = (body: unknown): MetricSnapshotFilters => {
   if (!body || typeof body !== 'object') {
     return {};
@@ -156,6 +173,15 @@ const handleRequest = async (
       response,
       200,
       await appModule.buildMcpAuditMetrics(getMetricSnapshotFilters(url)),
+    );
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/evidence/edits') {
+    writeJson(
+      response,
+      200,
+      await appModule.listEditSpanEvidence(getEditEvidenceFilters(url)),
     );
     return;
   }

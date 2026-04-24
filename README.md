@@ -1,13 +1,13 @@
 # AIMetric
 
-AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研发效率的量化与优化》的同构复现项目。当前版本优先复现文章中的 Phase 1 主链路：MCP 标准化采集、采集网关、归因证据、指标计算、个人/团队看板。
+AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研发效率的量化与优化》的同构复现项目。当前版本已经进入文章“增强采集档 + 证据链沉淀”阶段，主链路覆盖 MCP 标准化采集、采集网关、归因证据、指标计算、个人/团队看板以及编辑证据查询。
 
 ## 当前完成度
 
 按最初的全量规划估算：
 
 - `Phase 1 主链路 MVP`：约 `100%` 完成
-- `全量文章同构系统`：约 `83%` 完成
+- `全量文章同构系统`：约 `87%` 完成
 
 已完成：
 
@@ -22,7 +22,9 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 - `mcp-server` 新增最小 MCP JSON-RPC runtime，支持 `initialize`、`tools/list`、`tools/call` 与 stdio 启动入口
 - `mcp-server` 新增工具调用审计与失败补偿，支持 `aimetric/audit/list` 查询调用记录
 - `mcp-server` 支持将工具调用审计落盘到 `.aimetric/audit-events.jsonl`，并上传为 `mcp.tool.called` 采集事件
+- `mcp-server` 的 `afterEditFile` 现在会生成文件级 `edit span evidence`，并通过 runtime 自动桥接成 `edit.span.recorded`
 - `metric-platform` 新增 MCP 审计质量指标 API：`GET /metrics/mcp-audit`
+- `metric-platform` 新增编辑证据查询 API：`GET /evidence/edits`
 - `metric-platform` 新增规则中心 API：`/rules/project`、`/rules/versions`、`/rules/template`、`/rules/validate`、`/rules/active`、`/rules/rollout`
 - `rule-engine` 支持规则灰度发布策略持久化，可配置候选版本、灰度比例和定向成员
 - `rule-engine` 支持灰度命中计算，按定向成员和稳定百分比桶选择规则版本
@@ -35,6 +37,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 - `cursor-adapter` 已提供 Cursor 增强采集入口，支持 transcript 扫描、增量状态和 `cursor-db` 上报
 - `cursor-db-adapter` 已提供跨平台路径发现、会话主线 transcript 解析与定时扫描状态管理
 - `metric-platform` 已支持 `ingestion_key` 幂等去重，保障定时扫描不重复记数
+- `edit-evidence` 已提供文件级 `edit span` 证据建模、快照 hash、diff 与幂等键生成
 - `collector-sdk` 可读取 `.aimetric/config.json` 并生成标准 `IngestionBatch`
 - `mcp-server recordSession` 可读取员工接入配置并补齐项目、成员、仓库、规则版本
 - `dashboard` 个人出码视图、团队出码视图、自动刷新、项目/成员/时间范围筛选
@@ -54,6 +57,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 - `采集平台层`：Cursor / CLI / IDE 入口，当前先以 SDK 与 MCP 工具为主
 - `数据采集层`：MCP 工具、采集 SDK、采集网关
 - `平台能力层`：指标平台、归因证据、指标计算、PostgreSQL 事实表
+- `证据关联层`：会话主线、编辑证据、后续 Git 归因与分析查询
 - `指标展示层`：个人出码视图、团队出码视图
 
 当前主链路：
@@ -80,6 +84,7 @@ apps/
 packages/
   collector-sdk/       采集端本地缓冲与客户端 SDK
   cursor-db-adapter/   Cursor transcript/状态发现与增量解析
+  edit-evidence/       文件级 edit span 证据建模
   event-schema/        统一事件模型
   git-attribution/     Git/AI 归因证据构建
   metric-core/         指标公式
@@ -171,6 +176,7 @@ curl -X POST http://127.0.0.1:3000/ingestion \
 ```bash
 curl http://127.0.0.1:3001/metrics/personal
 curl http://127.0.0.1:3001/metrics/team
+curl http://127.0.0.1:3001/evidence/edits
 ```
 
 支持按项目、成员、时间范围筛选：
@@ -178,6 +184,7 @@ curl http://127.0.0.1:3001/metrics/team
 ```bash
 curl 'http://127.0.0.1:3001/metrics/personal?projectKey=proj&memberId=alice&from=2026-04-23T00:00:00.000Z&to=2026-04-24T00:00:00.000Z'
 curl 'http://127.0.0.1:3001/metrics/team?projectKey=proj&from=2026-04-23T00:00:00.000Z&to=2026-04-24T00:00:00.000Z'
+curl 'http://127.0.0.1:3001/evidence/edits?projectKey=proj&sessionId=sess_1&filePath=/repo/src/demo.ts'
 ```
 
 ### 回算与查询指标快照

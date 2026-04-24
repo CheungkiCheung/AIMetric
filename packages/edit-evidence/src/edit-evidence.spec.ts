@@ -23,16 +23,19 @@ describe('buildEditSpanEvidence', () => {
       beforeSnapshotHash: expect.any(String),
       afterSnapshotHash: expect.any(String),
       diff: expect.stringContaining('-const a = 1;'),
-      event: {
-        eventType: 'edit.span.recorded',
-        occurredAt: '2026-04-24T00:00:00.000Z',
-        payload: expect.objectContaining({
-          sessionId: 'sess_1',
-          projectKey: 'aimetric',
-          editSpanId: expect.any(String),
-        }),
-      },
     });
+
+    expect(evidence.event).toMatchObject({
+      eventType: 'edit.span.recorded',
+      occurredAt: '2026-04-24T00:00:00.000Z',
+      payload: expect.objectContaining({
+        sessionId: 'sess_1',
+        projectKey: 'aimetric',
+        editSpanId: expect.any(String),
+        ingestionKey: expect.any(String),
+      }),
+    });
+    expect(evidence.event.payload.ingestionKey).toBe(evidence.editSpanId);
   });
 
   it('generates the same editSpanId for the same edit input', () => {

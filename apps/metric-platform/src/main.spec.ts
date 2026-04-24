@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { bootstrap } from './main.js';
 import type {
+  EditSpanEvidenceRecord,
   MetricEventRepository,
   RecordedMetricEvent,
 } from './database/postgres-event.repository.js';
@@ -56,6 +57,9 @@ describe('bootstrap', () => {
       },
       async buildMcpAuditMetrics() {
         return emptyMcpAuditMetrics();
+      },
+      async listEditSpanEvidence() {
+        return [];
       },
       async disconnect() {
         return undefined;
@@ -145,6 +149,9 @@ describe('bootstrap', () => {
       async buildMcpAuditMetrics() {
         return emptyMcpAuditMetrics();
       },
+      async listEditSpanEvidence() {
+        return [];
+      },
       async disconnect() {
         return undefined;
       },
@@ -190,6 +197,9 @@ describe('bootstrap', () => {
       },
       async buildMcpAuditMetrics() {
         return emptyMcpAuditMetrics();
+      },
+      async listEditSpanEvidence() {
+        return [];
       },
       async disconnect() {
         return undefined;
@@ -250,6 +260,9 @@ describe('bootstrap', () => {
       },
       async buildMcpAuditMetrics() {
         return emptyMcpAuditMetrics();
+      },
+      async listEditSpanEvidence() {
+        return [];
       },
       async disconnect() {
         return undefined;
@@ -313,6 +326,9 @@ describe('bootstrap', () => {
       async buildMcpAuditMetrics() {
         return emptyMcpAuditMetrics();
       },
+      async listEditSpanEvidence() {
+        return [];
+      },
       async disconnect() {
         return undefined;
       },
@@ -361,6 +377,9 @@ describe('bootstrap', () => {
           averageDurationMs: 15,
         };
       },
+      async listEditSpanEvidence() {
+        return [];
+      },
       async disconnect() {
         return undefined;
       },
@@ -385,6 +404,61 @@ describe('bootstrap', () => {
     expect(auditMetricCalls[0]).toEqual({
       projectKey: 'aimetric',
       memberId: 'alice',
+    });
+  });
+
+  it('serves edit span evidence over HTTP', async () => {
+    const evidenceCalls: unknown[] = [];
+    const editEvidence: EditSpanEvidenceRecord[] = [
+      {
+        editSpanId: 'edit-span-1',
+        sessionId: 'sess_1',
+        filePath: '/repo/src/demo.ts',
+        occurredAt: '2026-04-24T00:00:00.000Z',
+        diff: '--- /repo/src/demo.ts',
+        beforeSnapshotHash: 'before-hash',
+        afterSnapshotHash: 'after-hash',
+        toolProfile: 'cursor',
+      },
+    ];
+    const metricEventRepository: MetricEventRepository = {
+      async saveIngestionBatch() {
+        return undefined;
+      },
+      async listRecordedMetricEvents() {
+        return [];
+      },
+      async saveMetricSnapshots() {
+        return undefined;
+      },
+      async listMetricSnapshots() {
+        return [];
+      },
+      async buildMcpAuditMetrics() {
+        return emptyMcpAuditMetrics();
+      },
+      async listEditSpanEvidence(filters) {
+        evidenceCalls.push(filters);
+        return editEvidence;
+      },
+      async disconnect() {
+        return undefined;
+      },
+    };
+
+    const app = await bootstrap({ port: 0, metricEventRepository });
+    servers.push(app);
+
+    const response = await fetch(
+      `${app.baseUrl}/evidence/edits?projectKey=aimetric&sessionId=sess_1&filePath=%2Frepo%2Fsrc%2Fdemo.ts`,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(editEvidence);
+    expect(evidenceCalls[0]).toEqual({
+      projectKey: 'aimetric',
+      sessionId: 'sess_1',
+      filePath: '/repo/src/demo.ts',
     });
   });
 

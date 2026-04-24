@@ -2,6 +2,7 @@ import type { IngestionBatch } from '@aimetric/event-schema';
 import { calculateAiOutputRate } from '@aimetric/metric-core';
 import {
   PostgresMetricEventRepository,
+  type EditEvidenceFilters,
   type MetricEventRepository,
   type MetricSnapshotRecord,
   type MetricSnapshotFilters,
@@ -96,6 +97,10 @@ export class AppModule {
 
   buildMcpAuditMetrics(filters: MetricSnapshotFilters = {}) {
     return this.metricEventRepository.buildMcpAuditMetrics(filters);
+  }
+
+  listEditSpanEvidence(filters: EditEvidenceFilters = {}) {
+    return this.metricEventRepository.listEditSpanEvidence(filters);
   }
 
   getProjectRules(input: {
