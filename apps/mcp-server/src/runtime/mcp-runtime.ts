@@ -1,4 +1,5 @@
 import { createToolRegistry, type McpTool } from './tool-registry.js';
+import type { IngestionBatch } from '@aimetric/event-schema';
 import {
   ToolAuditRecorder,
   createHttpToolAuditPublisherFromEnvironment,
@@ -45,7 +46,12 @@ export interface McpRuntimeOptions {
   auditRecorder?: ToolAuditRecorder;
   auditPublisher?: ToolAuditPublisher;
   auditStore?: ToolAuditStore;
+  eventPublisher?: RuntimeEventPublisher;
   now?: () => Date;
+}
+
+export interface RuntimeEventPublisher {
+  publish(batch: IngestionBatch): Promise<void> | void;
 }
 
 const defaultProtocolVersion = '2025-11-25';
@@ -71,6 +77,7 @@ export const createMcpRuntime = (
         options.auditStore ??
         createJsonlToolAuditStoreFromEnvironment(environment),
     });
+  const eventPublisher = options.eventPublisher;
 
   return {
     async handleRequest(request) {
@@ -105,11 +112,12 @@ export const createMcpRuntime = (
         case 'tools/call':
           return callTool({
             id: request.id,
-            params: request.params,
-            toolRegistry,
-            auditRecorder,
-            now,
-          });
+          params: request.params,
+          toolRegistry,
+          auditRecorder,
+          eventPublisher,
+          now,
+        });
 
         case 'aimetric/audit/list':
           return result(request.id, {
@@ -135,9 +143,10 @@ const callTool = async (input: {
   params: unknown;
   toolRegistry: Map<string, McpTool>;
   auditRecorder: ToolAuditRecorder;
+  eventPublisher?: RuntimeEventPublisher;
   now: () => Date;
 }): Promise<JsonRpcResponse> => {
-  const { id, params, toolRegistry, auditRecorder, now } = input;
+  const { id, params, toolRegistry, auditRecorder, eventPublisher, now } = input;
   if (!isObject(params) || typeof params.name !== 'string') {
     return error(id, -32602, 'MCP tools/call requires a tool name.');
   }
@@ -161,6 +170,16 @@ const callTool = async (input: {
 
   try {
     const toolResult = await tool.invoke(toolArguments);
+    const toolEvents = readToolResultEvents(toolResult);
+
+    if (toolEvents.length > 0) {
+      await eventPublisher?.publish({
+        schemaVersion: 'v1',
+        source: 'mcp-server',
+        events: toolEvents,
+      });
+    }
+
     await auditRecorder.record({
       toolName: tool.name,
       requestId: id,
@@ -202,6 +221,41 @@ const callTool = async (input: {
       isError: true,
     });
   }
+};
+
+const readToolResultEvents = (value: unknown): IngestionBatch['events'] => {
+  if (!isObject(value)) {
+    return [];
+  }
+
+  const candidateEvent = value.event;
+
+  if (isCollectorEvent(candidateEvent)) {
+    return [candidateEvent];
+  }
+
+  if (Array.isArray(value.events)) {
+    return value.events.filter(isCollectorEvent);
+  }
+
+  return [];
+};
+
+const isCollectorEvent = (
+  value: unknown,
+): value is IngestionBatch['events'][number] => {
+  if (!isObject(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.eventType === 'string' &&
+    typeof value.occurredAt === 'string' &&
+    isObject(value.payload) &&
+    typeof value.payload.sessionId === 'string' &&
+    typeof value.payload.projectKey === 'string' &&
+    typeof value.payload.repoName === 'string'
+  );
 };
 
 const getClientProtocolVersion = (params: unknown): string => {

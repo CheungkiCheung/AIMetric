@@ -336,6 +336,50 @@ describe('createMcpRuntime', () => {
     ).toContain('"toolName":"recordSession"');
   });
 
+  it('publishes tool result events through the MCP collector bridge', async () => {
+    const workspaceDir = createWorkspaceWithAimMetricConfig();
+    const publishedBatches: unknown[] = [];
+    const runtime = createMcpRuntime({
+      eventPublisher: {
+        publish: async (batch) => {
+          publishedBatches.push(batch);
+        },
+      },
+    });
+
+    await runtime.handleRequest({
+      jsonrpc: '2.0',
+      id: 'edit-event',
+      method: 'tools/call',
+      params: {
+        name: 'afterEditFile',
+        arguments: {
+          sessionId: 'sess_1',
+          filePath: '/tmp/demo.ts',
+          beforeContent: 'const a = 1;',
+          afterContent: 'const a = 2;',
+          workspaceDir,
+        },
+      },
+    });
+
+    expect(publishedBatches).toEqual([
+      expect.objectContaining({
+        schemaVersion: 'v1',
+        source: 'mcp-server',
+        events: [
+          expect.objectContaining({
+            eventType: 'edit.span.recorded',
+            payload: expect.objectContaining({
+              sessionId: 'sess_1',
+              editSpanId: expect.any(String),
+            }),
+          }),
+        ],
+      }),
+    ]);
+  });
+
   it('returns JSON-RPC errors for unknown tools', async () => {
     const runtime = createMcpRuntime();
 

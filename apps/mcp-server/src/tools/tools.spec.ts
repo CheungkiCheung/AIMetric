@@ -24,29 +24,44 @@ afterEach(() => {
 });
 
 describe('beforeEditFile', () => {
-  it('captures a stable pre-edit snapshot', async () => {
+  it('captures a stable pre-edit snapshot with capture time', async () => {
     const result = await beforeEditFile({
       sessionId: 'sess_1',
       filePath: '/tmp/demo.ts',
-      content: 'const a = 1;'
+      content: 'const a = 1;',
+      now: () => '2026-04-24T00:00:00.000Z',
     });
 
     expect(result.filePath).toBe('/tmp/demo.ts');
-    expect(result.snapshotHash).toBeDefined();
+    expect(result.beforeSnapshotHash).toBeDefined();
+    expect(result.capturedAt).toBe('2026-04-24T00:00:00.000Z');
   });
 });
 
 describe('afterEditFile', () => {
-  it('produces a normalized diff payload', async () => {
+  it('returns edit span evidence and a standard event payload', async () => {
+    const workspaceDir = createWorkspaceWithAimMetricConfig();
     const result = await afterEditFile({
       sessionId: 'sess_1',
       filePath: '/tmp/demo.ts',
       beforeContent: 'const a = 1;',
-      afterContent: 'const a = 2;'
+      afterContent: 'const a = 2;',
+      workspaceDir,
+      now: () => '2026-04-24T00:05:00.000Z',
     });
 
-    expect(result.diff).toContain('-const a = 1;');
-    expect(result.diff).toContain('+const a = 2;');
+    expect(result.evidence).toMatchObject({
+      sessionId: 'sess_1',
+      filePath: '/tmp/demo.ts',
+      diff: expect.stringContaining('+const a = 2;'),
+    });
+    expect(result.event).toMatchObject({
+      eventType: 'edit.span.recorded',
+      payload: expect.objectContaining({
+        sessionId: 'sess_1',
+        editSpanId: expect.any(String),
+      }),
+    });
   });
 });
 
