@@ -1,18 +1,24 @@
 import { useEffect, useState } from 'react';
 import {
   createDashboardClient,
+  type AnalysisSummary,
   type DashboardClient,
   type DashboardFilters,
   type McpAuditMetrics,
+  type OutputAnalysisRow,
   type PersonalSnapshot,
   type RuleRollout,
   type RuleRolloutEvaluation,
   type RuleVersionCatalog,
+  type SessionAnalysisRow,
   type TeamSnapshot,
 } from './api/client.js';
+import { AnalysisSummarySection } from './pages/analysis-summary.js';
 import { McpAuditDashboard } from './pages/mcp-audit-dashboard.js';
+import { OutputAnalysisTable } from './pages/output-analysis-table.js';
 import { PersonalDashboard } from './pages/personal-dashboard.js';
 import { RuleCenterDashboard } from './pages/rule-center-dashboard.js';
+import { SessionAnalysisTable } from './pages/session-analysis-table.js';
 import { TeamDashboard } from './pages/team-dashboard.js';
 
 const shellStyle = {
@@ -78,6 +84,9 @@ export const App = ({
   client = createDashboardClient(),
   refreshIntervalMs = 30_000,
 }: AppProps) => {
+  const [analysisSummary, setAnalysisSummary] = useState<AnalysisSummary | null>(null);
+  const [sessionAnalysisRows, setSessionAnalysisRows] = useState<SessionAnalysisRow[]>([]);
+  const [outputAnalysisRows, setOutputAnalysisRows] = useState<OutputAnalysisRow[]>([]);
   const [personalSnapshot, setPersonalSnapshot] = useState<PersonalSnapshot | null>(null);
   const [teamSnapshot, setTeamSnapshot] = useState<TeamSnapshot | null>(null);
   const [mcpAuditMetrics, setMcpAuditMetrics] = useState<McpAuditMetrics | null>(null);
@@ -90,20 +99,35 @@ export const App = ({
 
   const loadDashboard = async (nextFilters: DashboardFilters) => {
     const projectKey = nextFilters.projectKey ?? 'aimetric';
-    const [personal, team, auditMetrics, versions, rollout, rolloutEvaluation] =
-      await Promise.all([
-        client.getPersonalSnapshot(nextFilters),
-        client.getTeamSnapshot(nextFilters),
-        client.getMcpAuditMetrics(nextFilters),
-        client.getRuleVersions(projectKey),
-        client.getRuleRollout(projectKey),
-        client.getRuleRolloutEvaluation(projectKey, nextFilters.memberId),
-      ]);
+    const [
+      personal,
+      team,
+      auditMetrics,
+      summary,
+      sessions,
+      output,
+      versions,
+      rollout,
+      rolloutEvaluation,
+    ] = await Promise.all([
+      client.getPersonalSnapshot(nextFilters),
+      client.getTeamSnapshot(nextFilters),
+      client.getMcpAuditMetrics(nextFilters),
+      client.getAnalysisSummary(nextFilters),
+      client.getSessionAnalysisRows(nextFilters),
+      client.getOutputAnalysisRows(nextFilters),
+      client.getRuleVersions(projectKey),
+      client.getRuleRollout(projectKey),
+      client.getRuleRolloutEvaluation(projectKey, nextFilters.memberId),
+    ]);
 
     return {
       personal,
       team,
       auditMetrics,
+      summary,
+      sessions,
+      output,
       versions,
       rollout,
       rolloutEvaluation,
@@ -118,6 +142,9 @@ export const App = ({
         personal,
         team,
         auditMetrics,
+        summary,
+        sessions,
+        output,
         versions,
         rollout,
         rolloutEvaluation,
@@ -130,6 +157,9 @@ export const App = ({
       setPersonalSnapshot(personal);
       setTeamSnapshot(team);
       setMcpAuditMetrics(auditMetrics);
+      setAnalysisSummary(summary);
+      setSessionAnalysisRows(sessions);
+      setOutputAnalysisRows(output);
       setRuleVersions(versions);
       setRuleRollout(rollout);
       setRuleRolloutEvaluation(rolloutEvaluation);
@@ -169,6 +199,9 @@ export const App = ({
         personal,
         team,
         auditMetrics,
+        summary,
+        sessions,
+        output,
         versions,
         rollout,
         rolloutEvaluation,
@@ -177,6 +210,9 @@ export const App = ({
       setPersonalSnapshot(personal);
       setTeamSnapshot(team);
       setMcpAuditMetrics(auditMetrics);
+      setAnalysisSummary(summary);
+      setSessionAnalysisRows(sessions);
+      setOutputAnalysisRows(output);
       setRuleVersions(versions);
       setRuleRollout(rollout);
       setRuleRolloutEvaluation(rolloutEvaluation);
@@ -239,6 +275,7 @@ export const App = ({
   );
 
   if (
+    !analysisSummary ||
     !personalSnapshot ||
     !teamSnapshot ||
     !mcpAuditMetrics ||
@@ -283,10 +320,13 @@ export const App = ({
             AI 研发效能量化看板
           </h1>
           <p style={{ margin: 0, maxWidth: '680px', color: '#5d4733', fontSize: '16px' }}>
-            对齐文章里的个人与团队视图，展示 MCP 主链路采集后沉淀出的核心出码指标。
+            对齐文章里的个人、团队、会话与出码视图，展示 MCP 主链路采集后沉淀出的核心分析指标。
           </p>
         </header>
         {filterControls}
+        <AnalysisSummarySection summary={analysisSummary} />
+        <SessionAnalysisTable rows={sessionAnalysisRows} />
+        <OutputAnalysisTable rows={outputAnalysisRows} />
         <PersonalDashboard snapshot={personalSnapshot} />
         <TeamDashboard snapshot={teamSnapshot} />
         <McpAuditDashboard metrics={mcpAuditMetrics} />

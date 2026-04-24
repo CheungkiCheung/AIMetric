@@ -4,9 +4,12 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { bootstrap } from './main.js';
 import type {
+  AnalysisSummaryRecord,
   EditSpanEvidenceRecord,
   MetricEventRepository,
+  OutputAnalysisRow,
   RecordedMetricEvent,
+  SessionAnalysisRow,
   TabAcceptedEventRecord,
 } from './database/postgres-event.repository.js';
 
@@ -540,6 +543,157 @@ describe('bootstrap', () => {
     });
   });
 
+  it('serves analysis summary over HTTP', async () => {
+    const summaryCalls: unknown[] = [];
+    const summary: AnalysisSummaryRecord = {
+      sessionCount: 2,
+      editSpanCount: 3,
+      tabAcceptedCount: 4,
+      tabAcceptedLines: 9,
+    };
+    const metricEventRepository: MetricEventRepository = {
+      async saveIngestionBatch() {
+        return undefined;
+      },
+      async listRecordedMetricEvents() {
+        return [];
+      },
+      async saveMetricSnapshots() {
+        return undefined;
+      },
+      async listMetricSnapshots() {
+        return [];
+      },
+      async buildMcpAuditMetrics() {
+        return emptyMcpAuditMetrics();
+      },
+      async listEditSpanEvidence() {
+        return [];
+      },
+      async listTabAcceptedEvents() {
+        return [];
+      },
+      async buildAnalysisSummary(filters) {
+        summaryCalls.push(filters);
+        return summary;
+      },
+      async listSessionAnalysisRows() {
+        return [];
+      },
+      async listOutputAnalysisRows() {
+        return [];
+      },
+      async disconnect() {
+        return undefined;
+      },
+    };
+
+    const app = await bootstrap({ port: 0, metricEventRepository });
+    servers.push(app);
+
+    const response = await fetch(
+      `${app.baseUrl}/analysis/summary?projectKey=aimetric&memberId=alice`,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(summary);
+    expect(summaryCalls[0]).toEqual({
+      projectKey: 'aimetric',
+      memberId: 'alice',
+    });
+  });
+
+  it('serves session and output analysis rows over HTTP', async () => {
+    const sessionCalls: unknown[] = [];
+    const outputCalls: unknown[] = [];
+    const sessionRows: SessionAnalysisRow[] = [
+      {
+        sessionId: 'sess_1',
+        memberId: 'alice',
+        projectKey: 'aimetric',
+        occurredAt: '2026-04-24T00:05:00.000Z',
+        conversationTurns: 3,
+        userMessageCount: 3,
+        assistantMessageCount: 3,
+        firstMessageAt: '2026-04-24T00:00:00.000Z',
+        lastMessageAt: '2026-04-24T00:05:00.000Z',
+        workspaceId: 'workspace-1',
+        workspacePath: '/repo',
+        projectFingerprint: 'fingerprint-1',
+        editSpanCount: 2,
+        tabAcceptedCount: 2,
+        tabAcceptedLines: 5,
+      },
+    ];
+    const outputRows: OutputAnalysisRow[] = [
+      {
+        sessionId: 'sess_1',
+        memberId: 'alice',
+        projectKey: 'aimetric',
+        filePath: '/repo/src/demo.ts',
+        editSpanCount: 2,
+        latestEditAt: '2026-04-24T00:05:00.000Z',
+        tabAcceptedCount: 2,
+        tabAcceptedLines: 5,
+        latestDiffSummary: '--- /repo/src/demo.ts',
+      },
+    ];
+    const metricEventRepository: MetricEventRepository = {
+      async saveIngestionBatch() {
+        return undefined;
+      },
+      async listRecordedMetricEvents() {
+        return [];
+      },
+      async saveMetricSnapshots() {
+        return undefined;
+      },
+      async listMetricSnapshots() {
+        return [];
+      },
+      async buildMcpAuditMetrics() {
+        return emptyMcpAuditMetrics();
+      },
+      async listEditSpanEvidence() {
+        return [];
+      },
+      async listTabAcceptedEvents() {
+        return [];
+      },
+      async buildAnalysisSummary() {
+        return emptyAnalysisSummary();
+      },
+      async listSessionAnalysisRows(filters) {
+        sessionCalls.push(filters);
+        return sessionRows;
+      },
+      async listOutputAnalysisRows(filters) {
+        outputCalls.push(filters);
+        return outputRows;
+      },
+      async disconnect() {
+        return undefined;
+      },
+    };
+
+    const app = await bootstrap({ port: 0, metricEventRepository });
+    servers.push(app);
+
+    const sessionResponse = await fetch(
+      `${app.baseUrl}/analysis/sessions?projectKey=aimetric`,
+    );
+    const outputResponse = await fetch(
+      `${app.baseUrl}/analysis/output?projectKey=aimetric`,
+    );
+
+    expect(sessionResponse.status).toBe(200);
+    expect(outputResponse.status).toBe(200);
+    await expect(sessionResponse.json()).resolves.toEqual(sessionRows);
+    await expect(outputResponse.json()).resolves.toEqual(outputRows);
+    expect(sessionCalls[0]).toEqual({ projectKey: 'aimetric' });
+    expect(outputCalls[0]).toEqual({ projectKey: 'aimetric' });
+  });
+
   it('serves rule center APIs over HTTP', async () => {
     const catalogRoot = createTemporaryRuleCatalogRoot();
     const app = await bootstrap({ port: 0, ruleCatalogRoot: catalogRoot });
@@ -681,4 +835,11 @@ const emptyMcpAuditMetrics = () => ({
   successRate: 0,
   failureRate: 0,
   averageDurationMs: 0,
+});
+
+const emptyAnalysisSummary = (): AnalysisSummaryRecord => ({
+  sessionCount: 0,
+  editSpanCount: 0,
+  tabAcceptedCount: 0,
+  tabAcceptedLines: 0,
 });

@@ -195,6 +195,33 @@ const handleRequest = async (
     return;
   }
 
+  if (method === 'GET' && url.pathname === '/analysis/summary') {
+    writeJson(
+      response,
+      200,
+      await appModule.buildAnalysisSummary(getMetricSnapshotFilters(url)),
+    );
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/analysis/sessions') {
+    writeJson(
+      response,
+      200,
+      await appModule.listSessionAnalysisRows(getMetricSnapshotFilters(url)),
+    );
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/analysis/output') {
+    writeJson(
+      response,
+      200,
+      await appModule.listOutputAnalysisRows(getMetricSnapshotFilters(url)),
+    );
+    return;
+  }
+
   if (method === 'GET' && url.pathname === '/rules/project') {
     writeJson(
       response,

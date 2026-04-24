@@ -244,4 +244,74 @@ describe('createDashboardClient', () => {
       }),
     });
   });
+
+  it('fetches analysis APIs through the dashboard client', async () => {
+    const requestedUrls: string[] = [];
+
+    globalThis.fetch = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      requestedUrls.push(url);
+
+      if (url.includes('/analysis/summary')) {
+        return new Response(
+          JSON.stringify({
+            sessionCount: 2,
+            editSpanCount: 3,
+            tabAcceptedCount: 4,
+            tabAcceptedLines: 9,
+          }),
+          { status: 200 },
+        );
+      }
+
+      if (url.includes('/analysis/sessions')) {
+        return new Response(
+          JSON.stringify([
+            {
+              sessionId: 'sess_1',
+              projectKey: 'aimetric',
+              occurredAt: '2026-04-24T00:05:00.000Z',
+              editSpanCount: 2,
+              tabAcceptedCount: 2,
+              tabAcceptedLines: 5,
+            },
+          ]),
+          { status: 200 },
+        );
+      }
+
+      return new Response(
+        JSON.stringify([
+          {
+            sessionId: 'sess_1',
+            projectKey: 'aimetric',
+            filePath: '/repo/src/demo.ts',
+            editSpanCount: 2,
+            latestEditAt: '2026-04-24T00:05:00.000Z',
+            tabAcceptedCount: 2,
+            tabAcceptedLines: 5,
+            latestDiffSummary: '--- /repo/src/demo.ts',
+          },
+        ]),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+
+    const client = createDashboardClient('http://127.0.0.1:3001');
+    const filters = { projectKey: 'aimetric', memberId: 'alice' };
+
+    await expect(client.getAnalysisSummary(filters)).resolves.toEqual({
+      sessionCount: 2,
+      editSpanCount: 3,
+      tabAcceptedCount: 4,
+      tabAcceptedLines: 9,
+    });
+    await expect(client.getSessionAnalysisRows(filters)).resolves.toHaveLength(1);
+    await expect(client.getOutputAnalysisRows(filters)).resolves.toHaveLength(1);
+    expect(requestedUrls).toEqual([
+      'http://127.0.0.1:3001/analysis/summary?projectKey=aimetric&memberId=alice',
+      'http://127.0.0.1:3001/analysis/sessions?projectKey=aimetric&memberId=alice',
+      'http://127.0.0.1:3001/analysis/output?projectKey=aimetric&memberId=alice',
+    ]);
+  });
 });

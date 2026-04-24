@@ -64,6 +64,43 @@ export interface TabAcceptedEventRecord {
   language?: string;
 }
 
+export interface AnalysisSummaryRecord {
+  sessionCount: number;
+  editSpanCount: number;
+  tabAcceptedCount: number;
+  tabAcceptedLines: number;
+}
+
+export interface SessionAnalysisRow {
+  sessionId: string;
+  memberId?: string;
+  projectKey: string;
+  occurredAt: string;
+  conversationTurns?: number;
+  userMessageCount?: number;
+  assistantMessageCount?: number;
+  firstMessageAt?: string;
+  lastMessageAt?: string;
+  workspaceId?: string;
+  workspacePath?: string;
+  projectFingerprint?: string;
+  editSpanCount: number;
+  tabAcceptedCount: number;
+  tabAcceptedLines: number;
+}
+
+export interface OutputAnalysisRow {
+  sessionId: string;
+  memberId?: string;
+  projectKey: string;
+  filePath: string;
+  editSpanCount: number;
+  latestEditAt: string;
+  tabAcceptedCount: number;
+  tabAcceptedLines: number;
+  latestDiffSummary: string;
+}
+
 export interface MetricEventRepository {
   saveIngestionBatch(batch: IngestionBatch): Promise<void>;
   listRecordedMetricEvents(
@@ -80,6 +117,15 @@ export interface MetricEventRepository {
   listTabAcceptedEvents(
     filters?: EditEvidenceFilters,
   ): Promise<TabAcceptedEventRecord[]>;
+  buildAnalysisSummary?(
+    filters?: MetricSnapshotFilters,
+  ): Promise<AnalysisSummaryRecord>;
+  listSessionAnalysisRows?(
+    filters?: MetricSnapshotFilters,
+  ): Promise<SessionAnalysisRow[]>;
+  listOutputAnalysisRows?(
+    filters?: MetricSnapshotFilters,
+  ): Promise<OutputAnalysisRow[]>;
   disconnect(): Promise<void>;
 }
 
@@ -462,6 +508,274 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
       ingestionKey: event.ingestion_key,
       ...(event.file_path ? { filePath: event.file_path } : {}),
       ...(event.language ? { language: event.language } : {}),
+    }));
+  }
+
+  async buildAnalysisSummary(
+    filters: MetricSnapshotFilters = {},
+  ): Promise<AnalysisSummaryRecord> {
+    await this.ensureSchema();
+
+    const values: string[] = [];
+    const whereClauses = [
+      `event_type IN ('session.recorded', 'edit.span.recorded', 'tab.accepted')`,
+    ];
+
+    if (filters.projectKey) {
+      values.push(filters.projectKey);
+      whereClauses.push(`project_key = $${values.length}`);
+    }
+
+    if (filters.memberId) {
+      values.push(filters.memberId);
+      whereClauses.push(`member_id = $${values.length}`);
+    }
+
+    if (filters.from) {
+      values.push(filters.from);
+      whereClauses.push(`occurred_at >= $${values.length}`);
+    }
+
+    if (filters.to) {
+      values.push(filters.to);
+      whereClauses.push(`occurred_at <= $${values.length}`);
+    }
+
+    const result = await this.database.query<{
+      session_count: string | number;
+      edit_span_count: string | number;
+      tab_accepted_count: string | number;
+      tab_accepted_lines: string | number;
+    }>(
+      `
+        SELECT
+          COUNT(*) FILTER (WHERE event_type = 'session.recorded') AS session_count,
+          COUNT(*) FILTER (WHERE event_type = 'edit.span.recorded') AS edit_span_count,
+          COUNT(*) FILTER (WHERE event_type = 'tab.accepted') AS tab_accepted_count,
+          COALESCE(
+            SUM(
+              CASE
+                WHEN event_type = 'tab.accepted'
+                  THEN COALESCE((payload->>'acceptedLines')::INTEGER, 0)
+                ELSE 0
+              END
+            ),
+            0
+          ) AS tab_accepted_lines
+        FROM metric_events
+        WHERE ${whereClauses.join(' AND ')}
+      `,
+      values,
+    );
+    const row = result.rows[0];
+
+    return {
+      sessionCount: Number(row?.session_count ?? 0),
+      editSpanCount: Number(row?.edit_span_count ?? 0),
+      tabAcceptedCount: Number(row?.tab_accepted_count ?? 0),
+      tabAcceptedLines: Number(row?.tab_accepted_lines ?? 0),
+    };
+  }
+
+  async listSessionAnalysisRows(
+    filters: MetricSnapshotFilters = {},
+  ): Promise<SessionAnalysisRow[]> {
+    await this.ensureSchema();
+
+    const values: string[] = [];
+    const whereClauses = [`sessions.event_type = 'session.recorded'`];
+
+    if (filters.projectKey) {
+      values.push(filters.projectKey);
+      whereClauses.push(`sessions.project_key = $${values.length}`);
+    }
+
+    if (filters.memberId) {
+      values.push(filters.memberId);
+      whereClauses.push(`sessions.member_id = $${values.length}`);
+    }
+
+    if (filters.from) {
+      values.push(filters.from);
+      whereClauses.push(`sessions.occurred_at >= $${values.length}`);
+    }
+
+    if (filters.to) {
+      values.push(filters.to);
+      whereClauses.push(`sessions.occurred_at <= $${values.length}`);
+    }
+
+    const rows = await this.database.query<{
+      session_id: string;
+      member_id: string | null;
+      project_key: string;
+      occurred_at: Date | string;
+      conversation_turns: string | null;
+      user_message_count: string | null;
+      assistant_message_count: string | null;
+      first_message_at: string | null;
+      last_message_at: string | null;
+      workspace_id: string | null;
+      workspace_path: string | null;
+      project_fingerprint: string | null;
+      edit_span_count: string | number;
+      tab_accepted_count: string | number;
+      tab_accepted_lines: string | number;
+    }>(
+      `
+        SELECT
+          sessions.session_id,
+          sessions.member_id,
+          sessions.project_key,
+          sessions.occurred_at,
+          sessions.payload->>'conversationTurns' AS conversation_turns,
+          sessions.payload->>'userMessageCount' AS user_message_count,
+          sessions.payload->>'assistantMessageCount' AS assistant_message_count,
+          sessions.payload->>'firstMessageAt' AS first_message_at,
+          sessions.payload->>'lastMessageAt' AS last_message_at,
+          sessions.payload->>'workspaceId' AS workspace_id,
+          sessions.payload->>'workspacePath' AS workspace_path,
+          sessions.payload->>'projectFingerprint' AS project_fingerprint,
+          (
+            SELECT COUNT(*)
+            FROM metric_events edits
+            WHERE edits.event_type = 'edit.span.recorded'
+              AND edits.session_id = sessions.session_id
+          ) AS edit_span_count,
+          (
+            SELECT COUNT(*)
+            FROM metric_events tabs
+            WHERE tabs.event_type = 'tab.accepted'
+              AND tabs.session_id = sessions.session_id
+          ) AS tab_accepted_count,
+          (
+            SELECT COALESCE(SUM((tabs.payload->>'acceptedLines')::INTEGER), 0)
+            FROM metric_events tabs
+            WHERE tabs.event_type = 'tab.accepted'
+              AND tabs.session_id = sessions.session_id
+          ) AS tab_accepted_lines
+        FROM metric_events sessions
+        WHERE ${whereClauses.join(' AND ')}
+        ORDER BY COALESCE((sessions.payload->>'lastMessageAt')::TIMESTAMPTZ, sessions.occurred_at) DESC, sessions.id DESC
+      `,
+      values,
+    );
+
+    return rows.rows.map((row) => ({
+      sessionId: row.session_id,
+      ...(row.member_id ? { memberId: row.member_id } : {}),
+      projectKey: row.project_key,
+      occurredAt: new Date(row.occurred_at).toISOString(),
+      ...(row.conversation_turns
+        ? { conversationTurns: Number(row.conversation_turns) }
+        : {}),
+      ...(row.user_message_count
+        ? { userMessageCount: Number(row.user_message_count) }
+        : {}),
+      ...(row.assistant_message_count
+        ? { assistantMessageCount: Number(row.assistant_message_count) }
+        : {}),
+      ...(row.first_message_at ? { firstMessageAt: row.first_message_at } : {}),
+      ...(row.last_message_at ? { lastMessageAt: row.last_message_at } : {}),
+      ...(row.workspace_id ? { workspaceId: row.workspace_id } : {}),
+      ...(row.workspace_path ? { workspacePath: row.workspace_path } : {}),
+      ...(row.project_fingerprint
+        ? { projectFingerprint: row.project_fingerprint }
+        : {}),
+      editSpanCount: Number(row.edit_span_count ?? 0),
+      tabAcceptedCount: Number(row.tab_accepted_count ?? 0),
+      tabAcceptedLines: Number(row.tab_accepted_lines ?? 0),
+    }));
+  }
+
+  async listOutputAnalysisRows(
+    filters: MetricSnapshotFilters = {},
+  ): Promise<OutputAnalysisRow[]> {
+    await this.ensureSchema();
+
+    const values: string[] = [];
+    const whereClauses = [`edits.event_type = 'edit.span.recorded'`];
+
+    if (filters.projectKey) {
+      values.push(filters.projectKey);
+      whereClauses.push(`edits.project_key = $${values.length}`);
+    }
+
+    if (filters.memberId) {
+      values.push(filters.memberId);
+      whereClauses.push(`edits.member_id = $${values.length}`);
+    }
+
+    if (filters.from) {
+      values.push(filters.from);
+      whereClauses.push(`edits.occurred_at >= $${values.length}`);
+    }
+
+    if (filters.to) {
+      values.push(filters.to);
+      whereClauses.push(`edits.occurred_at <= $${values.length}`);
+    }
+
+    const rows = await this.database.query<{
+      session_id: string;
+      member_id: string | null;
+      project_key: string;
+      file_path: string;
+      edit_span_count: string | number;
+      latest_edit_at: Date | string;
+      tab_accepted_count: string | number;
+      tab_accepted_lines: string | number;
+      latest_diff_summary: string | null;
+    }>(
+      `
+        SELECT
+          edits.session_id,
+          edits.member_id,
+          edits.project_key,
+          edits.payload->>'filePath' AS file_path,
+          COUNT(*) AS edit_span_count,
+          MAX(edits.occurred_at) AS latest_edit_at,
+          (
+            SELECT COUNT(*)
+            FROM metric_events tabs
+            WHERE tabs.event_type = 'tab.accepted'
+              AND tabs.session_id = edits.session_id
+              AND tabs.payload->>'filePath' = edits.payload->>'filePath'
+          ) AS tab_accepted_count,
+          (
+            SELECT COALESCE(SUM((tabs.payload->>'acceptedLines')::INTEGER), 0)
+            FROM metric_events tabs
+            WHERE tabs.event_type = 'tab.accepted'
+              AND tabs.session_id = edits.session_id
+              AND tabs.payload->>'filePath' = edits.payload->>'filePath'
+          ) AS tab_accepted_lines,
+          (
+            SELECT LEFT(REGEXP_REPLACE(diff.payload->>'diff', '\\s+', ' ', 'g'), 240)
+            FROM metric_events diff
+            WHERE diff.event_type = 'edit.span.recorded'
+              AND diff.session_id = edits.session_id
+              AND diff.payload->>'filePath' = edits.payload->>'filePath'
+            ORDER BY diff.occurred_at DESC, diff.id DESC
+            LIMIT 1
+          ) AS latest_diff_summary
+        FROM metric_events edits
+        WHERE ${whereClauses.join(' AND ')}
+        GROUP BY edits.session_id, edits.member_id, edits.project_key, edits.payload->>'filePath'
+        ORDER BY latest_edit_at DESC
+      `,
+      values,
+    );
+
+    return rows.rows.map((row) => ({
+      sessionId: row.session_id,
+      ...(row.member_id ? { memberId: row.member_id } : {}),
+      projectKey: row.project_key,
+      filePath: row.file_path,
+      editSpanCount: Number(row.edit_span_count ?? 0),
+      latestEditAt: new Date(row.latest_edit_at).toISOString(),
+      tabAcceptedCount: Number(row.tab_accepted_count ?? 0),
+      tabAcceptedLines: Number(row.tab_accepted_lines ?? 0),
+      latestDiffSummary: row.latest_diff_summary ?? '',
     }));
   }
 

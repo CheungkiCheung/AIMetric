@@ -333,6 +333,90 @@ describe('AppModule', () => {
     ]);
   });
 
+  it('builds analysis summary through the repository', async () => {
+    const repository = {
+      saveIngestionBatch: vi.fn(async () => undefined),
+      listRecordedMetricEvents: vi.fn(async () => []),
+      saveMetricSnapshots: vi.fn(async () => undefined),
+      listMetricSnapshots: vi.fn(async () => []),
+      buildMcpAuditMetrics: vi.fn(async () => emptyMcpAuditMetrics()),
+      listEditSpanEvidence: vi.fn(async () => []),
+      listTabAcceptedEvents: vi.fn(async () => []),
+      buildAnalysisSummary: vi.fn(async () => ({
+        sessionCount: 2,
+        editSpanCount: 3,
+        tabAcceptedCount: 4,
+        tabAcceptedLines: 9,
+      })),
+      listSessionAnalysisRows: vi.fn(async () => []),
+      listOutputAnalysisRows: vi.fn(async () => []),
+      disconnect: vi.fn(async () => undefined),
+    };
+    const filters = { projectKey: 'aimetric' };
+
+    const appModule = new AppModule(repository);
+    const summary = await appModule.buildAnalysisSummary(filters);
+
+    expect(repository.buildAnalysisSummary).toHaveBeenCalledWith(filters);
+    expect(summary).toEqual({
+      sessionCount: 2,
+      editSpanCount: 3,
+      tabAcceptedCount: 4,
+      tabAcceptedLines: 9,
+    });
+  });
+
+  it('lists session and output analysis rows through the repository', async () => {
+    const repository = {
+      saveIngestionBatch: vi.fn(async () => undefined),
+      listRecordedMetricEvents: vi.fn(async () => []),
+      saveMetricSnapshots: vi.fn(async () => undefined),
+      listMetricSnapshots: vi.fn(async () => []),
+      buildMcpAuditMetrics: vi.fn(async () => emptyMcpAuditMetrics()),
+      listEditSpanEvidence: vi.fn(async () => []),
+      listTabAcceptedEvents: vi.fn(async () => []),
+      buildAnalysisSummary: vi.fn(async () => ({
+        sessionCount: 0,
+        editSpanCount: 0,
+        tabAcceptedCount: 0,
+        tabAcceptedLines: 0,
+      })),
+      listSessionAnalysisRows: vi.fn(async () => [
+        {
+          sessionId: 'sess_1',
+          projectKey: 'aimetric',
+          occurredAt: '2026-04-24T00:05:00.000Z',
+          editSpanCount: 2,
+          tabAcceptedCount: 2,
+          tabAcceptedLines: 5,
+        },
+      ]),
+      listOutputAnalysisRows: vi.fn(async () => [
+        {
+          sessionId: 'sess_1',
+          projectKey: 'aimetric',
+          filePath: '/repo/src/demo.ts',
+          editSpanCount: 2,
+          latestEditAt: '2026-04-24T00:05:00.000Z',
+          tabAcceptedCount: 2,
+          tabAcceptedLines: 5,
+          latestDiffSummary: '--- /repo/src/demo.ts',
+        },
+      ]),
+      disconnect: vi.fn(async () => undefined),
+    };
+    const filters = { projectKey: 'aimetric' };
+
+    const appModule = new AppModule(repository);
+    const sessionRows = await appModule.listSessionAnalysisRows(filters);
+    const outputRows = await appModule.listOutputAnalysisRows(filters);
+
+    expect(repository.listSessionAnalysisRows).toHaveBeenCalledWith(filters);
+    expect(repository.listOutputAnalysisRows).toHaveBeenCalledWith(filters);
+    expect(sessionRows).toHaveLength(1);
+    expect(outputRows).toHaveLength(1);
+  });
+
   it('exposes rule center operations from the application module', () => {
     const repository = createEmptyRepository();
     const appModule = new AppModule(repository);
@@ -369,6 +453,14 @@ const createEmptyRepository = () => ({
   buildMcpAuditMetrics: vi.fn(async () => emptyMcpAuditMetrics()),
   listEditSpanEvidence: vi.fn(async () => []),
   listTabAcceptedEvents: vi.fn(async () => []),
+  buildAnalysisSummary: vi.fn(async () => ({
+    sessionCount: 0,
+    editSpanCount: 0,
+    tabAcceptedCount: 0,
+    tabAcceptedLines: 0,
+  })),
+  listSessionAnalysisRows: vi.fn(async () => []),
+  listOutputAnalysisRows: vi.fn(async () => []),
   disconnect: vi.fn(async () => undefined),
 });
 

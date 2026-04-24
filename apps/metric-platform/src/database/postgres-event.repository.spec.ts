@@ -387,4 +387,191 @@ describe('PostgresMetricEventRepository query mapping', () => {
       '2026-04-24T00:00:00.000Z',
     ]);
   });
+
+  it('builds analysis summary aggregates from metric events', async () => {
+    const queries: Array<{ text: string; values?: unknown[] }> = [];
+    const repository = new PostgresMetricEventRepository({
+      async query<T extends QueryResultRow = QueryResultRow>(
+        text: string,
+        values?: unknown[],
+      ) {
+        queries.push({ text, values });
+
+        if (text.includes('CREATE TABLE')) {
+          return {
+            command: '',
+            rowCount: 0,
+            oid: 0,
+            fields: [],
+            rows: [],
+          };
+        }
+
+        return {
+          command: '',
+          rowCount: 1,
+          oid: 0,
+          fields: [],
+          rows: ([
+            {
+              session_count: '2',
+              edit_span_count: '3',
+              tab_accepted_count: '4',
+              tab_accepted_lines: '9',
+            },
+          ] as unknown) as T[],
+        };
+      },
+    });
+
+    const summary = await repository.buildAnalysisSummary({
+      projectKey: 'aimetric',
+      from: '2026-04-24T00:00:00.000Z',
+      to: '2026-04-25T00:00:00.000Z',
+    });
+
+    expect(summary).toEqual({
+      sessionCount: 2,
+      editSpanCount: 3,
+      tabAcceptedCount: 4,
+      tabAcceptedLines: 9,
+    });
+    expect(queries.at(-1)?.text).toContain("event_type = 'session.recorded'");
+    expect(queries.at(-1)?.text).toContain("event_type = 'edit.span.recorded'");
+    expect(queries.at(-1)?.text).toContain("event_type = 'tab.accepted'");
+  });
+
+  it('builds session analysis rows with edit and tab aggregates', async () => {
+    const queries: Array<{ text: string; values?: unknown[] }> = [];
+    const repository = new PostgresMetricEventRepository({
+      async query<T extends QueryResultRow = QueryResultRow>(
+        text: string,
+        values?: unknown[],
+      ) {
+        queries.push({ text, values });
+
+        if (text.includes('CREATE TABLE')) {
+          return {
+            command: '',
+            rowCount: 0,
+            oid: 0,
+            fields: [],
+            rows: [],
+          };
+        }
+
+        return {
+          command: '',
+          rowCount: 1,
+          oid: 0,
+          fields: [],
+          rows: ([
+            {
+              session_id: 'sess_1',
+              member_id: 'alice',
+              project_key: 'aimetric',
+              occurred_at: new Date('2026-04-24T00:05:00.000Z'),
+              conversation_turns: '3',
+              user_message_count: '3',
+              assistant_message_count: '3',
+              first_message_at: '2026-04-24T00:00:00.000Z',
+              last_message_at: '2026-04-24T00:05:00.000Z',
+              workspace_id: 'workspace-1',
+              workspace_path: '/repo',
+              project_fingerprint: 'fingerprint-1',
+              edit_span_count: '2',
+              tab_accepted_count: '2',
+              tab_accepted_lines: '5',
+            },
+          ] as unknown) as T[],
+        };
+      },
+    });
+
+    const rows = await repository.listSessionAnalysisRows({
+      projectKey: 'aimetric',
+    });
+
+    expect(rows).toEqual([
+      {
+        sessionId: 'sess_1',
+        memberId: 'alice',
+        projectKey: 'aimetric',
+        occurredAt: '2026-04-24T00:05:00.000Z',
+        conversationTurns: 3,
+        userMessageCount: 3,
+        assistantMessageCount: 3,
+        firstMessageAt: '2026-04-24T00:00:00.000Z',
+        lastMessageAt: '2026-04-24T00:05:00.000Z',
+        workspaceId: 'workspace-1',
+        workspacePath: '/repo',
+        projectFingerprint: 'fingerprint-1',
+        editSpanCount: 2,
+        tabAcceptedCount: 2,
+        tabAcceptedLines: 5,
+      },
+    ]);
+    expect(queries.at(-1)?.text).toContain("event_type = 'session.recorded'");
+  });
+
+  it('builds output analysis rows grouped by session and file path', async () => {
+    const queries: Array<{ text: string; values?: unknown[] }> = [];
+    const repository = new PostgresMetricEventRepository({
+      async query<T extends QueryResultRow = QueryResultRow>(
+        text: string,
+        values?: unknown[],
+      ) {
+        queries.push({ text, values });
+
+        if (text.includes('CREATE TABLE')) {
+          return {
+            command: '',
+            rowCount: 0,
+            oid: 0,
+            fields: [],
+            rows: [],
+          };
+        }
+
+        return {
+          command: '',
+          rowCount: 1,
+          oid: 0,
+          fields: [],
+          rows: ([
+            {
+              session_id: 'sess_1',
+              member_id: 'alice',
+              project_key: 'aimetric',
+              file_path: '/repo/src/demo.ts',
+              edit_span_count: '2',
+              latest_edit_at: new Date('2026-04-24T00:05:00.000Z'),
+              tab_accepted_count: '2',
+              tab_accepted_lines: '5',
+              latest_diff_summary: '--- /repo/src/demo.ts',
+            },
+          ] as unknown) as T[],
+        };
+      },
+    });
+
+    const rows = await repository.listOutputAnalysisRows({
+      projectKey: 'aimetric',
+    });
+
+    expect(rows).toEqual([
+      {
+        sessionId: 'sess_1',
+        memberId: 'alice',
+        projectKey: 'aimetric',
+        filePath: '/repo/src/demo.ts',
+        editSpanCount: 2,
+        latestEditAt: '2026-04-24T00:05:00.000Z',
+        tabAcceptedCount: 2,
+        tabAcceptedLines: 5,
+        latestDiffSummary: '--- /repo/src/demo.ts',
+      },
+    ]);
+    expect(queries.at(-1)?.text).toContain("event_type = 'edit.span.recorded'");
+  });
 });

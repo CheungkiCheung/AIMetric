@@ -7,7 +7,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 按最初的全量规划估算：
 
 - `Phase 1 主链路 MVP`：约 `100%` 完成
-- `全量文章同构系统`：约 `89%` 完成
+- `全量文章同构系统`：约 `92%` 完成
 
 已完成：
 
@@ -31,6 +31,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 - `metric-platform` 新增知识库查询 API：`GET /knowledge/search`
 - `dashboard` 新增 MCP 采集质量视图，展示工具成功率、失败率和平均耗时
 - `dashboard` 新增规则中心管理视图，支持页面内启停灰度、调整比例、维护定向成员，并展示命中规则版本
+- `dashboard` 新增分析摘要、会话分析、出码分析视图，展示真实会话主线、编辑证据与 Tab 接受聚合
 - `employee-onboarding` 员工接入原型，可生成 `.aimetric/config.json` 与 `.aimetric/mcp.json`
 - `employee-onboarding` 支持 `cursor / cli / vscode` 三种标准接入档，并生成对应适配文件
 - `cli-adapter` 已提供标准 CLI 会话采集入口，可直接上报 `session.recorded` 批次
@@ -40,9 +41,10 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 - `edit-evidence` 已提供文件级 `edit span` 证据建模、快照 hash、diff 与幂等键生成
 - `collector-sdk`、`cursor-db-adapter`、`cursor-adapter` 已支持 `tab.accepted` 增强事件采集
 - `metric-platform` 已新增 Tab 补全事件查询 API：`GET /evidence/tab-completions`
+- `metric-platform` 已新增分析查询 API：`GET /analysis/summary`、`GET /analysis/sessions`、`GET /analysis/output`
 - `collector-sdk` 可读取 `.aimetric/config.json` 并生成标准 `IngestionBatch`
 - `mcp-server recordSession` 可读取员工接入配置并补齐项目、成员、仓库、规则版本
-- `dashboard` 个人出码视图、团队出码视图、自动刷新、项目/成员/时间范围筛选
+- `dashboard` 个人出码视图、团队出码视图、会话分析、出码分析、自动刷新、项目/成员/时间范围筛选
 - 本地 `docker-compose.yml`，包含 PostgreSQL 和 Redis
 - 基础 README、设计文档、Phase 1 执行计划
 
@@ -60,7 +62,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 - `数据采集层`：MCP 工具、采集 SDK、采集网关
 - `平台能力层`：指标平台、归因证据、指标计算、PostgreSQL 事实表
 - `证据关联层`：会话主线、编辑证据、后续 Git 归因与分析查询
-- `指标展示层`：个人出码视图、团队出码视图
+- `指标展示层`：个人出码视图、团队出码视图、会话分析、出码分析
 
 当前主链路：
 
@@ -180,6 +182,9 @@ curl http://127.0.0.1:3001/metrics/personal
 curl http://127.0.0.1:3001/metrics/team
 curl http://127.0.0.1:3001/evidence/edits
 curl http://127.0.0.1:3001/evidence/tab-completions
+curl http://127.0.0.1:3001/analysis/summary
+curl http://127.0.0.1:3001/analysis/sessions
+curl http://127.0.0.1:3001/analysis/output
 ```
 
 支持按项目、成员、时间范围筛选：
@@ -189,6 +194,9 @@ curl 'http://127.0.0.1:3001/metrics/personal?projectKey=proj&memberId=alice&from
 curl 'http://127.0.0.1:3001/metrics/team?projectKey=proj&from=2026-04-23T00:00:00.000Z&to=2026-04-24T00:00:00.000Z'
 curl 'http://127.0.0.1:3001/evidence/edits?projectKey=proj&sessionId=sess_1&filePath=/repo/src/demo.ts'
 curl 'http://127.0.0.1:3001/evidence/tab-completions?projectKey=proj&sessionId=sess_1&filePath=/repo/src/demo.ts'
+curl 'http://127.0.0.1:3001/analysis/summary?projectKey=proj&memberId=alice'
+curl 'http://127.0.0.1:3001/analysis/sessions?projectKey=proj&memberId=alice'
+curl 'http://127.0.0.1:3001/analysis/output?projectKey=proj&memberId=alice'
 ```
 
 ### 回算与查询指标快照

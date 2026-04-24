@@ -69,10 +69,52 @@ export interface DashboardFilters {
   to?: string;
 }
 
+export interface AnalysisSummary {
+  sessionCount: number;
+  editSpanCount: number;
+  tabAcceptedCount: number;
+  tabAcceptedLines: number;
+}
+
+export interface SessionAnalysisRow {
+  sessionId: string;
+  memberId?: string;
+  projectKey: string;
+  occurredAt: string;
+  conversationTurns?: number;
+  userMessageCount?: number;
+  assistantMessageCount?: number;
+  firstMessageAt?: string;
+  lastMessageAt?: string;
+  workspaceId?: string;
+  workspacePath?: string;
+  projectFingerprint?: string;
+  editSpanCount: number;
+  tabAcceptedCount: number;
+  tabAcceptedLines: number;
+}
+
+export interface OutputAnalysisRow {
+  sessionId: string;
+  memberId?: string;
+  projectKey: string;
+  filePath: string;
+  editSpanCount: number;
+  latestEditAt: string;
+  tabAcceptedCount: number;
+  tabAcceptedLines: number;
+  latestDiffSummary?: string;
+}
+
 export interface DashboardClient {
   getPersonalSnapshot(filters?: DashboardFilters): Promise<PersonalSnapshot>;
   getTeamSnapshot(filters?: DashboardFilters): Promise<TeamSnapshot>;
   getMcpAuditMetrics(filters?: DashboardFilters): Promise<McpAuditMetrics>;
+  getAnalysisSummary(filters?: DashboardFilters): Promise<AnalysisSummary>;
+  getSessionAnalysisRows(
+    filters?: DashboardFilters,
+  ): Promise<SessionAnalysisRow[]>;
+  getOutputAnalysisRows(filters?: DashboardFilters): Promise<OutputAnalysisRow[]>;
   getRuleVersions(projectKey?: string): Promise<RuleVersionCatalog>;
   getRuleRollout(projectKey?: string): Promise<RuleRollout>;
   getRuleRolloutEvaluation(
@@ -104,6 +146,13 @@ const fallbackMcpAuditMetrics: McpAuditMetrics = {
   successRate: 0,
   failureRate: 0,
   averageDurationMs: 0,
+};
+
+const fallbackAnalysisSummary: AnalysisSummary = {
+  sessionCount: 0,
+  editSpanCount: 0,
+  tabAcceptedCount: 0,
+  tabAcceptedLines: 0,
 };
 
 const fallbackRuleVersions: RuleVersionCatalog = {
@@ -240,6 +289,21 @@ export const createDashboardClient = (
     fetchJson<McpAuditMetrics>(
       buildMetricUrl(baseUrl, '/metrics/mcp-audit', filters),
       fallbackMcpAuditMetrics,
+    ),
+  getAnalysisSummary: (filters) =>
+    fetchJson<AnalysisSummary>(
+      buildMetricUrl(baseUrl, '/analysis/summary', filters),
+      fallbackAnalysisSummary,
+    ),
+  getSessionAnalysisRows: (filters) =>
+    fetchJson<SessionAnalysisRow[]>(
+      buildMetricUrl(baseUrl, '/analysis/sessions', filters),
+      [],
+    ),
+  getOutputAnalysisRows: (filters) =>
+    fetchJson<OutputAnalysisRow[]>(
+      buildMetricUrl(baseUrl, '/analysis/output', filters),
+      [],
     ),
   getRuleVersions: (projectKey) =>
     fetchJson<RuleVersionCatalog>(

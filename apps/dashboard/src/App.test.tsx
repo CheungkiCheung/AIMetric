@@ -4,7 +4,98 @@ import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App.js';
-import type { DashboardFilters, RuleRollout } from './api/client.js';
+import type { DashboardClient, DashboardFilters, RuleRollout } from './api/client.js';
+
+const createClient = (
+  overrides: Partial<DashboardClient> = {},
+): DashboardClient => ({
+  getPersonalSnapshot: async () => ({
+    acceptedAiLines: 35,
+    commitTotalLines: 50,
+    aiOutputRate: 0.7,
+    sessionCount: 4,
+  }),
+  getTeamSnapshot: async () => ({
+    memberCount: 2,
+    totalAcceptedAiLines: 50,
+    totalCommitLines: 80,
+    aiOutputRate: 0.625,
+    totalSessionCount: 6,
+  }),
+  getMcpAuditMetrics: async () => ({
+    totalToolCalls: 12,
+    successfulToolCalls: 10,
+    failedToolCalls: 2,
+    successRate: 10 / 12,
+    failureRate: 2 / 12,
+    averageDurationMs: 24,
+  }),
+  getRuleVersions: async () => ({
+    projectKey: 'aimetric',
+    activeVersion: 'v2',
+    versions: [],
+  }),
+  getRuleRollout: async () => ({
+    projectKey: 'aimetric',
+    enabled: false,
+    candidateVersion: undefined,
+    percentage: 0,
+    includedMembers: [],
+    updatedAt: undefined,
+  }),
+  getRuleRolloutEvaluation: async () => ({
+    projectKey: 'aimetric',
+    memberId: undefined,
+    enabled: false,
+    activeVersion: 'v2',
+    selectedVersion: 'v2',
+    candidateVersion: undefined,
+    percentage: 0,
+    bucket: undefined,
+    matched: false,
+    reason: 'rollout-disabled' as const,
+  }),
+  getAnalysisSummary: async () => ({
+    sessionCount: 2,
+    editSpanCount: 3,
+    tabAcceptedCount: 4,
+    tabAcceptedLines: 9,
+  }),
+  getSessionAnalysisRows: async () => [
+    {
+      sessionId: 'sess_1',
+      memberId: 'alice',
+      projectKey: 'aimetric',
+      occurredAt: '2026-04-24T00:05:00.000Z',
+      conversationTurns: 3,
+      userMessageCount: 3,
+      assistantMessageCount: 3,
+      firstMessageAt: '2026-04-24T00:00:00.000Z',
+      lastMessageAt: '2026-04-24T00:05:00.000Z',
+      workspaceId: 'workspace-1',
+      workspacePath: '/repo',
+      projectFingerprint: 'fingerprint-1',
+      editSpanCount: 2,
+      tabAcceptedCount: 2,
+      tabAcceptedLines: 5,
+    },
+  ],
+  getOutputAnalysisRows: async () => [
+    {
+      sessionId: 'sess_1',
+      memberId: 'alice',
+      projectKey: 'aimetric',
+      filePath: '/repo/src/demo.ts',
+      editSpanCount: 2,
+      latestEditAt: '2026-04-24T00:05:00.000Z',
+      tabAcceptedCount: 2,
+      tabAcceptedLines: 5,
+      latestDiffSummary: '--- /repo/src/demo.ts',
+    },
+  ],
+  updateRuleRollout: async (input: RuleRollout) => input,
+  ...overrides,
+});
 
 describe('App', () => {
   afterEach(() => {
@@ -12,31 +103,10 @@ describe('App', () => {
     vi.useRealTimers();
   });
 
-  it('renders personal and team metric views', async () => {
+  it('renders personal, team, and analysis views', async () => {
     render(
       <App
-        client={{
-          getPersonalSnapshot: async () => ({
-            acceptedAiLines: 35,
-            commitTotalLines: 50,
-            aiOutputRate: 0.7,
-            sessionCount: 4,
-          }),
-          getTeamSnapshot: async () => ({
-            memberCount: 2,
-            totalAcceptedAiLines: 50,
-            totalCommitLines: 80,
-            aiOutputRate: 0.625,
-            totalSessionCount: 6,
-          }),
-          getMcpAuditMetrics: async () => ({
-            totalToolCalls: 12,
-            successfulToolCalls: 10,
-            failedToolCalls: 2,
-            successRate: 10 / 12,
-            failureRate: 2 / 12,
-            averageDurationMs: 24,
-          }),
+        client={createClient({
           getRuleVersions: async () => ({
             projectKey: 'aimetric',
             activeVersion: 'v2',
@@ -69,8 +139,7 @@ describe('App', () => {
             matched: true,
             reason: 'included-member',
           }),
-          updateRuleRollout: async (input: RuleRollout) => input,
-        }}
+        })}
       />,
     );
 
@@ -78,6 +147,10 @@ describe('App', () => {
     expect(screen.getByText('团队出码视图')).toBeInTheDocument();
     expect(screen.getByText('MCP 采集质量')).toBeInTheDocument();
     expect(screen.getByText('规则中心管理')).toBeInTheDocument();
+    expect(screen.getByText('会话分析')).toBeInTheDocument();
+    expect(screen.getByText('出码分析')).toBeInTheDocument();
+    expect(screen.getByText('编辑证据数')).toBeInTheDocument();
+    expect(screen.getByText('/repo/src/demo.ts')).toBeInTheDocument();
     expect(screen.getByText('70.0%')).toBeInTheDocument();
     expect(screen.getByText('62.5%')).toBeInTheDocument();
     expect(screen.getByText('83.3%')).toBeInTheDocument();
@@ -86,7 +159,7 @@ describe('App', () => {
     expect(screen.getAllByText('v1').length).toBeGreaterThan(0);
   });
 
-  it('reloads metrics when filters change', async () => {
+  it('reloads dashboard and analysis data when filters change', async () => {
     const getPersonalSnapshot = vi.fn(async (_filters?: DashboardFilters) => ({
       acceptedAiLines: 35,
       commitTotalLines: 50,
@@ -135,18 +208,28 @@ describe('App', () => {
         reason: 'rollout-disabled' as const,
       }),
     );
+    const getAnalysisSummary = vi.fn(async (_filters?: DashboardFilters) => ({
+      sessionCount: 2,
+      editSpanCount: 3,
+      tabAcceptedCount: 4,
+      tabAcceptedLines: 9,
+    }));
+    const getSessionAnalysisRows = vi.fn(async (_filters?: DashboardFilters) => []);
+    const getOutputAnalysisRows = vi.fn(async (_filters?: DashboardFilters) => []);
 
     render(
       <App
-        client={{
+        client={createClient({
           getPersonalSnapshot,
           getTeamSnapshot,
           getMcpAuditMetrics,
           getRuleVersions,
           getRuleRollout,
           getRuleRolloutEvaluation,
-          updateRuleRollout: async (input: RuleRollout) => input,
-        }}
+          getAnalysisSummary,
+          getSessionAnalysisRows,
+          getOutputAnalysisRows,
+        })}
       />,
     );
 
@@ -168,10 +251,19 @@ describe('App', () => {
         'navigation',
         undefined,
       );
+      expect(getAnalysisSummary).toHaveBeenLastCalledWith(
+        expect.objectContaining({ projectKey: 'navigation' }),
+      );
+      expect(getSessionAnalysisRows).toHaveBeenLastCalledWith(
+        expect.objectContaining({ projectKey: 'navigation' }),
+      );
+      expect(getOutputAnalysisRows).toHaveBeenLastCalledWith(
+        expect.objectContaining({ projectKey: 'navigation' }),
+      );
     });
   });
 
-  it('auto refreshes metrics on an interval', async () => {
+  it('auto refreshes dashboard and analysis data on an interval', async () => {
     vi.useFakeTimers();
     const getPersonalSnapshot = vi.fn(async () => ({
       acceptedAiLines: 35,
@@ -219,20 +311,30 @@ describe('App', () => {
       matched: false,
       reason: 'rollout-disabled' as const,
     }));
+    const getAnalysisSummary = vi.fn(async () => ({
+      sessionCount: 2,
+      editSpanCount: 3,
+      tabAcceptedCount: 4,
+      tabAcceptedLines: 9,
+    }));
+    const getSessionAnalysisRows = vi.fn(async () => []);
+    const getOutputAnalysisRows = vi.fn(async () => []);
 
     try {
       render(
         <App
           refreshIntervalMs={1000}
-          client={{
+          client={createClient({
             getPersonalSnapshot,
             getTeamSnapshot,
             getMcpAuditMetrics,
             getRuleVersions,
             getRuleRollout,
             getRuleRolloutEvaluation,
-            updateRuleRollout: async (input: RuleRollout) => input,
-          }}
+            getAnalysisSummary,
+            getSessionAnalysisRows,
+            getOutputAnalysisRows,
+          })}
         />,
       );
 
@@ -252,6 +354,9 @@ describe('App', () => {
       expect(getRuleVersions).toHaveBeenCalledTimes(2);
       expect(getRuleRollout).toHaveBeenCalledTimes(2);
       expect(getRuleRolloutEvaluation).toHaveBeenCalledTimes(2);
+      expect(getAnalysisSummary).toHaveBeenCalledTimes(2);
+      expect(getSessionAnalysisRows).toHaveBeenCalledTimes(2);
+      expect(getOutputAnalysisRows).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }
@@ -274,28 +379,7 @@ describe('App', () => {
 
       return currentRollout;
     });
-    const client = {
-      getPersonalSnapshot: async () => ({
-        acceptedAiLines: 35,
-        commitTotalLines: 50,
-        aiOutputRate: 0.7,
-        sessionCount: 4,
-      }),
-      getTeamSnapshot: async () => ({
-        memberCount: 2,
-        totalAcceptedAiLines: 50,
-        totalCommitLines: 80,
-        aiOutputRate: 0.625,
-        totalSessionCount: 6,
-      }),
-      getMcpAuditMetrics: async () => ({
-        totalToolCalls: 12,
-        successfulToolCalls: 10,
-        failedToolCalls: 2,
-        successRate: 10 / 12,
-        failureRate: 2 / 12,
-        averageDurationMs: 24,
-      }),
+    const client = createClient({
       getRuleVersions: async () => ({
         projectKey: 'aimetric',
         activeVersion: 'v2',
@@ -330,7 +414,7 @@ describe('App', () => {
           : ('rollout-disabled' as const),
       }),
       updateRuleRollout,
-    };
+    });
 
     render(<App client={client} />);
 

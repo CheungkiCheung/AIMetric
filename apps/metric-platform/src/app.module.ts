@@ -107,6 +107,25 @@ export class AppModule {
     return this.metricEventRepository.listTabAcceptedEvents(filters);
   }
 
+  async buildAnalysisSummary(filters: MetricSnapshotFilters = {}) {
+    return (
+      (await this.metricEventRepository.buildAnalysisSummary?.(filters)) ?? {
+        sessionCount: 0,
+        editSpanCount: 0,
+        tabAcceptedCount: 0,
+        tabAcceptedLines: 0,
+      }
+    );
+  }
+
+  async listSessionAnalysisRows(filters: MetricSnapshotFilters = {}) {
+    return (await this.metricEventRepository.listSessionAnalysisRows?.(filters)) ?? [];
+  }
+
+  async listOutputAnalysisRows(filters: MetricSnapshotFilters = {}) {
+    return (await this.metricEventRepository.listOutputAnalysisRows?.(filters)) ?? [];
+  }
+
   getProjectRules(input: {
     projectKey: string;
     toolType: string;
