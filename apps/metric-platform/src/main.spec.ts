@@ -1414,6 +1414,85 @@ describe('bootstrap', () => {
     ]);
   });
 
+  it('serves defect attribution data over HTTP', async () => {
+    const metricEventRepository: MetricEventRepository = {
+      ...createEmptyRepository(),
+      async listDefects() {
+        return [
+          {
+            provider: 'jira' as const,
+            projectKey: 'aimetric',
+            defectKey: 'BUG-7',
+            title: 'Production issue',
+            severity: 'sev2' as const,
+            status: 'resolved' as const,
+            foundInPhase: 'production' as const,
+            linkedRequirementKeys: ['AIM-101'],
+            linkedPullRequestNumbers: [101],
+            createdAt: '2026-04-26T05:00:00.000Z',
+            resolvedAt: '2026-04-26T08:00:00.000Z',
+            updatedAt: '2026-04-26T08:00:00.000Z',
+          },
+        ];
+      },
+      async listRequirements() {
+        return [
+          {
+            provider: 'jira' as const,
+            projectKey: 'aimetric',
+            requirementKey: 'AIM-101',
+            title: 'Build dashboard',
+            status: 'done' as const,
+            aiTouched: true,
+            createdAt: '2026-04-26T00:00:00.000Z',
+            updatedAt: '2026-04-26T00:00:00.000Z',
+          },
+        ];
+      },
+      async listPullRequests() {
+        return [
+          {
+            provider: 'gitlab' as const,
+            projectKey: 'aimetric',
+            repoName: 'AIMetric',
+            prNumber: 101,
+            title: 'Add dashboard',
+            state: 'merged' as const,
+            aiTouched: true,
+            createdAt: '2026-04-26T01:00:00.000Z',
+            updatedAt: '2026-04-26T01:00:00.000Z',
+          },
+        ];
+      },
+    };
+    const app = await bootstrap({ port: 0, metricEventRepository });
+    servers.push(app);
+
+    const rowsResponse = await fetch(
+      `${app.baseUrl}/integrations/defects/attribution?projectKey=aimetric`,
+    );
+    const summaryResponse = await fetch(
+      `${app.baseUrl}/integrations/defects/attribution/summary?projectKey=aimetric`,
+    );
+
+    expect(rowsResponse.status).toBe(200);
+    expect(summaryResponse.status).toBe(200);
+    await expect(rowsResponse.json()).resolves.toEqual([
+      expect.objectContaining({
+        defectKey: 'BUG-7',
+        aiTouchedRequirement: true,
+        aiTouchedPullRequest: true,
+      }),
+    ]);
+    await expect(summaryResponse.json()).resolves.toEqual({
+      totalDefectCount: 1,
+      aiTouchedRequirementDefectCount: 1,
+      aiTouchedPullRequestDefectCount: 1,
+      escapedAiTouchedPullRequestDefectCount: 1,
+      productionDefectCount: 1,
+    });
+  });
+
   it('serves enterprise metrics filtered by dimension over HTTP', async () => {
     const app = await bootstrap({
       port: 0,

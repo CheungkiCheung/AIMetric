@@ -370,6 +370,62 @@ export class AppModule {
     );
   }
 
+  async buildDefectAttribution(filters: MetricSnapshotFilters = {}) {
+    const [defects, requirements, pullRequests] = await Promise.all([
+      this.listDefects(filters),
+      this.listRequirements(filters),
+      this.listPullRequests(filters),
+    ]);
+
+    const aiTouchedRequirementKeys = new Set(
+      requirements
+        .filter((requirement) => requirement.aiTouched)
+        .map((requirement) => requirement.requirementKey),
+    );
+    const aiTouchedPullRequestNumbers = new Set(
+      pullRequests
+        .filter((pullRequest) => pullRequest.aiTouched)
+        .map((pullRequest) => pullRequest.prNumber),
+    );
+
+    const rows = defects.map((defect) => {
+      const aiTouchedRequirement = defect.linkedRequirementKeys.some((requirementKey) =>
+        aiTouchedRequirementKeys.has(requirementKey),
+      );
+      const aiTouchedPullRequest = defect.linkedPullRequestNumbers.some((prNumber) =>
+        aiTouchedPullRequestNumbers.has(prNumber),
+      );
+
+      return {
+        defectKey: defect.defectKey,
+        title: defect.title,
+        projectKey: defect.projectKey,
+        severity: defect.severity,
+        status: defect.status,
+        foundInPhase: defect.foundInPhase,
+        linkedRequirementKeys: defect.linkedRequirementKeys,
+        linkedPullRequestNumbers: defect.linkedPullRequestNumbers,
+        aiTouchedRequirement,
+        aiTouchedPullRequest,
+        createdAt: defect.createdAt,
+        ...(defect.resolvedAt ? { resolvedAt: defect.resolvedAt } : {}),
+      };
+    });
+
+    return {
+      summary: {
+        totalDefectCount: rows.length,
+        aiTouchedRequirementDefectCount: rows.filter((row) => row.aiTouchedRequirement).length,
+        aiTouchedPullRequestDefectCount: rows.filter((row) => row.aiTouchedPullRequest).length,
+        escapedAiTouchedPullRequestDefectCount: rows.filter(
+          (row) => row.aiTouchedPullRequest && row.foundInPhase === 'production',
+        ).length,
+        productionDefectCount: rows.filter((row) => row.foundInPhase === 'production').length,
+      },
+      rows,
+    };
+  }
+
   getEnterpriseMetricCatalog() {
     return getEnterpriseMetricCatalog();
   }

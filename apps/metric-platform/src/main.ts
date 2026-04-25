@@ -1065,6 +1065,36 @@ const handleRequest = async (
     return;
   }
 
+  if (method === 'GET' && url.pathname === '/integrations/defects/attribution') {
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
+    writeJson(response, 200, (await appModule.buildDefectAttribution(scoped.filters)).rows);
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/integrations/defects/attribution/summary') {
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
+    writeJson(response, 200, (await appModule.buildDefectAttribution(scoped.filters)).summary);
+    return;
+  }
+
   if (method === 'GET' && url.pathname === '/enterprise-metrics') {
     const dimension = parseEnterpriseMetricDimension(
       url.searchParams.get('dimension'),

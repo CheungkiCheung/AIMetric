@@ -415,6 +415,41 @@ describe('createDashboardClient', () => {
         );
       }
 
+      if (url.endsWith('/integrations/defects/attribution/summary')) {
+        return new Response(
+          JSON.stringify({
+            totalDefectCount: 3,
+            aiTouchedRequirementDefectCount: 2,
+            aiTouchedPullRequestDefectCount: 2,
+            escapedAiTouchedPullRequestDefectCount: 1,
+            productionDefectCount: 1,
+          }),
+          { status: 200 },
+        );
+      }
+
+      if (url.endsWith('/integrations/defects/attribution')) {
+        return new Response(
+          JSON.stringify([
+            {
+              defectKey: 'BUG-7',
+              title: 'PR merge flow breaks on production',
+              projectKey: 'aimetric',
+              severity: 'sev2',
+              status: 'resolved',
+              foundInPhase: 'production',
+              linkedRequirementKeys: ['AIM-101'],
+              linkedPullRequestNumbers: [101],
+              aiTouchedRequirement: true,
+              aiTouchedPullRequest: true,
+              createdAt: '2026-04-24T04:00:00.000Z',
+              resolvedAt: '2026-04-24T10:00:00.000Z',
+            },
+          ]),
+          { status: 200 },
+        );
+      }
+
       if (url.includes('/governance/viewer-scopes')) {
         return new Response(
           JSON.stringify({
@@ -640,6 +675,8 @@ describe('createDashboardClient', () => {
     await client.getIncidents(filters);
     await client.getDefectSummary(filters);
     await client.getDefects(filters);
+    await client.getDefectAttributionSummary(filters);
+    await client.getDefectAttributionRows(filters);
 
     expect(requestedUrls[0]).toBe(
       'http://127.0.0.1:3001/metrics/personal?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
@@ -697,6 +734,12 @@ describe('createDashboardClient', () => {
     );
     expect(requestedUrls[18]).toBe(
       'http://127.0.0.1:3001/integrations/defects?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+    );
+    expect(requestedUrls[19]).toBe(
+      'http://127.0.0.1:3001/integrations/defects/attribution/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+    );
+    expect(requestedUrls[20]).toBe(
+      'http://127.0.0.1:3001/integrations/defects/attribution?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
   });
 

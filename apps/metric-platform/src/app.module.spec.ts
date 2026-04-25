@@ -410,6 +410,71 @@ describe('AppModule', () => {
     });
   });
 
+  it('builds defect attribution from defects, requirements, and pull requests', async () => {
+    const repository = {
+      ...createEmptyRepository(),
+      listDefects: vi.fn(async () => [
+        {
+          provider: 'jira' as const,
+          projectKey: 'aimetric',
+          defectKey: 'BUG-7',
+          title: 'Production issue',
+          severity: 'sev2' as const,
+          status: 'resolved' as const,
+          foundInPhase: 'production' as const,
+          linkedRequirementKeys: ['AIM-101'],
+          linkedPullRequestNumbers: [101],
+          createdAt: '2026-04-26T05:00:00.000Z',
+          resolvedAt: '2026-04-26T08:00:00.000Z',
+          updatedAt: '2026-04-26T08:00:00.000Z',
+        },
+      ]),
+      listRequirements: vi.fn(async () => [
+        {
+          provider: 'jira' as const,
+          projectKey: 'aimetric',
+          requirementKey: 'AIM-101',
+          title: 'Build dashboard',
+          status: 'done' as const,
+          aiTouched: true,
+          createdAt: '2026-04-26T00:00:00.000Z',
+          updatedAt: '2026-04-26T00:00:00.000Z',
+        },
+      ]),
+      listPullRequests: vi.fn(async () => [
+        {
+          provider: 'gitlab' as const,
+          projectKey: 'aimetric',
+          repoName: 'AIMetric',
+          prNumber: 101,
+          title: 'Add dashboard',
+          state: 'merged' as const,
+          aiTouched: true,
+          createdAt: '2026-04-26T01:00:00.000Z',
+          updatedAt: '2026-04-26T01:00:00.000Z',
+        },
+      ]),
+    };
+    const appModule = new AppModule(repository);
+
+    const attribution = await appModule.buildDefectAttribution({ projectKey: 'aimetric' });
+
+    expect(attribution.summary).toEqual({
+      totalDefectCount: 1,
+      aiTouchedRequirementDefectCount: 1,
+      aiTouchedPullRequestDefectCount: 1,
+      escapedAiTouchedPullRequestDefectCount: 1,
+      productionDefectCount: 1,
+    });
+    expect(attribution.rows).toEqual([
+      expect.objectContaining({
+        defectKey: 'BUG-7',
+        aiTouchedRequirement: true,
+        aiTouchedPullRequest: true,
+      }),
+    ]);
+  });
+
   it('imports requirements and builds a requirement summary through the repository', async () => {
     const repository = {
       ...createEmptyRepository(),

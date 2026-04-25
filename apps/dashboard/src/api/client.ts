@@ -309,6 +309,29 @@ export interface DefectSummary {
   averageResolutionHours: number;
 }
 
+export interface DefectAttributionRow {
+  defectKey: string;
+  title: string;
+  projectKey: string;
+  severity: DefectRecord['severity'];
+  status: DefectRecord['status'];
+  foundInPhase: DefectRecord['foundInPhase'];
+  linkedRequirementKeys: string[];
+  linkedPullRequestNumbers: number[];
+  aiTouchedRequirement: boolean;
+  aiTouchedPullRequest: boolean;
+  createdAt: string;
+  resolvedAt?: string;
+}
+
+export interface DefectAttributionSummary {
+  totalDefectCount: number;
+  aiTouchedRequirementDefectCount: number;
+  aiTouchedPullRequestDefectCount: number;
+  escapedAiTouchedPullRequestDefectCount: number;
+  productionDefectCount: number;
+}
+
 export interface DashboardClient {
   getPersonalSnapshot(filters?: DashboardFilters): Promise<PersonalSnapshot>;
   getTeamSnapshot(filters?: DashboardFilters): Promise<TeamSnapshot>;
@@ -345,6 +368,10 @@ export interface DashboardClient {
   getIncidents(filters?: DashboardFilters): Promise<IncidentRecord[]>;
   getDefectSummary(filters?: DashboardFilters): Promise<DefectSummary>;
   getDefects(filters?: DashboardFilters): Promise<DefectRecord[]>;
+  getDefectAttributionSummary(
+    filters?: DashboardFilters,
+  ): Promise<DefectAttributionSummary>;
+  getDefectAttributionRows(filters?: DashboardFilters): Promise<DefectAttributionRow[]>;
   updateRuleRollout(input: RuleRollout): Promise<RuleRollout>;
 }
 
@@ -494,6 +521,14 @@ const fallbackDefectSummary: DefectSummary = {
   resolvedDefectCount: 0,
   productionDefectCount: 0,
   averageResolutionHours: 0,
+};
+
+const fallbackDefectAttributionSummary: DefectAttributionSummary = {
+  totalDefectCount: 0,
+  aiTouchedRequirementDefectCount: 0,
+  aiTouchedPullRequestDefectCount: 0,
+  escapedAiTouchedPullRequestDefectCount: 0,
+  productionDefectCount: 0,
 };
 
 const buildViewerHeaders = (viewerId?: string): HeadersInit | undefined =>
@@ -800,6 +835,20 @@ export const createDashboardClient = (
   getDefects: (filters) =>
     fetchJson<DefectRecord[]>(
       buildMetricUrl(baseUrl, '/integrations/defects', filters),
+      [],
+      viewerId,
+      adminToken,
+    ),
+  getDefectAttributionSummary: (filters) =>
+    fetchJson<DefectAttributionSummary>(
+      buildMetricUrl(baseUrl, '/integrations/defects/attribution/summary', filters),
+      fallbackDefectAttributionSummary,
+      viewerId,
+      adminToken,
+    ),
+  getDefectAttributionRows: (filters) =>
+    fetchJson<DefectAttributionRow[]>(
+      buildMetricUrl(baseUrl, '/integrations/defects/attribution', filters),
       [],
       viewerId,
       adminToken,

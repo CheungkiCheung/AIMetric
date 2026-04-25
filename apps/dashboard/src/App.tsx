@@ -10,6 +10,8 @@ import {
   type DeploymentRecord,
   type DeploymentSummary,
   type DefectRecord,
+  type DefectAttributionRow,
+  type DefectAttributionSummary,
   type DefectSummary,
   type EnterpriseMetricCatalog,
   type GovernanceDirectory,
@@ -34,6 +36,7 @@ import { CiRunDashboard } from './pages/ci-run-dashboard.js';
 import { CollectorHealthDashboard } from './pages/collector-health-dashboard.js';
 import { DeploymentDashboard } from './pages/deployment-dashboard.js';
 import { DefectDashboard } from './pages/defect-dashboard.js';
+import { DefectAttributionDashboard } from './pages/defect-attribution-dashboard.js';
 import { EnterpriseMetricCatalogPanel } from './pages/enterprise-metric-catalog.js';
 import { GovernanceDirectoryDashboard } from './pages/governance-directory-dashboard.js';
 import { IncidentDashboard } from './pages/incident-dashboard.js';
@@ -132,6 +135,11 @@ export const App = ({
   const [incidents, setIncidents] = useState<IncidentRecord[]>([]);
   const [defectSummary, setDefectSummary] = useState<DefectSummary | null>(null);
   const [defects, setDefects] = useState<DefectRecord[]>([]);
+  const [defectAttributionSummary, setDefectAttributionSummary] =
+    useState<DefectAttributionSummary | null>(null);
+  const [defectAttributionRows, setDefectAttributionRows] = useState<DefectAttributionRow[]>(
+    [],
+  );
   const [governanceDirectory, setGovernanceDirectory] =
     useState<GovernanceDirectory | null>(null);
   const [pullRequestSummary, setPullRequestSummary] =
@@ -169,6 +177,8 @@ export const App = ({
       incidentRows,
       defectSummary,
       defectRows,
+      defectAttributionSummary,
+      defectAttributionRows,
       directory,
       prSummary,
       prRows,
@@ -194,6 +204,8 @@ export const App = ({
       client.getIncidents(nextFilters),
       client.getDefectSummary(nextFilters),
       client.getDefects(nextFilters),
+      client.getDefectAttributionSummary(nextFilters),
+      client.getDefectAttributionRows(nextFilters),
       client.getGovernanceDirectory(),
       client.getPullRequestSummary(nextFilters),
       client.getPullRequests(nextFilters),
@@ -221,6 +233,8 @@ export const App = ({
       incidentRows,
       defectSummary,
       defectRows,
+      defectAttributionSummary,
+      defectAttributionRows,
       directory,
       prSummary,
       prRows,
@@ -253,6 +267,8 @@ export const App = ({
         incidentRows,
         defectSummary,
         defectRows,
+        defectAttributionSummary,
+        defectAttributionRows,
         directory,
         prSummary,
         prRows,
@@ -283,6 +299,8 @@ export const App = ({
       setIncidents(incidentRows);
       setDefectSummary(defectSummary);
       setDefects(defectRows);
+      setDefectAttributionSummary(defectAttributionSummary);
+      setDefectAttributionRows(defectAttributionRows);
       setGovernanceDirectory(directory);
       setPullRequestSummary(prSummary);
       setPullRequests(prRows);
@@ -358,6 +376,8 @@ export const App = ({
         incidentRows,
         defectSummary,
         defectRows,
+        defectAttributionSummary,
+        defectAttributionRows,
         directory,
         prSummary,
         prRows,
@@ -384,6 +404,8 @@ export const App = ({
       setIncidents(incidentRows);
       setDefectSummary(defectSummary);
       setDefects(defectRows);
+      setDefectAttributionSummary(defectAttributionSummary);
+      setDefectAttributionRows(defectAttributionRows);
       setGovernanceDirectory(directory);
       setPullRequestSummary(prSummary);
       setPullRequests(prRows);
@@ -470,6 +492,7 @@ export const App = ({
     !deploymentSummary ||
     !incidentSummary ||
     !defectSummary ||
+    !defectAttributionSummary ||
     !governanceDirectory ||
     !pullRequestSummary ||
     !requirementSummary ||
@@ -535,6 +558,10 @@ export const App = ({
         <DeploymentDashboard summary={deploymentSummary} rows={deployments} />
         <IncidentDashboard summary={incidentSummary} rows={incidents} />
         <DefectDashboard summary={defectSummary} rows={defects} />
+        <DefectAttributionDashboard
+          summary={defectAttributionSummary}
+          rows={defectAttributionRows}
+        />
         <RequirementDashboard summary={requirementSummary} rows={requirements} />
         <PullRequestDashboard summary={pullRequestSummary} rows={pullRequests} />
         <SessionAnalysisTable rows={sessionAnalysisRows} />
