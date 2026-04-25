@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type {
   AnalysisSummary,
   CollectorIngestionHealth,
@@ -41,6 +42,22 @@ interface ToolCard {
   value: string;
   description: string;
   signals: string[];
+}
+
+interface ToolFocusDetail {
+  headline: string;
+  summary: string;
+  recommendation: string;
+  relatedMetrics: Array<{ label: string; value: string }>;
+}
+
+interface TrendCard {
+  metricKey: string;
+  name: string;
+  latestValue: number;
+  unit: MetricCalculationResult['unit'];
+  change: number | undefined;
+  path: string;
 }
 
 const sectionStyle = {
@@ -174,7 +191,7 @@ const sparklinePath = (values: number[], width = 220, height = 72) => {
     .join(' ');
 };
 
-const buildTrendCards = (snapshots: MetricCalculationResult[]) => {
+const buildTrendCards = (snapshots: MetricCalculationResult[]): TrendCard[] => {
   const groups = new Map<string, MetricCalculationResult[]>();
 
   snapshots.forEach((snapshot) => {
@@ -206,6 +223,102 @@ const buildTrendCards = (snapshots: MetricCalculationResult[]) => {
       };
     })
     .filter((value): value is NonNullable<typeof value> => Boolean(value));
+};
+
+const buildToolFocusDetail = ({
+  selectedTool,
+  analysisSummary,
+  requirementSummary,
+  pullRequestSummary,
+  deploymentSummary,
+  defectAttributionSummary,
+  collectorHealth,
+}: {
+  selectedTool: ToolCard;
+  analysisSummary: AnalysisSummary;
+  requirementSummary: RequirementSummary;
+  pullRequestSummary: PullRequestSummary;
+  deploymentSummary: DeploymentSummary;
+  defectAttributionSummary: DefectAttributionSummary;
+  collectorHealth: CollectorIngestionHealth;
+}): ToolFocusDetail => {
+  switch (selectedTool.key) {
+    case 'cursor':
+      return {
+        headline: '编码热路径主引擎',
+        summary: '当前最适合拿来衡量 AI-IDE 真实提效效果的工具样板，证据链最完整。',
+        recommendation: '继续把 Cursor 作为深采集标杆，同时把采集口径复制到更多工具。',
+        relatedMetrics: [
+          { label: '编码会话', value: selectedTool.value },
+          { label: 'AI 触达 PR', value: formatRatio(pullRequestSummary.aiTouchedPrRatio) },
+          {
+            label: 'AI PR 逃逸缺陷率',
+            value: formatRatio(defectAttributionSummary.escapedAiTouchedPullRequestDefectRate),
+          },
+        ],
+      };
+    case 'mcp':
+      return {
+        headline: '统一采集主链路',
+        summary: '负责把规则查询、工具调用与知识查询纳入统一审计，是平台级度量底座。',
+        recommendation: '优先保证 MCP 链路成功率和健康度，再扩大更多工具接入范围。',
+        relatedMetrics: [
+          { label: '工具调用成功率', value: selectedTool.value },
+          { label: '已投递批次', value: `${collectorHealth.forwardedTotal}` },
+          { label: '当前队列', value: `${collectorHealth.queueDepth}` },
+        ],
+      };
+    case 'cli':
+      return {
+        headline: 'CLI 工具统一接入层',
+        summary: '适合承接内部 AI CLI、脚本型工具和 agent 命令行场景的通用采集口径。',
+        recommendation: '下一步应把更多命令行工具纳入同一 onboarding 与 identity 体系。',
+        relatedMetrics: [
+          { label: 'CLI 会话', value: `${analysisSummary.sessionCount}` },
+          { label: '需求进入度', value: formatRatio(requirementSummary.aiTouchedRequirementRatio) },
+          { label: '发布进入度', value: `${deploymentSummary.aiTouchedDeploymentCount}` },
+        ],
+      };
+    case 'gateway':
+      return {
+        headline: '采集可靠性守门层',
+        summary: '决定平台看到的是完整度量，还是被丢失事件污染的假判断。',
+        recommendation: '保持 DLQ 为零并控制失败转发，避免管理者依据不完整数据做决策。',
+        relatedMetrics: [
+          { label: '投递模式', value: collectorHealth.deliveryMode },
+          { label: 'DLQ', value: `${collectorHealth.deadLetterDepth}` },
+          { label: '失败转发', value: `${collectorHealth.failedForwardTotal}` },
+        ],
+      };
+    default:
+      return {
+        headline: '轻量接入扩展入口',
+        summary: '适合在员工端低打扰推广，先做安装渗透，再逐步提升深采集能力。',
+        recommendation: '先扩大团队接入，再逐步把需求、PR、发布等后链路信号接上来。',
+        relatedMetrics: [
+          { label: '接入状态', value: formatStatusLabel(selectedTool.status) },
+          { label: '需求进入度', value: formatRatio(requirementSummary.aiTouchedRequirementRatio) },
+          { label: 'PR 进入度', value: formatRatio(pullRequestSummary.aiTouchedPrRatio) },
+        ],
+      };
+  }
+};
+
+const buildTrendNarrative = (metricKey: string) => {
+  switch (metricKey) {
+    case 'ci_pass_rate':
+      return '当前指标用于观察工具是否在扩大使用后仍保持质量稳定。';
+    case 'lead_time_ai_vs_non_ai':
+      return '当前指标用于判断 AI 参与需求是否真的缩短了需求到交付的整体周期。';
+    case 'change_failure_rate':
+      return '当前指标用于识别工具提效是否伴随着发布失败率同步上升。';
+    case 'critical_requirement_cycle_time':
+      return '当前指标用于看关键需求是否因为 AI 工具进入主流程而加速流向生产。';
+    case 'defect_rate':
+      return '当前指标用于看工具渗透扩大后，缺陷总量是否出现反向波动。';
+    default:
+      return '当前指标用于判断工具是否稳定进入编码主链路，而不是只停留在试用阶段。';
+  }
 };
 
 const buildToolCards = ({
@@ -406,6 +519,12 @@ export const EffectivenessManagerCockpit = ({
   const readyToolCount = toolCards.filter((tool) => tool.status === 'ready').length;
   const enterpriseScopeLabel = `${governanceDirectory.teams.length} 团队 / ${governanceDirectory.projects.length} 项目`;
   const trendCards = buildTrendCards(metricSnapshots).slice(0, 4);
+  const [selectedToolKey, setSelectedToolKey] = useState(
+    toolCards.find((tool) => tool.status === 'active')?.key ?? toolCards[0]?.key ?? '',
+  );
+  const [selectedTrendMetricKey, setSelectedTrendMetricKey] = useState(
+    trendCards[0]?.metricKey ?? '',
+  );
   const actionItems = buildActionItems({
     requirementSummary,
     pullRequestSummary,
@@ -414,6 +533,22 @@ export const EffectivenessManagerCockpit = ({
     collectorHealth,
     toolCards,
   });
+  const selectedTool =
+    toolCards.find((tool) => tool.key === selectedToolKey) ?? toolCards[0];
+  const selectedTrendCard =
+    trendCards.find((card) => card.metricKey === selectedTrendMetricKey) ?? trendCards[0];
+  const toolFocusDetail =
+    selectedTool === undefined
+      ? undefined
+      : buildToolFocusDetail({
+          selectedTool,
+          analysisSummary,
+          requirementSummary,
+          pullRequestSummary,
+          deploymentSummary,
+          defectAttributionSummary,
+          collectorHealth,
+        });
   const toolSignals = [
     {
       label: '编码热路径',
@@ -575,69 +710,162 @@ export const EffectivenessManagerCockpit = ({
           </p>
         </div>
 
-        <div style={{ ...toolGridStyle, marginTop: '20px' }}>
-          {toolCards.map((tool) => (
-            <article key={tool.key} style={cardStyle}>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  gap: '12px',
-                  alignItems: 'flex-start',
-                }}
-              >
-                <div>
-                  <p style={{ margin: 0, color: '#64748b', fontSize: '12px' }}>{tool.category}</p>
-                  <h3 style={{ margin: '8px 0 0', fontSize: '24px', color: '#0f172a' }}>
-                    {tool.label}
-                  </h3>
-                </div>
-                <span
+        <div style={{ ...splitGridStyle, marginTop: '20px' }}>
+          <div style={toolGridStyle}>
+            {toolCards.map((tool) => {
+              const isSelected = tool.key === selectedTool?.key;
+
+              return (
+                <button
+                  key={tool.key}
+                  type="button"
+                  onClick={() => setSelectedToolKey(tool.key)}
                   style={{
-                    ...statusStyleByState[tool.status],
-                    borderRadius: '999px',
-                    padding: '6px 10px',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    whiteSpace: 'nowrap',
+                    ...cardStyle,
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    border: isSelected
+                      ? '1px solid rgba(37, 99, 235, 0.45)'
+                      : '1px solid rgba(15, 23, 42, 0.07)',
+                    boxShadow: isSelected
+                      ? '0 20px 44px rgba(37, 99, 235, 0.12)'
+                      : '0 8px 18px rgba(15, 23, 42, 0.04)',
                   }}
                 >
-                  {formatStatusLabel(tool.status)}
-                </span>
-              </div>
-              <p style={{ margin: '12px 0 0', color: '#0f172a', fontSize: '28px', fontWeight: 700 }}>
-                {tool.value}
-              </p>
-              <p style={{ margin: '8px 0 0', color: '#475569', lineHeight: 1.7 }}>
-                {tool.description}
-              </p>
-              <div style={{ display: 'grid', gap: '6px', marginTop: '16px' }}>
-                <span style={{ color: '#475569', fontSize: '13px' }}>
-                  采集方式：{tool.collectionMode}
-                </span>
-                <span style={{ color: '#475569', fontSize: '13px' }}>
-                  当前判断：{tool.confidence}
-                </span>
-              </div>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '16px' }}>
-                {tool.signals.map((signal) => (
-                  <span
-                    key={signal}
+                  <div
                     style={{
-                      borderRadius: '999px',
-                      padding: '6px 10px',
-                      background: '#eef2ff',
-                      color: '#4338ca',
-                      fontSize: '12px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    <div>
+                      <p style={{ margin: 0, color: '#64748b', fontSize: '12px' }}>
+                        {tool.category}
+                      </p>
+                      <h3 style={{ margin: '8px 0 0', fontSize: '24px', color: '#0f172a' }}>
+                        {tool.label}
+                      </h3>
+                    </div>
+                    <span
+                      style={{
+                        ...statusStyleByState[tool.status],
+                        borderRadius: '999px',
+                        padding: '6px 10px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {formatStatusLabel(tool.status)}
+                    </span>
+                  </div>
+                  <p
+                    style={{
+                      margin: '12px 0 0',
+                      color: '#0f172a',
+                      fontSize: '28px',
                       fontWeight: 700,
                     }}
                   >
-                    {signal}
-                  </span>
+                    {tool.value}
+                  </p>
+                  <p style={{ margin: '8px 0 0', color: '#475569', lineHeight: 1.7 }}>
+                    {tool.description}
+                  </p>
+                  <div style={{ display: 'grid', gap: '6px', marginTop: '16px' }}>
+                    <span style={{ color: '#475569', fontSize: '13px' }}>
+                      采集方式：{tool.collectionMode}
+                    </span>
+                    <span style={{ color: '#475569', fontSize: '13px' }}>
+                      当前判断：{tool.confidence}
+                    </span>
+                  </div>
+                  <div
+                    style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '16px' }}
+                  >
+                    {tool.signals.map((signal) => (
+                      <span
+                        key={signal}
+                        style={{
+                          borderRadius: '999px',
+                          padding: '6px 10px',
+                          background: '#eef2ff',
+                          color: '#4338ca',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {signal}
+                      </span>
+                    ))}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {selectedTool && toolFocusDetail ? (
+            <aside
+              style={{
+                ...cardStyle,
+                background:
+                  'linear-gradient(180deg, rgba(239, 246, 255, 0.96), rgba(224, 242, 254, 0.92))',
+              }}
+            >
+              <p style={{ margin: 0, color: '#1d4ed8', fontSize: '13px', fontWeight: 700 }}>
+                当前焦点工具
+              </p>
+              <h3 style={{ margin: '10px 0 0', fontSize: '30px', color: '#0f172a' }}>
+                {selectedTool.label}
+              </h3>
+              <p style={{ margin: '8px 0 0', color: '#475569', lineHeight: 1.7 }}>
+                {selectedTool.category}
+              </p>
+              <strong
+                style={{ display: 'block', marginTop: '18px', fontSize: '22px', color: '#0f172a' }}
+              >
+                {toolFocusDetail.headline}
+              </strong>
+              <p style={{ margin: '10px 0 0', color: '#334155', lineHeight: 1.75 }}>
+                {toolFocusDetail.summary}
+              </p>
+              <div style={{ display: 'grid', gap: '12px', marginTop: '18px' }}>
+                {toolFocusDetail.relatedMetrics.map((metric) => (
+                  <div
+                    key={metric.label}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                      paddingBottom: '10px',
+                      borderBottom: '1px solid rgba(15, 23, 42, 0.08)',
+                    }}
+                  >
+                    <span style={{ color: '#475569' }}>{metric.label}</span>
+                    <strong style={{ color: '#0f172a' }}>{metric.value}</strong>
+                  </div>
                 ))}
               </div>
-            </article>
-          ))}
+              <div
+                style={{
+                  marginTop: '18px',
+                  borderRadius: '18px',
+                  padding: '16px',
+                  background: 'rgba(255, 255, 255, 0.7)',
+                  border: '1px solid rgba(37, 99, 235, 0.12)',
+                }}
+              >
+                <p style={{ margin: 0, color: '#1d4ed8', fontSize: '13px', fontWeight: 700 }}>
+                  下一步动作
+                </p>
+                <p style={{ margin: '8px 0 0', color: '#334155', lineHeight: 1.7 }}>
+                  {toolFocusDetail.recommendation}
+                </p>
+              </div>
+            </aside>
+          ) : null}
         </div>
       </section>
 
@@ -787,34 +1015,98 @@ export const EffectivenessManagerCockpit = ({
           </p>
         </div>
 
-        <div style={{ ...toolGridStyle, marginTop: '20px' }}>
-          {trendCards.length > 0 ? (
-            trendCards.map((card) => (
-              <article key={card.metricKey} style={cardStyle}>
-                <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>{card.name}</p>
-                <strong style={{ display: 'block', marginTop: '10px', fontSize: '28px', color: '#0f172a' }}>
-                  {formatValue(card.latestValue, card.unit)}
+        <div style={{ ...splitGridStyle, marginTop: '20px' }}>
+          {trendCards.length > 0 && selectedTrendCard ? (
+            <>
+              <article
+                style={{
+                  ...cardStyle,
+                  background:
+                    'linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96))',
+                }}
+              >
+                <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>趋势主视图</p>
+                <h3 style={{ margin: '10px 0 0', fontSize: '28px', color: '#0f172a' }}>
+                  {selectedTrendCard.name}
+                </h3>
+                <strong
+                  style={{ display: 'block', marginTop: '12px', fontSize: '34px', color: '#0f172a' }}
+                >
+                  {formatValue(selectedTrendCard.latestValue, selectedTrendCard.unit)}
                 </strong>
-                <svg viewBox="0 0 220 72" width="100%" height="76" style={{ marginTop: '12px' }}>
+                <svg viewBox="0 0 220 72" width="100%" height="180" style={{ marginTop: '16px' }}>
                   <path
-                    d={card.path}
+                    d={selectedTrendCard.path}
                     fill="none"
                     stroke="#2563eb"
-                    strokeWidth="3"
+                    strokeWidth="4"
                     strokeLinecap="round"
                   />
                 </svg>
-                <p style={{ margin: '6px 0 0', color: '#475569', fontSize: '13px' }}>
-                  {card.change === undefined
+                <p style={{ margin: '12px 0 0', color: '#475569', lineHeight: 1.75 }}>
+                  {buildTrendNarrative(selectedTrendCard.metricKey)}
+                </p>
+                <p style={{ margin: '10px 0 0', color: '#334155', fontWeight: 700 }}>
+                  {selectedTrendCard.change === undefined
                     ? '当前仅有一个趋势点'
                     : `较上一周期 ${
-                        card.unit === 'ratio'
-                          ? `${(card.change * 100).toFixed(1)}%`
-                          : `${card.change.toFixed(1)} ${card.unit === 'hours' ? '小时' : ''}`
+                        selectedTrendCard.unit === 'ratio'
+                          ? `${(selectedTrendCard.change * 100).toFixed(1)}%`
+                          : `${selectedTrendCard.change.toFixed(1)} ${
+                              selectedTrendCard.unit === 'hours' ? '小时' : ''
+                            }`
                       }`}
                 </p>
               </article>
-            ))
+
+              <div style={{ display: 'grid', gap: '14px' }}>
+                {trendCards.map((card) => {
+                  const isSelected = card.metricKey === selectedTrendCard.metricKey;
+
+                  return (
+                    <button
+                      key={card.metricKey}
+                      type="button"
+                      onClick={() => setSelectedTrendMetricKey(card.metricKey)}
+                      style={{
+                        ...cardStyle,
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        border: isSelected
+                          ? '1px solid rgba(37, 99, 235, 0.4)'
+                          : '1px solid rgba(15, 23, 42, 0.07)',
+                        boxShadow: isSelected
+                          ? '0 18px 36px rgba(37, 99, 235, 0.12)'
+                          : '0 8px 18px rgba(15, 23, 42, 0.04)',
+                      }}
+                    >
+                      <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>{card.name}</p>
+                      <strong
+                        style={{
+                          display: 'block',
+                          marginTop: '8px',
+                          fontSize: '24px',
+                          color: '#0f172a',
+                        }}
+                      >
+                        {formatValue(card.latestValue, card.unit)}
+                      </strong>
+                      <p style={{ margin: '8px 0 0', color: '#475569', fontSize: '13px' }}>
+                        {card.change === undefined
+                          ? '当前仅有一个趋势点'
+                          : `较上一周期 ${
+                              card.unit === 'ratio'
+                                ? `${(card.change * 100).toFixed(1)}%`
+                                : `${card.change.toFixed(1)} ${
+                                    card.unit === 'hours' ? '小时' : ''
+                                  }`
+                            }`}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
           ) : (
             <article style={cardStyle}>
               <strong style={{ color: '#0f172a' }}>趋势快照暂不可用</strong>
