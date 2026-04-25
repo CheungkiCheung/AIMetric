@@ -124,6 +124,32 @@ describe('createDashboardClient', () => {
         );
       }
 
+      if (url.endsWith('/enterprise-metrics/values')) {
+        return new Response(
+          JSON.stringify([
+            {
+              metricKey: 'ai_output_rate',
+              value: 0.7,
+              unit: 'ratio',
+              confidence: 'high',
+              scope: 'team',
+              projectKey: 'aimetric',
+              periodStart: '1970-01-01T00:00:00.000Z',
+              periodEnd: '2026-04-24T00:00:00.000Z',
+              calculatedAt: '2026-04-24T01:00:00.000Z',
+              definitionVersion: 1,
+              dataRequirements: ['recorded-metric-events'],
+              definition: {
+                key: 'ai_output_rate',
+                name: 'AI 出码率',
+                dimension: 'effective-output',
+              },
+            },
+          ]),
+          { status: 200 },
+        );
+      }
+
       return new Response(
         JSON.stringify({
           memberCount: 3,
@@ -181,6 +207,15 @@ describe('createDashboardClient', () => {
         }),
       ]),
     });
+    await expect(client.getEnterpriseMetricValues()).resolves.toEqual([
+      expect.objectContaining({
+        metricKey: 'ai_output_rate',
+        value: 0.7,
+        definition: expect.objectContaining({
+          name: 'AI 出码率',
+        }),
+      }),
+    ]);
     await expect(
       client.updateRuleRollout({
         projectKey: 'aimetric',
@@ -228,6 +263,7 @@ describe('createDashboardClient', () => {
     await client.getRuleRollout('navigation');
     await client.getRuleRolloutEvaluation('navigation', 'alice');
     await client.getEnterpriseMetricCatalog();
+    await client.getEnterpriseMetricValues(filters, ['ai_session_count']);
 
     expect(requestedUrls[0]).toBe(
       'http://127.0.0.1:3001/metrics/personal?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
@@ -246,6 +282,9 @@ describe('createDashboardClient', () => {
     );
     expect(requestedUrls[5]).toBe(
       'http://127.0.0.1:3001/enterprise-metrics/catalog',
+    );
+    expect(requestedUrls[6]).toBe(
+      'http://127.0.0.1:3001/enterprise-metrics/values?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z&metricKey=ai_session_count',
     );
   });
 

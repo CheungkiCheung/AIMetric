@@ -103,6 +103,11 @@ const getMetricSnapshotFilters = (url: URL): MetricSnapshotFilters => {
     filters.to = to;
   }
 
+  const metricKeys = url.searchParams.getAll('metricKey');
+  if (metricKeys.length > 0) {
+    filters.metricKeys = metricKeys;
+  }
+
   return filters;
 };
 
@@ -144,6 +149,16 @@ const getMetricSnapshotFiltersFromBody = (body: unknown): MetricSnapshotFilters 
 
   if (typeof payload.to === 'string') {
     filters.to = payload.to;
+  }
+
+  if (Array.isArray(payload.metricKeys)) {
+    const metricKeys = payload.metricKeys.filter(
+      (metricKey): metricKey is string => typeof metricKey === 'string',
+    );
+
+    if (metricKeys.length > 0) {
+      filters.metricKeys = metricKeys;
+    }
   }
 
   return filters;
@@ -255,6 +270,31 @@ const handleRequest = async (
 
   if (method === 'GET' && url.pathname === '/enterprise-metrics/catalog') {
     writeJson(response, 200, appModule.getEnterpriseMetricCatalog());
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/enterprise-metrics/values') {
+    const filters = getMetricSnapshotFilters(url);
+
+    writeJson(
+      response,
+      200,
+      await appModule.calculateEnterpriseMetricValues(
+        filters,
+        {
+          metricKeys: filters.metricKeys,
+        },
+      ),
+    );
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/enterprise-metrics/snapshots') {
+    writeJson(
+      response,
+      200,
+      await appModule.listEnterpriseMetricSnapshots(getMetricSnapshotFilters(url)),
+    );
     return;
   }
 
@@ -488,6 +528,32 @@ const handleRequest = async (
       writeJson(response, 200, result);
     } catch {
       writeJson(response, 400, { message: 'Invalid recalculation request' });
+    }
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/enterprise-metrics/recalculate') {
+    if (!isAuthorizedAdminRequest(request, runtime.adminToken)) {
+      writeJson(response, 401, { message: 'Unauthorized admin request' });
+      return;
+    }
+
+    try {
+      const body = await readJsonBody(request);
+      const filters = getMetricSnapshotFiltersFromBody(body);
+
+      const result = await appModule.recalculateEnterpriseMetricSnapshots(
+        filters,
+        {
+          metricKeys: filters.metricKeys,
+        },
+      );
+      recordAdminAudit(runtime, request, 'enterprise-metrics.recalculate');
+      writeJson(response, 200, result);
+    } catch {
+      writeJson(response, 400, {
+        message: 'Invalid enterprise metric recalculation request',
+      });
     }
     return;
   }

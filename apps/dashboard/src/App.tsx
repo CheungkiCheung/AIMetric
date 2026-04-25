@@ -5,6 +5,7 @@ import {
   type DashboardClient,
   type DashboardFilters,
   type EnterpriseMetricCatalog,
+  type MetricCalculationResult,
   type McpAuditMetrics,
   type OutputAnalysisRow,
   type PersonalSnapshot,
@@ -91,6 +92,9 @@ export const App = ({
   const [outputAnalysisRows, setOutputAnalysisRows] = useState<OutputAnalysisRow[]>([]);
   const [enterpriseMetricCatalog, setEnterpriseMetricCatalog] =
     useState<EnterpriseMetricCatalog | null>(null);
+  const [enterpriseMetricValues, setEnterpriseMetricValues] = useState<
+    MetricCalculationResult[]
+  >([]);
   const [personalSnapshot, setPersonalSnapshot] = useState<PersonalSnapshot | null>(null);
   const [teamSnapshot, setTeamSnapshot] = useState<TeamSnapshot | null>(null);
   const [mcpAuditMetrics, setMcpAuditMetrics] = useState<McpAuditMetrics | null>(null);
@@ -113,6 +117,7 @@ export const App = ({
       versions,
       rollout,
       rolloutEvaluation,
+      metricValues,
     ] = await Promise.all([
       client.getPersonalSnapshot(nextFilters),
       client.getTeamSnapshot(nextFilters),
@@ -123,6 +128,7 @@ export const App = ({
       client.getRuleVersions(projectKey),
       client.getRuleRollout(projectKey),
       client.getRuleRolloutEvaluation(projectKey, nextFilters.memberId),
+      client.getEnterpriseMetricValues(nextFilters),
     ]);
 
     return {
@@ -135,6 +141,7 @@ export const App = ({
       versions,
       rollout,
       rolloutEvaluation,
+      metricValues,
     };
   };
 
@@ -152,6 +159,7 @@ export const App = ({
         versions,
         rollout,
         rolloutEvaluation,
+        metricValues,
       } = await loadDashboard(filters);
 
       if (!active) {
@@ -167,6 +175,7 @@ export const App = ({
       setRuleVersions(versions);
       setRuleRollout(rollout);
       setRuleRolloutEvaluation(rolloutEvaluation);
+      setEnterpriseMetricValues(metricValues);
     };
 
     void load();
@@ -227,6 +236,7 @@ export const App = ({
         versions,
         rollout,
         rolloutEvaluation,
+        metricValues,
       } = await loadDashboard(filters);
 
       setPersonalSnapshot(personal);
@@ -238,6 +248,7 @@ export const App = ({
       setRuleVersions(versions);
       setRuleRollout(rollout);
       setRuleRolloutEvaluation(rolloutEvaluation);
+      setEnterpriseMetricValues(metricValues);
     } finally {
       setSavingRuleRollout(false);
     }
@@ -347,7 +358,10 @@ export const App = ({
           </p>
         </header>
         {filterControls}
-        <EnterpriseMetricCatalogPanel catalog={enterpriseMetricCatalog} />
+        <EnterpriseMetricCatalogPanel
+          catalog={enterpriseMetricCatalog}
+          metricValues={enterpriseMetricValues}
+        />
         <AnalysisSummarySection summary={analysisSummary} />
         <SessionAnalysisTable rows={sessionAnalysisRows} />
         <OutputAnalysisTable rows={outputAnalysisRows} />

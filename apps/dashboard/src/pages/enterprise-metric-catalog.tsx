@@ -1,10 +1,12 @@
 import type {
   EnterpriseMetricCatalog,
   EnterpriseMetricDashboardPlacement,
+  MetricCalculationResult,
 } from '../api/client.js';
 
 export interface EnterpriseMetricCatalogPanelProps {
   catalog: EnterpriseMetricCatalog;
+  metricValues?: MetricCalculationResult[];
 }
 
 const sectionStyle = {
@@ -45,6 +47,13 @@ const metricCardStyle = {
   border: '1px solid rgba(255, 248, 238, 0.8)',
 };
 
+const calculatedMetricCardStyle = {
+  borderRadius: '18px',
+  padding: '16px',
+  background: 'rgba(255, 248, 238, 0.11)',
+  border: '1px solid rgba(255, 248, 238, 0.2)',
+};
+
 const placementNames: Record<EnterpriseMetricDashboardPlacement, string> = {
   'employee-experience': '员工体验',
   'effectiveness-management': '提效管理者',
@@ -71,8 +80,23 @@ const countMetricsByPlacement = (
   catalog.metrics.filter((metric) => metric.dashboardPlacement === placement)
     .length;
 
+const formatMetricValue = ({ value, unit }: MetricCalculationResult) => {
+  if (unit === 'ratio') {
+    return `${(value * 100).toFixed(1)}％`;
+  }
+
+  return new Intl.NumberFormat('zh-CN').format(value);
+};
+
+const confidenceNames: Record<MetricCalculationResult['confidence'], string> = {
+  high: '高置信',
+  medium: '中置信',
+  low: '低置信',
+};
+
 export const EnterpriseMetricCatalogPanel = ({
   catalog,
+  metricValues = [],
 }: EnterpriseMetricCatalogPanelProps) => {
   const highlightedMetrics = catalog.metrics.slice(0, 6);
 
@@ -145,6 +169,42 @@ export const EnterpriseMetricCatalogPanel = ({
               {countMetricsByPlacement(catalog, placement)}
             </strong>
           </div>
+        ))}
+      </div>
+
+      <div style={metricGridStyle} aria-label="统一指标计算管线">
+        <h3
+          style={{
+            gridColumn: '1 / -1',
+            margin: 0,
+            fontSize: '18px',
+            color: '#fff8ee',
+          }}
+        >
+          统一指标计算管线
+        </h3>
+        {metricValues.map((metricValue) => (
+          <article key={metricValue.metricKey} style={calculatedMetricCardStyle}>
+            <p style={{ margin: 0, color: '#e4c8a7', fontSize: '13px' }}>
+              {confidenceNames[metricValue.confidence]} ·{' '}
+              {placementNames[metricValue.definition.dashboardPlacement]}
+            </p>
+            <strong
+              style={{ display: 'block', marginTop: '8px', fontSize: '30px' }}
+            >
+              {formatMetricValue(metricValue)}
+              <span style={{ fontSize: '14px', fontWeight: 600 }}>
+                {' '}
+                {confidenceNames[metricValue.confidence]}
+              </span>
+            </strong>
+            <h4 style={{ margin: '8px 0 0', fontSize: '17px' }}>
+              {metricValue.definition.name}
+            </h4>
+            <p style={{ margin: '8px 0 0', color: '#ead7bf', fontSize: '13px' }}>
+              {metricValue.definition.formula}
+            </p>
+          </article>
         ))}
       </div>
 

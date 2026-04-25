@@ -358,8 +358,15 @@ quality_evidence
 - 已覆盖六类指标维度。
 - 已在 `metric-platform` 暴露指标目录 API。
 - Dashboard 已展示企业指标语义层。
+- `@aimetric/metric-core` 已新增第一版 `MetricRegistry`、`MetricCalculator` 和 `MetricCalculationPipeline`。
+- 已新增 `MetricDataRequirement`，可计算指标会声明 `requiredEvidence` 和 `outputSchema`。
+- 企业指标计算结果已包含 `definitionVersion`、`dataRequirements` 和数据置信度。
+- `metric-platform` 已新增 `GET /enterprise-metrics/values`，支持按项目、成员、周期和 `metricKey` 计算企业指标值。
+- `metric-platform` 已新增企业指标快照 writer、PostgreSQL `enterprise_metric_snapshots` 持久化和 `GET /enterprise-metrics/snapshots`。
+- `metric-platform` 已新增 `POST /enterprise-metrics/recalculate`，支持按 `metricKeys` 回算并写入企业指标快照。
+- Dashboard 已接入统一指标计算管线，不需要为每个新指标改主刷新流程。
 
-下一步必须补齐：
+第一版已补齐：
 
 ```text
 MetricDefinition
@@ -369,6 +376,13 @@ MetricSnapshotWriter
 MetricViewModel
 MetricRegistry
 MetricCalculationPipeline
+```
+
+下一步必须补齐：
+
+```text
+按组织、团队、项目、周期执行企业指标回算任务
+指标版本废弃与迁移策略
 ```
 
 指标注册协议：
@@ -720,25 +734,39 @@ Agent 能力：
 
 ### Phase E2：指标注册与计算管线
 
+状态：第一版已完成，组织/团队维度回算与指标版本治理待继续。
+
 目标：
 
 - 把“指标字典”升级为“可扩展指标计算平台”。
 
 交付：
 
-- `MetricRegistry`。
-- `MetricCalculator` 协议。
-- `MetricDataRequirement`。
-- `MetricCalculationPipeline`。
-- 指标快照版本。
-- 指标置信度。
-- 现有出码率、会话数、MCP 审计指标接入新管线。
+- `MetricRegistry`：已完成第一版。
+- `MetricCalculator` 协议：已完成第一版，包含 `requiredEvidence`、`outputSchema` 和 `calculate(input, context)`。
+- `MetricDataRequirement`：已完成第一版，覆盖 `recorded-metric-events`、`analysis-summary`、`mcp-audit-metrics`。
+- `MetricCalculationPipeline`：已完成第一版，支持按 `metricKey` 子集计算。
+- 指标口径版本：计算结果已包含 `definitionVersion`。
+- 指标置信度：计算结果已包含 `confidence`。
+- 现有出码率、会话数、Tab 接受行数、MCP 审计指标已接入新管线。
+- `metric-platform` 已通过 `GET /enterprise-metrics/values` 暴露计算值。
+- `MetricSnapshotWriter`：已完成第一版。
+- 企业指标快照持久化：已完成第一版，使用 PostgreSQL `enterprise_metric_snapshots`。
+- 企业指标回算 API：已完成第一版，`POST /enterprise-metrics/recalculate` 支持按 `metricKeys` 回算。
+- 企业指标快照查询 API：已完成第一版，`GET /enterprise-metrics/snapshots` 支持按筛选条件和 `metricKey` 查询。
+- Dashboard 已展示统一指标计算管线结果。
+
+后续增强：
+
+- 回算任务按组织、团队、项目、周期执行。
+- 指标版本废弃、迁移和兼容策略。
 
 验收标准：
 
-- 新增一个基于已有证据的指标，只需要新增 definition、calculator、test。
-- Dashboard 不需要为每个新指标硬编码主流程。
-- 回算任务可以按指标 key、组织、团队、项目、周期执行。
+- 新增一个基于已有证据的指标，只需要新增 definition、calculator、test：第一版已满足。
+- Dashboard 不需要为每个新指标硬编码主流程：第一版已满足。
+- 回算任务可以按指标 key、项目、成员、周期执行：第一版已满足。
+- 回算任务可以按组织、团队维度执行：待后续增强。
 
 ### Phase E3：多工具采集适配器协议
 

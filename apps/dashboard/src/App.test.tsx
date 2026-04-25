@@ -161,6 +161,34 @@ const createClient = (
       },
     ],
   }),
+  getEnterpriseMetricValues: async () => [
+    {
+      metricKey: 'ai_output_rate',
+      value: 0.7,
+      unit: 'ratio',
+      confidence: 'high',
+      scope: 'team',
+      projectKey: 'aimetric',
+      periodStart: '1970-01-01T00:00:00.000Z',
+      periodEnd: '2026-04-24T00:00:00.000Z',
+      calculatedAt: '2026-04-24T01:00:00.000Z',
+      definitionVersion: 1,
+      dataRequirements: ['recorded-metric-events'],
+      definition: {
+        key: 'ai_output_rate',
+        name: 'AI 出码率',
+        dimension: 'effective-output',
+        question: 'AI 生成或辅助的代码在总代码变更中占多少。',
+        formula: 'AI 采纳代码行数 / 提交总代码变更行数',
+        dataSources: ['mcp-events', 'git-provider', 'tool-adapter-events'],
+        automationLevel: 'high',
+        updateFrequency: 'daily',
+        dashboardPlacement: 'engineering-management',
+        assessmentUsage: 'team-improvement',
+        antiGamingNote: '出码率不是越高越好，必须同时看质量、返工和业务交付。',
+      },
+    },
+  ],
   updateRuleRollout: async (input: RuleRollout) => input,
   ...overrides,
 });
@@ -216,6 +244,9 @@ describe('App', () => {
     expect(screen.getByText('MCP 采集质量')).toBeInTheDocument();
     expect(screen.getByText('规则中心管理')).toBeInTheDocument();
     expect(screen.getByText('企业指标语义层')).toBeInTheDocument();
+    expect(screen.getByText('统一指标计算管线')).toBeInTheDocument();
+    expect(screen.getAllByText('AI 出码率').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('70.0%').length).toBeGreaterThan(0);
     expect(screen.getByText('六类核心维度')).toBeInTheDocument();
     expect(screen.getByText('AI-IDE 使用人数比例')).toBeInTheDocument();
     expect(screen.getByText('必须按需求规模和类型分层对比，避免简单平均造成误判。')).toBeInTheDocument();
@@ -291,6 +322,9 @@ describe('App', () => {
     const getEnterpriseMetricCatalog = vi.fn(
       createClient().getEnterpriseMetricCatalog,
     );
+    const getEnterpriseMetricValues = vi.fn(
+      createClient().getEnterpriseMetricValues,
+    );
 
     render(
       <App
@@ -305,6 +339,7 @@ describe('App', () => {
           getSessionAnalysisRows,
           getOutputAnalysisRows,
           getEnterpriseMetricCatalog,
+          getEnterpriseMetricValues,
         })}
       />,
     );
@@ -337,6 +372,9 @@ describe('App', () => {
         expect.objectContaining({ projectKey: 'navigation' }),
       );
       expect(getEnterpriseMetricCatalog).toHaveBeenCalledTimes(1);
+      expect(getEnterpriseMetricValues).toHaveBeenLastCalledWith(
+        expect.objectContaining({ projectKey: 'navigation' }),
+      );
     });
   });
 
@@ -399,6 +437,9 @@ describe('App', () => {
     const getEnterpriseMetricCatalog = vi.fn(
       createClient().getEnterpriseMetricCatalog,
     );
+    const getEnterpriseMetricValues = vi.fn(
+      createClient().getEnterpriseMetricValues,
+    );
 
     try {
       render(
@@ -415,6 +456,7 @@ describe('App', () => {
             getSessionAnalysisRows,
             getOutputAnalysisRows,
             getEnterpriseMetricCatalog,
+            getEnterpriseMetricValues,
           })}
         />,
       );
@@ -439,6 +481,7 @@ describe('App', () => {
       expect(getSessionAnalysisRows).toHaveBeenCalledTimes(2);
       expect(getOutputAnalysisRows).toHaveBeenCalledTimes(2);
       expect(getEnterpriseMetricCatalog).toHaveBeenCalledTimes(1);
+      expect(getEnterpriseMetricValues).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }

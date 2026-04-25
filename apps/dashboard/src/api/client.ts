@@ -4,6 +4,7 @@ import {
   type EnterpriseMetricDashboardPlacement,
   type EnterpriseMetricDefinition,
   type EnterpriseMetricDimension,
+  type MetricCalculationResult,
 } from '@aimetric/metric-core';
 
 export interface PersonalSnapshot {
@@ -130,6 +131,10 @@ export interface DashboardClient {
     memberId?: string,
   ): Promise<RuleRolloutEvaluation>;
   getEnterpriseMetricCatalog(): Promise<EnterpriseMetricCatalog>;
+  getEnterpriseMetricValues(
+    filters?: DashboardFilters,
+    metricKeys?: string[],
+  ): Promise<MetricCalculationResult[]>;
   updateRuleRollout(input: RuleRollout): Promise<RuleRollout>;
 }
 
@@ -138,6 +143,7 @@ export type {
   EnterpriseMetricDashboardPlacement,
   EnterpriseMetricDefinition,
   EnterpriseMetricDimension,
+  MetricCalculationResult,
 };
 
 const fallbackPersonalSnapshot: PersonalSnapshot = {
@@ -251,6 +257,7 @@ const buildMetricUrl = (
   baseUrl: string,
   path: string,
   filters: DashboardFilters = {},
+  metricKeys: string[] = [],
 ): string => {
   const url = new URL(path, baseUrl);
   const orderedFilterKeys: Array<keyof DashboardFilters> = [
@@ -266,6 +273,10 @@ const buildMetricUrl = (
     if (value) {
       url.searchParams.set(key, value);
     }
+  });
+
+  metricKeys.forEach((metricKey) => {
+    url.searchParams.append('metricKey', metricKey);
   });
 
   return url.toString();
@@ -342,6 +353,16 @@ export const createDashboardClient = (
     fetchJson<EnterpriseMetricCatalog>(
       new URL('/enterprise-metrics/catalog', baseUrl).toString(),
       fallbackEnterpriseMetricCatalog,
+    ),
+  getEnterpriseMetricValues: (filters, metricKeys) =>
+    fetchJson<MetricCalculationResult[]>(
+      buildMetricUrl(
+        baseUrl,
+        '/enterprise-metrics/values',
+        filters,
+        metricKeys,
+      ),
+      [],
     ),
   updateRuleRollout: (input) =>
     sendJson<RuleRollout>(

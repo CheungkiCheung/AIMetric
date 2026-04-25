@@ -1,9 +1,11 @@
 import type { IngestionBatch } from '@aimetric/event-schema';
 import {
   calculateAiOutputRate,
+  calculateEnterpriseMetrics,
   getEnterpriseMetricCatalog,
   listEnterpriseMetricsByDimension,
   type EnterpriseMetricDimensionKey,
+  type MetricCalculationResult,
 } from '@aimetric/metric-core';
 import {
   PostgresMetricEventRepository,
@@ -100,6 +102,35 @@ export class AppModule {
     return this.metricEventRepository.listMetricSnapshots(filters);
   }
 
+  async recalculateEnterpriseMetricSnapshots(
+    filters: MetricSnapshotFilters = {},
+    options: {
+      metricKeys?: string[];
+      calculatedAt?: string;
+    } = {},
+  ) {
+    const snapshots = await this.calculateEnterpriseMetricValues(filters, options);
+
+    if (!this.metricEventRepository.saveEnterpriseMetricSnapshots) {
+      throw new Error('Enterprise metric snapshot writer is not configured');
+    }
+
+    await this.metricEventRepository.saveEnterpriseMetricSnapshots(snapshots);
+
+    return {
+      upsertedSnapshots: snapshots.length,
+      snapshots,
+    };
+  }
+
+  listEnterpriseMetricSnapshots(filters: MetricSnapshotFilters = {}) {
+    if (!this.metricEventRepository.listEnterpriseMetricSnapshots) {
+      return [];
+    }
+
+    return this.metricEventRepository.listEnterpriseMetricSnapshots(filters);
+  }
+
   buildMcpAuditMetrics(filters: MetricSnapshotFilters = {}) {
     return this.metricEventRepository.buildMcpAuditMetrics(filters);
   }
@@ -137,6 +168,38 @@ export class AppModule {
 
   listEnterpriseMetricsByDimension(dimension: EnterpriseMetricDimensionKey) {
     return listEnterpriseMetricsByDimension(dimension);
+  }
+
+  async calculateEnterpriseMetricValues(
+    filters: MetricSnapshotFilters = {},
+    options: {
+      metricKeys?: string[];
+      calculatedAt?: string;
+    } = {},
+  ): Promise<MetricCalculationResult[]> {
+    const [recordedMetricEvents, analysisSummary, mcpAuditMetrics] =
+      await Promise.all([
+        this.metricEventRepository.listRecordedMetricEvents(filters),
+        this.buildAnalysisSummary(filters),
+        this.metricEventRepository.buildMcpAuditMetrics(filters),
+      ]);
+
+    return calculateEnterpriseMetrics({
+      metricKeys: options.metricKeys,
+      context: {
+        scope: filters.memberId ? 'personal' : 'team',
+        projectKey: filters.projectKey ?? 'all',
+        memberId: filters.memberId,
+        periodStart: filters.from ?? '1970-01-01T00:00:00.000Z',
+        periodEnd: filters.to ?? new Date().toISOString(),
+        calculatedAt: options.calculatedAt ?? new Date().toISOString(),
+      },
+      input: {
+        recordedMetricEvents,
+        analysisSummary,
+        mcpAuditMetrics,
+      },
+    });
   }
 
   getProjectRules(input: {

@@ -1,5 +1,6 @@
 import { Pool, type QueryResult, type QueryResultRow } from 'pg';
 import type { IngestionBatch } from '@aimetric/event-schema';
+import type { MetricCalculationResult } from '@aimetric/metric-core';
 
 export interface RecordedMetricEvent {
   memberId: string;
@@ -13,6 +14,7 @@ export interface MetricSnapshotFilters {
   memberId?: string;
   from?: string;
   to?: string;
+  metricKeys?: string[];
 }
 
 export interface EditEvidenceFilters extends MetricSnapshotFilters {
@@ -43,6 +45,8 @@ export interface MetricSnapshotRecord {
   sessionCount: number;
   memberCount: number;
 }
+
+export type EnterpriseMetricSnapshotRecord = MetricCalculationResult;
 
 export interface EditSpanEvidenceRecord {
   editSpanId: string;
@@ -110,6 +114,12 @@ export interface MetricEventRepository {
   listMetricSnapshots(
     filters?: MetricSnapshotFilters,
   ): Promise<MetricSnapshotRecord[]>;
+  saveEnterpriseMetricSnapshots?(
+    snapshots: EnterpriseMetricSnapshotRecord[],
+  ): Promise<void>;
+  listEnterpriseMetricSnapshots?(
+    filters?: MetricSnapshotFilters,
+  ): Promise<EnterpriseMetricSnapshotRecord[]>;
   buildMcpAuditMetrics(filters?: MetricSnapshotFilters): Promise<McpAuditMetrics>;
   listEditSpanEvidence(
     filters?: EditEvidenceFilters,
@@ -190,6 +200,37 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             UNIQUE (scope, project_key, member_id, period_start, period_end)
+          )
+        `);
+        await this.database.query(`
+          CREATE TABLE IF NOT EXISTS enterprise_metric_snapshots (
+            id BIGSERIAL PRIMARY KEY,
+            metric_key TEXT NOT NULL,
+            value DOUBLE PRECISION NOT NULL,
+            unit TEXT NOT NULL,
+            confidence TEXT NOT NULL,
+            scope TEXT NOT NULL,
+            project_key TEXT NOT NULL,
+            member_id TEXT NOT NULL DEFAULT '',
+            team_key TEXT NOT NULL DEFAULT '',
+            period_start TIMESTAMPTZ NOT NULL,
+            period_end TIMESTAMPTZ NOT NULL,
+            calculated_at TIMESTAMPTZ NOT NULL,
+            definition_version INTEGER NOT NULL,
+            data_requirements TEXT[] NOT NULL,
+            definition JSONB NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (
+              metric_key,
+              scope,
+              project_key,
+              member_id,
+              team_key,
+              period_start,
+              period_end,
+              definition_version
+            )
           )
         `);
       });
@@ -895,6 +936,162 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
       aiOutputRate: snapshot.ai_output_rate,
       sessionCount: snapshot.session_count,
       memberCount: snapshot.member_count,
+    }));
+  }
+
+  async saveEnterpriseMetricSnapshots(
+    snapshots: EnterpriseMetricSnapshotRecord[],
+  ): Promise<void> {
+    await this.ensureSchema();
+
+    await Promise.all(
+      snapshots.map((snapshot) =>
+        this.database.query(
+          `
+            INSERT INTO enterprise_metric_snapshots (
+              metric_key,
+              value,
+              unit,
+              confidence,
+              scope,
+              project_key,
+              member_id,
+              team_key,
+              period_start,
+              period_end,
+              calculated_at,
+              definition_version,
+              data_requirements,
+              definition
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            ON CONFLICT (
+              metric_key,
+              scope,
+              project_key,
+              member_id,
+              team_key,
+              period_start,
+              period_end,
+              definition_version
+            )
+            DO UPDATE SET
+              value = EXCLUDED.value,
+              unit = EXCLUDED.unit,
+              confidence = EXCLUDED.confidence,
+              calculated_at = EXCLUDED.calculated_at,
+              data_requirements = EXCLUDED.data_requirements,
+              definition = EXCLUDED.definition,
+              updated_at = NOW()
+          `,
+          [
+            snapshot.metricKey,
+            snapshot.value,
+            snapshot.unit,
+            snapshot.confidence,
+            snapshot.scope,
+            snapshot.projectKey,
+            snapshot.memberId ?? '',
+            snapshot.teamKey ?? '',
+            snapshot.periodStart,
+            snapshot.periodEnd,
+            snapshot.calculatedAt,
+            snapshot.definitionVersion,
+            snapshot.dataRequirements,
+            snapshot.definition,
+          ],
+        ),
+      ),
+    );
+  }
+
+  async listEnterpriseMetricSnapshots(
+    filters: MetricSnapshotFilters = {},
+  ): Promise<EnterpriseMetricSnapshotRecord[]> {
+    await this.ensureSchema();
+
+    const values: Array<string | string[]> = [];
+    const whereClauses: string[] = [];
+
+    if (filters.projectKey) {
+      values.push(filters.projectKey);
+      whereClauses.push(`project_key = $${values.length}`);
+    }
+
+    if (filters.memberId) {
+      values.push(filters.memberId);
+      whereClauses.push(`member_id = $${values.length}`);
+    }
+
+    if (filters.from) {
+      values.push(filters.from);
+      whereClauses.push(`period_start >= $${values.length}`);
+    }
+
+    if (filters.to) {
+      values.push(filters.to);
+      whereClauses.push(`period_end <= $${values.length}`);
+    }
+
+    if (filters.metricKeys && filters.metricKeys.length > 0) {
+      values.push(filters.metricKeys);
+      whereClauses.push(`metric_key = ANY($${values.length})`);
+    }
+
+    const snapshots = await this.database.query<{
+      metric_key: string;
+      value: number;
+      unit: EnterpriseMetricSnapshotRecord['unit'];
+      confidence: EnterpriseMetricSnapshotRecord['confidence'];
+      scope: EnterpriseMetricSnapshotRecord['scope'];
+      project_key: string;
+      member_id: string;
+      team_key: string;
+      period_start: Date | string;
+      period_end: Date | string;
+      calculated_at: Date | string;
+      definition_version: number;
+      data_requirements: EnterpriseMetricSnapshotRecord['dataRequirements'];
+      definition: EnterpriseMetricSnapshotRecord['definition'];
+    }>(
+      `
+        SELECT
+          metric_key,
+          value,
+          unit,
+          confidence,
+          scope,
+          project_key,
+          member_id,
+          team_key,
+          period_start,
+          period_end,
+          calculated_at,
+          definition_version,
+          data_requirements,
+          definition
+        FROM enterprise_metric_snapshots
+        ${whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : ''}
+        ORDER BY period_start ASC, metric_key ASC, scope ASC, member_id ASC
+      `,
+      values,
+    );
+
+    return snapshots.rows.map((snapshot) => ({
+      metricKey: snapshot.metric_key,
+      value: Number(snapshot.value),
+      unit: snapshot.unit,
+      confidence: snapshot.confidence,
+      scope: snapshot.scope,
+      projectKey: snapshot.project_key,
+      ...(snapshot.member_id ? { memberId: snapshot.member_id } : {}),
+      ...(snapshot.team_key ? { teamKey: snapshot.team_key } : {}),
+      periodStart: toIsoString(snapshot.period_start),
+      periodEnd: toIsoString(snapshot.period_end),
+      calculatedAt: toIsoString(snapshot.calculated_at),
+      definitionVersion: snapshot.definition_version,
+      dataRequirements: snapshot.data_requirements,
+      definition: snapshot.definition,
     }));
   }
 

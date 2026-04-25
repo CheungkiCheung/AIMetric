@@ -33,6 +33,155 @@ describe('AppModule', () => {
     expect(metrics.map((metric) => metric.key)).toContain('change_failure_rate');
   });
 
+  it('builds enterprise metric values through the shared calculation pipeline', async () => {
+    const repository = {
+      ...createEmptyRepository(),
+      listRecordedMetricEvents: vi.fn(async () => [
+        {
+          memberId: 'alice',
+          acceptedAiLines: 30,
+          commitTotalLines: 60,
+          sessionCount: 2,
+        },
+        {
+          memberId: 'bob',
+          acceptedAiLines: 45,
+          commitTotalLines: 90,
+          sessionCount: 3,
+        },
+      ]),
+      buildAnalysisSummary: vi.fn(async () => ({
+        sessionCount: 5,
+        editSpanCount: 4,
+        tabAcceptedCount: 6,
+        tabAcceptedLines: 18,
+      })),
+      buildMcpAuditMetrics: vi.fn(async () => ({
+        totalToolCalls: 10,
+        successfulToolCalls: 8,
+        failedToolCalls: 2,
+        successRate: 0.8,
+        failureRate: 0.2,
+        averageDurationMs: 24,
+      })),
+    };
+    const filters = {
+      projectKey: 'navigation',
+      from: '2026-04-23T00:00:00.000Z',
+      to: '2026-04-24T00:00:00.000Z',
+    };
+
+    const appModule = new AppModule(repository);
+    const result = await appModule.calculateEnterpriseMetricValues(filters, {
+      calculatedAt: '2026-04-24T01:00:00.000Z',
+    });
+
+    expect(repository.listRecordedMetricEvents).toHaveBeenCalledWith(filters);
+    expect(repository.buildAnalysisSummary).toHaveBeenCalledWith(filters);
+    expect(repository.buildMcpAuditMetrics).toHaveBeenCalledWith(filters);
+    expect(result).toEqual([
+      expect.objectContaining({
+        metricKey: 'ai_output_rate',
+        value: 0.5,
+        projectKey: 'navigation',
+        periodStart: '2026-04-23T00:00:00.000Z',
+        periodEnd: '2026-04-24T00:00:00.000Z',
+        calculatedAt: '2026-04-24T01:00:00.000Z',
+        definitionVersion: 1,
+        dataRequirements: ['recorded-metric-events'],
+      }),
+      expect.objectContaining({
+        metricKey: 'ai_session_count',
+        value: 5,
+      }),
+      expect.objectContaining({
+        metricKey: 'tab_accepted_lines',
+        value: 18,
+      }),
+      expect.objectContaining({
+        metricKey: 'mcp_tool_success_rate',
+        value: 0.8,
+      }),
+    ]);
+  });
+
+  it('calculates a selected enterprise metric subset', async () => {
+    const repository = {
+      ...createEmptyRepository(),
+      listRecordedMetricEvents: vi.fn(async () => [
+        {
+          memberId: 'alice',
+          acceptedAiLines: 30,
+          commitTotalLines: 60,
+          sessionCount: 2,
+        },
+      ]),
+    };
+
+    const appModule = new AppModule(repository);
+    const result = await appModule.calculateEnterpriseMetricValues(
+      { projectKey: 'navigation' },
+      {
+        metricKeys: ['ai_session_count'],
+        calculatedAt: '2026-04-24T01:00:00.000Z',
+      },
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      metricKey: 'ai_session_count',
+      value: 2,
+    });
+  });
+
+  it('recalculates and persists selected enterprise metric snapshots', async () => {
+    const repository = {
+      ...createEmptyRepository(),
+      listRecordedMetricEvents: vi.fn(async () => [
+        {
+          memberId: 'alice',
+          acceptedAiLines: 30,
+          commitTotalLines: 60,
+          sessionCount: 2,
+        },
+      ]),
+      saveEnterpriseMetricSnapshots: vi.fn(async () => undefined),
+    };
+
+    const appModule = new AppModule(repository);
+    const result = await appModule.recalculateEnterpriseMetricSnapshots(
+      {
+        projectKey: 'navigation',
+        from: '2026-04-23T00:00:00.000Z',
+        to: '2026-04-24T00:00:00.000Z',
+      },
+      {
+        metricKeys: ['ai_session_count'],
+        calculatedAt: '2026-04-24T01:00:00.000Z',
+      },
+    );
+
+    expect(repository.saveEnterpriseMetricSnapshots).toHaveBeenCalledWith([
+      expect.objectContaining({
+        metricKey: 'ai_session_count',
+        value: 2,
+        definitionVersion: 1,
+        projectKey: 'navigation',
+        periodStart: '2026-04-23T00:00:00.000Z',
+        periodEnd: '2026-04-24T00:00:00.000Z',
+      }),
+    ]);
+    expect(result).toMatchObject({
+      upsertedSnapshots: 1,
+      snapshots: [
+        expect.objectContaining({
+          metricKey: 'ai_session_count',
+          value: 2,
+        }),
+      ],
+    });
+  });
+
   it('persists imported batches through the repository abstraction', async () => {
     const batch: IngestionBatch = {
       schemaVersion: 'v1',
@@ -480,6 +629,8 @@ const createEmptyRepository = () => ({
   listRecordedMetricEvents: vi.fn(async () => []),
   saveMetricSnapshots: vi.fn(async () => undefined),
   listMetricSnapshots: vi.fn(async () => []),
+  saveEnterpriseMetricSnapshots: vi.fn(async () => undefined),
+  listEnterpriseMetricSnapshots: vi.fn(async () => []),
   buildMcpAuditMetrics: vi.fn(async () => emptyMcpAuditMetrics()),
   listEditSpanEvidence: vi.fn(async () => []),
   listTabAcceptedEvents: vi.fn(async () => []),

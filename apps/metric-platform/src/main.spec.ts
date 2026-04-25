@@ -204,6 +204,221 @@ describe('bootstrap', () => {
     );
   });
 
+  it('serves calculated enterprise metric values over HTTP', async () => {
+    const metricEventRepository: MetricEventRepository = {
+      ...createEmptyRepository(),
+      async listRecordedMetricEvents() {
+        return [
+          {
+            memberId: 'alice',
+            acceptedAiLines: 30,
+            commitTotalLines: 60,
+            sessionCount: 2,
+          },
+          {
+            memberId: 'bob',
+            acceptedAiLines: 45,
+            commitTotalLines: 90,
+            sessionCount: 3,
+          },
+        ];
+      },
+      async buildAnalysisSummary() {
+        return {
+          sessionCount: 5,
+          editSpanCount: 4,
+          tabAcceptedCount: 6,
+          tabAcceptedLines: 18,
+        };
+      },
+      async buildMcpAuditMetrics() {
+        return {
+          totalToolCalls: 10,
+          successfulToolCalls: 8,
+          failedToolCalls: 2,
+          successRate: 0.8,
+          failureRate: 0.2,
+          averageDurationMs: 24,
+        };
+      },
+    };
+    const app = await bootstrap({ port: 0, metricEventRepository });
+    servers.push(app);
+
+    const response = await fetch(
+      `${app.baseUrl}/enterprise-metrics/values?projectKey=navigation&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z`,
+    );
+    const values = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(values).toEqual([
+      expect.objectContaining({
+        metricKey: 'ai_output_rate',
+        value: 0.5,
+        projectKey: 'navigation',
+        periodStart: '2026-04-23T00:00:00.000Z',
+        periodEnd: '2026-04-24T00:00:00.000Z',
+        definitionVersion: 1,
+        dataRequirements: ['recorded-metric-events'],
+      }),
+      expect.objectContaining({
+        metricKey: 'ai_session_count',
+        value: 5,
+      }),
+      expect.objectContaining({
+        metricKey: 'tab_accepted_lines',
+        value: 18,
+      }),
+      expect.objectContaining({
+        metricKey: 'mcp_tool_success_rate',
+        value: 0.8,
+      }),
+    ]);
+  });
+
+  it('serves selected enterprise metric values over HTTP', async () => {
+    const metricEventRepository: MetricEventRepository = {
+      ...createEmptyRepository(),
+      async listRecordedMetricEvents() {
+        return [
+          {
+            memberId: 'alice',
+            acceptedAiLines: 30,
+            commitTotalLines: 60,
+            sessionCount: 2,
+          },
+        ];
+      },
+    };
+    const app = await bootstrap({ port: 0, metricEventRepository });
+    servers.push(app);
+
+    const response = await fetch(
+      `${app.baseUrl}/enterprise-metrics/values?metricKey=ai_session_count`,
+    );
+    const values = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(values).toHaveLength(1);
+    expect(values[0]).toMatchObject({
+      metricKey: 'ai_session_count',
+      value: 2,
+    });
+  });
+
+  it('recalculates selected enterprise metric snapshots over HTTP', async () => {
+    const savedSnapshots: unknown[] = [];
+    const metricEventRepository: MetricEventRepository = {
+      ...createEmptyRepository(),
+      async listRecordedMetricEvents() {
+        return [
+          {
+            memberId: 'alice',
+            acceptedAiLines: 30,
+            commitTotalLines: 60,
+            sessionCount: 2,
+          },
+        ];
+      },
+      async saveEnterpriseMetricSnapshots(snapshots) {
+        savedSnapshots.push(...snapshots);
+      },
+    };
+    const app = await bootstrap({ port: 0, metricEventRepository });
+    servers.push(app);
+
+    const response = await fetch(
+      `${app.baseUrl}/enterprise-metrics/recalculate`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          projectKey: 'navigation',
+          from: '2026-04-23T00:00:00.000Z',
+          to: '2026-04-24T00:00:00.000Z',
+          metricKeys: ['ai_session_count'],
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      upsertedSnapshots: 1,
+      snapshots: [
+        expect.objectContaining({
+          metricKey: 'ai_session_count',
+          value: 2,
+          projectKey: 'navigation',
+        }),
+      ],
+    });
+    expect(savedSnapshots).toEqual([
+      expect.objectContaining({
+        metricKey: 'ai_session_count',
+        value: 2,
+        definitionVersion: 1,
+      }),
+    ]);
+  });
+
+  it('serves persisted enterprise metric snapshots over HTTP', async () => {
+    const metricEventRepository: MetricEventRepository = {
+      ...createEmptyRepository(),
+      async listEnterpriseMetricSnapshots(filters) {
+        expect(filters).toEqual({
+          projectKey: 'navigation',
+          metricKeys: ['ai_session_count'],
+        });
+
+        return [
+          {
+            metricKey: 'ai_session_count',
+            value: 2,
+            unit: 'count',
+            confidence: 'high',
+            scope: 'team',
+            projectKey: 'navigation',
+            periodStart: '2026-04-23T00:00:00.000Z',
+            periodEnd: '2026-04-24T00:00:00.000Z',
+            calculatedAt: '2026-04-24T01:00:00.000Z',
+            definitionVersion: 1,
+            dataRequirements: ['recorded-metric-events'],
+            definition: {
+              key: 'ai_session_count',
+              name: 'AI 会话数',
+              dimension: 'adoption',
+              question: '团队在哪些项目和场景中持续使用 AI。',
+              formula: '周期内有效 AI 会话总数',
+              dataSources: ['mcp-events', 'tool-adapter-events'],
+              automationLevel: 'high',
+              updateFrequency: 'near-real-time',
+              dashboardPlacement: 'effectiveness-management',
+              assessmentUsage: 'observe-only',
+              antiGamingNote: '会话数必须与会话深度、编辑证据和采纳结果交叉分析。',
+            },
+          },
+        ];
+      },
+    };
+    const app = await bootstrap({ port: 0, metricEventRepository });
+    servers.push(app);
+
+    const response = await fetch(
+      `${app.baseUrl}/enterprise-metrics/snapshots?projectKey=navigation&metricKey=ai_session_count`,
+    );
+    const snapshots = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(snapshots).toEqual([
+      expect.objectContaining({
+        metricKey: 'ai_session_count',
+        value: 2,
+      }),
+    ]);
+  });
+
   it('passes metric query parameters from HTTP requests to the repository', async () => {
     const listCalls: unknown[] = [];
     const metricEventRepository: MetricEventRepository = {
@@ -995,6 +1210,12 @@ const createEmptyRepository = (): MetricEventRepository => ({
     return undefined;
   },
   async listMetricSnapshots() {
+    return [];
+  },
+  async saveEnterpriseMetricSnapshots() {
+    return undefined;
+  },
+  async listEnterpriseMetricSnapshots() {
     return [];
   },
   async buildMcpAuditMetrics() {

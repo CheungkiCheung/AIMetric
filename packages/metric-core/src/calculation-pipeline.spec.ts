@@ -1,0 +1,142 @@
+import { describe, expect, it } from 'vitest';
+import {
+  calculateEnterpriseMetrics,
+  createEnterpriseMetricRegistry,
+} from './calculation-pipeline.js';
+
+describe('enterprise metric calculation pipeline', () => {
+  it('registers the first batch of computable enterprise metrics', () => {
+    const registry = createEnterpriseMetricRegistry();
+
+    expect(registry.listMetricKeys()).toEqual([
+      'ai_output_rate',
+      'ai_session_count',
+      'tab_accepted_lines',
+      'mcp_tool_success_rate',
+    ]);
+    expect(registry.getDefinition('ai_output_rate')).toMatchObject({
+      key: 'ai_output_rate',
+      dimension: 'effective-output',
+      formula: 'AI 采纳代码行数 / 提交总代码变更行数',
+    });
+    expect(registry.getCalculator('ai_output_rate')).toMatchObject({
+      metricKey: 'ai_output_rate',
+      requiredEvidence: ['recorded-metric-events'],
+      outputSchema: {
+        unit: 'ratio',
+      },
+    });
+    expect(registry.getCalculator('mcp_tool_success_rate')).toMatchObject({
+      requiredEvidence: ['mcp-audit-metrics'],
+    });
+  });
+
+  it('calculates metric values with definitions, scope, period, and confidence', () => {
+    const values = calculateEnterpriseMetrics({
+      context: {
+        scope: 'team',
+        projectKey: 'navigation',
+        periodStart: '2026-04-23T00:00:00.000Z',
+        periodEnd: '2026-04-24T00:00:00.000Z',
+        calculatedAt: '2026-04-24T01:00:00.000Z',
+      },
+      input: {
+        recordedMetricEvents: [
+          {
+            memberId: 'alice',
+            acceptedAiLines: 30,
+            commitTotalLines: 60,
+            sessionCount: 2,
+          },
+          {
+            memberId: 'bob',
+            acceptedAiLines: 45,
+            commitTotalLines: 90,
+            sessionCount: 3,
+          },
+        ],
+        analysisSummary: {
+          sessionCount: 5,
+          editSpanCount: 4,
+          tabAcceptedCount: 6,
+          tabAcceptedLines: 18,
+        },
+        mcpAuditMetrics: {
+          totalToolCalls: 10,
+          successfulToolCalls: 8,
+          failedToolCalls: 2,
+          successRate: 0.8,
+          failureRate: 0.2,
+          averageDurationMs: 24,
+        },
+      },
+    });
+
+    expect(values).toEqual([
+      expect.objectContaining({
+        metricKey: 'ai_output_rate',
+        value: 0.5,
+        unit: 'ratio',
+        confidence: 'high',
+        scope: 'team',
+        projectKey: 'navigation',
+        periodStart: '2026-04-23T00:00:00.000Z',
+        periodEnd: '2026-04-24T00:00:00.000Z',
+        calculatedAt: '2026-04-24T01:00:00.000Z',
+        definitionVersion: 1,
+        dataRequirements: ['recorded-metric-events'],
+        definition: expect.objectContaining({
+          name: 'AI 出码率',
+          dimension: 'effective-output',
+        }),
+      }),
+      expect.objectContaining({
+        metricKey: 'ai_session_count',
+        value: 5,
+        unit: 'count',
+        confidence: 'high',
+      }),
+      expect.objectContaining({
+        metricKey: 'tab_accepted_lines',
+        value: 18,
+        unit: 'lines',
+        confidence: 'medium',
+      }),
+      expect.objectContaining({
+        metricKey: 'mcp_tool_success_rate',
+        value: 0.8,
+        unit: 'ratio',
+        confidence: 'high',
+      }),
+    ]);
+  });
+
+  it('supports calculating a selected metric subset', () => {
+    const values = calculateEnterpriseMetrics({
+      metricKeys: ['ai_session_count'],
+      context: {
+        scope: 'team',
+        projectKey: 'navigation',
+        periodStart: '2026-04-23T00:00:00.000Z',
+        periodEnd: '2026-04-24T00:00:00.000Z',
+        calculatedAt: '2026-04-24T01:00:00.000Z',
+      },
+      input: {
+        recordedMetricEvents: [
+          {
+            memberId: 'alice',
+            acceptedAiLines: 30,
+            commitTotalLines: 60,
+            sessionCount: 2,
+          },
+        ],
+      },
+    });
+
+    expect(values).toHaveLength(1);
+    expect(values[0]).toMatchObject({
+      metricKey: 'ai_session_count',
+      value: 2,
+    });
+  });
+});

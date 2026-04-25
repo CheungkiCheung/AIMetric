@@ -140,9 +140,182 @@ describeIfDatabase('PostgresMetricEventRepository', () => {
       memberCount: 2,
     });
   });
+
+  it('persists recalculated enterprise metric snapshots', async () => {
+    const uniqueProjectKey = `enterprise-snapshot-project-${Date.now()}`;
+    const repository = new PostgresMetricEventRepository();
+    services.push(repository);
+
+    await repository.saveEnterpriseMetricSnapshots([
+      {
+        metricKey: 'ai_session_count',
+        value: 2,
+        unit: 'count',
+        confidence: 'high',
+        scope: 'team',
+        projectKey: uniqueProjectKey,
+        periodStart: '2026-04-23T00:00:00.000Z',
+        periodEnd: '2026-04-24T00:00:00.000Z',
+        calculatedAt: '2026-04-24T01:00:00.000Z',
+        definitionVersion: 1,
+        dataRequirements: ['recorded-metric-events'],
+        definition: {
+          key: 'ai_session_count',
+          name: 'AI 会话数',
+          dimension: 'adoption',
+          question: '团队在哪些项目和场景中持续使用 AI。',
+          formula: '周期内有效 AI 会话总数',
+          dataSources: ['mcp-events', 'tool-adapter-events'],
+          automationLevel: 'high',
+          updateFrequency: 'near-real-time',
+          dashboardPlacement: 'effectiveness-management',
+          assessmentUsage: 'observe-only',
+          antiGamingNote: '会话数必须与会话深度、编辑证据和采纳结果交叉分析。',
+        },
+      },
+    ]);
+
+    const snapshots = await repository.listEnterpriseMetricSnapshots({
+      projectKey: uniqueProjectKey,
+      metricKeys: ['ai_session_count'],
+    });
+
+    expect(snapshots).toContainEqual(
+      expect.objectContaining({
+        metricKey: 'ai_session_count',
+        value: 2,
+        unit: 'count',
+        confidence: 'high',
+        scope: 'team',
+        projectKey: uniqueProjectKey,
+        definitionVersion: 1,
+        dataRequirements: ['recorded-metric-events'],
+        definition: expect.objectContaining({
+          key: 'ai_session_count',
+          name: 'AI 会话数',
+        }),
+      }),
+    );
+  });
 });
 
 describe('PostgresMetricEventRepository query mapping', () => {
+  it('upserts and lists enterprise metric snapshots', async () => {
+    const queries: Array<{ text: string; values?: unknown[] }> = [];
+    const repository = new PostgresMetricEventRepository({
+      async query<T extends QueryResultRow = QueryResultRow>(
+        text: string,
+        values?: unknown[],
+      ) {
+        queries.push({ text, values });
+
+        if (
+          text.includes('CREATE TABLE') ||
+          text.includes('CREATE UNIQUE INDEX') ||
+          text.includes('INSERT INTO enterprise_metric_snapshots')
+        ) {
+          return {
+            command: '',
+            rowCount: 0,
+            oid: 0,
+            fields: [],
+            rows: [] as T[],
+          };
+        }
+
+        return {
+          command: '',
+          rowCount: 1,
+          oid: 0,
+          fields: [],
+          rows: ([
+            {
+              metric_key: 'ai_session_count',
+              value: 2,
+              unit: 'count',
+              confidence: 'high',
+              scope: 'team',
+              project_key: 'navigation',
+              member_id: '',
+              team_key: '',
+              period_start: new Date('2026-04-23T00:00:00.000Z'),
+              period_end: new Date('2026-04-24T00:00:00.000Z'),
+              calculated_at: new Date('2026-04-24T01:00:00.000Z'),
+              definition_version: 1,
+              data_requirements: ['recorded-metric-events'],
+              definition: {
+                key: 'ai_session_count',
+                name: 'AI 会话数',
+                dimension: 'adoption',
+                question: '团队在哪些项目和场景中持续使用 AI。',
+                formula: '周期内有效 AI 会话总数',
+                dataSources: ['mcp-events', 'tool-adapter-events'],
+                automationLevel: 'high',
+                updateFrequency: 'near-real-time',
+                dashboardPlacement: 'effectiveness-management',
+                assessmentUsage: 'observe-only',
+                antiGamingNote: '会话数必须与会话深度、编辑证据和采纳结果交叉分析。',
+              },
+            },
+          ] as unknown) as T[],
+        };
+      },
+    });
+
+    await repository.saveEnterpriseMetricSnapshots([
+      {
+        metricKey: 'ai_session_count',
+        value: 2,
+        unit: 'count',
+        confidence: 'high',
+        scope: 'team',
+        projectKey: 'navigation',
+        periodStart: '2026-04-23T00:00:00.000Z',
+        periodEnd: '2026-04-24T00:00:00.000Z',
+        calculatedAt: '2026-04-24T01:00:00.000Z',
+        definitionVersion: 1,
+        dataRequirements: ['recorded-metric-events'],
+        definition: {
+          key: 'ai_session_count',
+          name: 'AI 会话数',
+          dimension: 'adoption',
+          question: '团队在哪些项目和场景中持续使用 AI。',
+          formula: '周期内有效 AI 会话总数',
+          dataSources: ['mcp-events', 'tool-adapter-events'],
+          automationLevel: 'high',
+          updateFrequency: 'near-real-time',
+          dashboardPlacement: 'effectiveness-management',
+          assessmentUsage: 'observe-only',
+          antiGamingNote: '会话数必须与会话深度、编辑证据和采纳结果交叉分析。',
+        },
+      },
+    ]);
+
+    const snapshots = await repository.listEnterpriseMetricSnapshots({
+      projectKey: 'navigation',
+      metricKeys: ['ai_session_count'],
+    });
+
+    const insertQuery = queries.find((query) =>
+      query.text.includes('INSERT INTO enterprise_metric_snapshots'),
+    );
+    expect(insertQuery?.text).toContain('ON CONFLICT');
+    expect(insertQuery?.values?.[0]).toBe('ai_session_count');
+    expect(snapshots).toEqual([
+      expect.objectContaining({
+        metricKey: 'ai_session_count',
+        value: 2,
+        projectKey: 'navigation',
+        definitionVersion: 1,
+      }),
+    ]);
+    expect(queries.at(-1)?.text).toContain('metric_key = ANY');
+    expect(queries.at(-1)?.values).toEqual([
+      'navigation',
+      ['ai_session_count'],
+    ]);
+  });
+
   it('includes ingestion_key in insert statements for deduplicated session events', async () => {
     const queries: Array<{ text: string; values?: unknown[] }> = [];
     const repository = new PostgresMetricEventRepository({
