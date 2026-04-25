@@ -14,6 +14,8 @@ describe('enterprise metric calculation pipeline', () => {
       'tab_accepted_lines',
       'mcp_tool_success_rate',
       'lead_time_ai_vs_non_ai',
+      'pr_cycle_time',
+      'review_rejection_rate',
     ]);
     expect(registry.getDefinition('ai_output_rate')).toMatchObject({
       key: 'ai_output_rate',
@@ -77,6 +79,13 @@ describe('enterprise metric calculation pipeline', () => {
           averageAiLeadTimeHours: 24,
           averageNonAiLeadTimeHours: 36,
         },
+        pullRequestSummary: {
+          totalPullRequestCount: 4,
+          mergedPullRequestCount: 3,
+          averageCycleTimeHours: 18,
+          reviewedPullRequestCount: 4,
+          rejectedPullRequestCount: 1,
+        },
       },
     });
 
@@ -122,6 +131,20 @@ describe('enterprise metric calculation pipeline', () => {
         unit: 'hours',
         confidence: 'medium',
         dataRequirements: ['requirement-summary'],
+      }),
+      expect.objectContaining({
+        metricKey: 'pr_cycle_time',
+        value: 18,
+        unit: 'hours',
+        confidence: 'high',
+        dataRequirements: ['pull-request-summary'],
+      }),
+      expect.objectContaining({
+        metricKey: 'review_rejection_rate',
+        value: 0.25,
+        unit: 'ratio',
+        confidence: 'medium',
+        dataRequirements: ['pull-request-summary'],
       }),
     ]);
   });

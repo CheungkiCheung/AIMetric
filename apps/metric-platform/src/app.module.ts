@@ -323,12 +323,19 @@ export class AppModule {
       calculatedAt?: string;
     } = {},
   ): Promise<MetricCalculationResult[]> {
-    const [recordedMetricEvents, analysisSummary, mcpAuditMetrics, requirements] =
+    const [
+      recordedMetricEvents,
+      analysisSummary,
+      mcpAuditMetrics,
+      requirements,
+      pullRequests,
+    ] =
       await Promise.all([
         this.metricEventRepository.listRecordedMetricEvents(filters),
         this.buildAnalysisSummary(filters),
         this.metricEventRepository.buildMcpAuditMetrics(filters),
         this.listRequirements(filters),
+        this.listPullRequests(filters),
       ]);
 
     return calculateEnterpriseMetrics({
@@ -346,6 +353,7 @@ export class AppModule {
         analysisSummary,
         mcpAuditMetrics,
         requirementSummary: buildRequirementCalculationSummary(requirements),
+        pullRequestSummary: buildPullRequestCalculationSummary(pullRequests),
       },
     });
   }
@@ -495,5 +503,33 @@ const buildRequirementCalculationSummary = (
       nonAiLeadTimes.length === 0
         ? 0
         : nonAiLeadTimes.reduce((sum, value) => sum + value, 0) / nonAiLeadTimes.length,
+  };
+};
+
+const buildPullRequestCalculationSummary = (
+  pullRequests: PullRequestRecord[],
+) => {
+  const mergedPullRequests = pullRequests.filter(
+    (pullRequest) => typeof pullRequest.cycleTimeHours === 'number',
+  );
+  const reviewedPullRequests = pullRequests.filter(
+    (pullRequest) => typeof pullRequest.reviewDecision === 'string',
+  );
+  const rejectedPullRequests = reviewedPullRequests.filter(
+    (pullRequest) => pullRequest.reviewDecision === 'changes-requested',
+  );
+
+  return {
+    totalPullRequestCount: pullRequests.length,
+    mergedPullRequestCount: mergedPullRequests.length,
+    averageCycleTimeHours:
+      mergedPullRequests.length === 0
+        ? 0
+        : mergedPullRequests.reduce(
+            (sum, pullRequest) => sum + (pullRequest.cycleTimeHours as number),
+            0,
+          ) / mergedPullRequests.length,
+    reviewedPullRequestCount: reviewedPullRequests.length,
+    rejectedPullRequestCount: rejectedPullRequests.length,
   };
 };

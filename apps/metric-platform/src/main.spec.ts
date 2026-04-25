@@ -927,6 +927,38 @@ describe('bootstrap', () => {
           },
         ];
       },
+      async listPullRequests() {
+        return [
+          {
+            provider: 'github' as const,
+            projectKey: 'navigation',
+            repoName: 'AIMetric',
+            prNumber: 101,
+            title: 'Add dashboard',
+            state: 'merged' as const,
+            aiTouched: true,
+            reviewDecision: 'approved' as const,
+            cycleTimeHours: 12,
+            createdAt: '2026-04-23T00:00:00.000Z',
+            mergedAt: '2026-04-23T12:00:00.000Z',
+            updatedAt: '2026-04-23T12:00:00.000Z',
+          },
+          {
+            provider: 'github' as const,
+            projectKey: 'navigation',
+            repoName: 'AIMetric',
+            prNumber: 102,
+            title: 'Refine metrics',
+            state: 'merged' as const,
+            aiTouched: false,
+            reviewDecision: 'changes-requested' as const,
+            cycleTimeHours: 24,
+            createdAt: '2026-04-23T00:00:00.000Z',
+            mergedAt: '2026-04-24T00:00:00.000Z',
+            updatedAt: '2026-04-24T00:00:00.000Z',
+          },
+        ];
+      },
     };
     const app = await bootstrap({ port: 0, metricEventRepository });
     servers.push(app);
@@ -963,6 +995,16 @@ describe('bootstrap', () => {
         metricKey: 'lead_time_ai_vs_non_ai',
         value: -12,
         unit: 'hours',
+      }),
+      expect.objectContaining({
+        metricKey: 'pr_cycle_time',
+        value: 18,
+        unit: 'hours',
+      }),
+      expect.objectContaining({
+        metricKey: 'review_rejection_rate',
+        value: 0.5,
+        unit: 'ratio',
       }),
     ]);
   });

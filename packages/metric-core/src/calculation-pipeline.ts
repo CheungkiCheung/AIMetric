@@ -14,7 +14,8 @@ export type MetricDataRequirement =
   | 'recorded-metric-events'
   | 'analysis-summary'
   | 'mcp-audit-metrics'
-  | 'requirement-summary';
+  | 'requirement-summary'
+  | 'pull-request-summary';
 
 export interface MetricCalculationContext {
   scope: EnterpriseMetricScope;
@@ -57,11 +58,20 @@ export interface CalculationRequirementSummary {
   averageNonAiLeadTimeHours: number;
 }
 
+export interface CalculationPullRequestSummary {
+  totalPullRequestCount: number;
+  mergedPullRequestCount: number;
+  averageCycleTimeHours: number;
+  reviewedPullRequestCount: number;
+  rejectedPullRequestCount: number;
+}
+
 export interface MetricCalculationInput {
   recordedMetricEvents?: CalculationRecordedMetricEvent[];
   analysisSummary?: CalculationAnalysisSummary;
   mcpAuditMetrics?: CalculationMcpAuditMetrics;
   requirementSummary?: CalculationRequirementSummary;
+  pullRequestSummary?: CalculationPullRequestSummary;
 }
 
 export interface MetricCalculationResult {
@@ -260,6 +270,48 @@ const defaultCalculators: MetricCalculator[] = [
         value:
           requirementSummary.averageAiLeadTimeHours -
           requirementSummary.averageNonAiLeadTimeHours,
+        confidence: 'medium' as const,
+      };
+    },
+  ),
+  createCalculator(
+    'pr_cycle_time',
+    'hours',
+    ['pull-request-summary'],
+    (input) => {
+      const pullRequestSummary = input.pullRequestSummary;
+
+      if (!pullRequestSummary || pullRequestSummary.mergedPullRequestCount === 0) {
+        return {
+          value: 0,
+          confidence: 'low' as const,
+        };
+      }
+
+      return {
+        value: pullRequestSummary.averageCycleTimeHours,
+        confidence: 'high' as const,
+      };
+    },
+  ),
+  createCalculator(
+    'review_rejection_rate',
+    'ratio',
+    ['pull-request-summary'],
+    (input) => {
+      const pullRequestSummary = input.pullRequestSummary;
+
+      if (!pullRequestSummary || pullRequestSummary.reviewedPullRequestCount === 0) {
+        return {
+          value: 0,
+          confidence: 'low' as const,
+        };
+      }
+
+      return {
+        value:
+          pullRequestSummary.rejectedPullRequestCount /
+          pullRequestSummary.reviewedPullRequestCount,
         confidence: 'medium' as const,
       };
     },
