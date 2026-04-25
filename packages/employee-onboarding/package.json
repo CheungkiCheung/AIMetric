@@ -15,6 +15,7 @@
     "aimetric-onboard": "./dist/cli.js"
   },
   "dependencies": {
+    "@aimetric/collector-sdk": "workspace:*",
     "@aimetric/rule-engine": "workspace:*"
   },
   "scripts": {

@@ -137,7 +137,20 @@ curl -X POST http://127.0.0.1:3000/ingestion/flush
 - 员工侧命令不会因为 collector 短暂不可用直接失败。
 - 成功写入 outbox 后，结果会返回 `buffered: true` 和 `bufferedDepth`。
 - Cursor adapter 在 batch 已本地缓冲后会推进 `cursor-sync-state.json`，避免下一次扫描重复生成同一批事件。
-- `collector-sdk` 提供 `flushBufferedIngestionBatches`，后续可封装成 `aimetric flush` 或后台定时任务。
+- `collector-sdk` 提供 `flushBufferedIngestionBatches`，员工端可通过 `aimetric flush` 手动恢复投递。
+
+员工端查看状态和自检：
+
+```bash
+aimetric status --workspaceDir=/path/to/repo
+aimetric doctor --workspaceDir=/path/to/repo
+```
+
+如果 `outboxDepth` 大于 0，手动恢复投递：
+
+```bash
+aimetric flush --workspaceDir=/path/to/repo
+```
 
 排障判断：
 

@@ -1,5 +1,10 @@
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import {
+  flushBufferedIngestionBatches,
+  loadAimMetricConfig,
+  type FlushBufferedIngestionResult,
+} from '@aimetric/collector-sdk';
 import { getProjectRulePack, getRuleTemplate } from '@aimetric/rule-engine';
 
 export type EmployeeToolProfile =
@@ -64,6 +69,7 @@ export interface EmployeeOnboardingStatus {
   toolProfile?: EmployeeToolProfile;
   collectorEndpoint?: string;
   metricPlatformEndpoint?: string;
+  outboxDepth: number;
 }
 
 export interface EmployeeOnboardingDoctorCheck {
@@ -76,6 +82,13 @@ export interface EmployeeOnboardingDoctorReport {
   status: 'healthy' | 'degraded' | 'unhealthy';
   checks: EmployeeOnboardingDoctorCheck[];
   nextActions: string[];
+}
+
+export interface FlushEmployeeOutboxInput {
+  workspaceDir: string;
+  fetchImplementation?: typeof fetch;
+  environment?: Record<string, string | undefined>;
+  limit?: number;
 }
 
 const defaultCollectorEndpoint = 'http://127.0.0.1:3000/ingestion';
@@ -258,12 +271,14 @@ export async function buildEmployeeOnboardingStatus(input: {
       mcpConfigPath,
       collectorEndpoint: config.collector.endpoint,
       metricPlatformEndpoint: config.metricPlatform.endpoint,
+      outboxDepth: await readOutboxDepth(input.workspaceDir),
     };
   } catch {
     return {
       onboarded: false,
       configPath,
       mcpConfigPath,
+      outboxDepth: await readOutboxDepth(input.workspaceDir),
     };
   }
 }
@@ -313,6 +328,21 @@ export async function runEmployeeOnboardingDoctor(input: {
     });
   }
 
+  const outboxDepth = await readOutboxDepth(input.workspaceDir);
+  checks.push(
+    outboxDepth > 0
+      ? {
+          key: 'outbox',
+          status: 'warn',
+          message: `${outboxDepth} local ingestion ${outboxDepth === 1 ? 'batch is' : 'batches are'} waiting to be flushed`,
+        }
+      : {
+          key: 'outbox',
+          status: 'pass',
+          message: 'No local ingestion batches are waiting to be flushed',
+        },
+  );
+
   const status = checks.some((check) => check.status === 'fail')
     ? 'unhealthy'
     : checks.some((check) => check.status === 'warn')
@@ -325,6 +355,9 @@ export async function runEmployeeOnboardingDoctor(input: {
         ]
       : [
           'Run aimetric status before your first AI session',
+          ...(outboxDepth > 0
+            ? ['Run aimetric flush to publish buffered events']
+            : []),
           'Start collector-gateway before publishing events',
         ];
 
@@ -333,6 +366,21 @@ export async function runEmployeeOnboardingDoctor(input: {
     checks,
     nextActions,
   };
+}
+
+export async function flushEmployeeOutbox(
+  input: FlushEmployeeOutboxInput,
+): Promise<FlushBufferedIngestionResult> {
+  const config = await loadAimMetricConfig({
+    workspaceDir: input.workspaceDir,
+  });
+
+  return flushBufferedIngestionBatches(config.collector, {
+    workspaceDir: input.workspaceDir,
+    fetchImplementation: input.fetchImplementation,
+    environment: input.environment,
+    limit: input.limit,
+  });
 }
 
 const writeToolProfileArtifacts = async (input: {
@@ -444,5 +492,15 @@ const fileExists = async (path: string): Promise<boolean> => {
     return true;
   } catch {
     return false;
+  }
+};
+
+const readOutboxDepth = async (workspaceDir: string): Promise<number> => {
+  try {
+    const files = await readdir(join(workspaceDir, '.aimetric', 'outbox'));
+
+    return files.filter((file) => file.endsWith('.json')).length;
+  } catch {
+    return 0;
   }
 };

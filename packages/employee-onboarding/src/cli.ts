@@ -2,6 +2,7 @@
 
 import {
   buildEmployeeOnboardingStatus,
+  flushEmployeeOutbox,
   runEmployeeOnboardingDoctor,
   writeEmployeeOnboardingFiles,
   type EmployeeToolProfile,
@@ -35,9 +36,19 @@ if (command === 'doctor') {
   process.exit(report.status === 'unhealthy' ? 1 : 0);
 }
 
+if (command === 'flush') {
+  const result = await flushEmployeeOutbox({
+    workspaceDir: args.get('workspaceDir') ?? process.cwd(),
+    limit: args.get('limit') ? Number(args.get('limit')) : undefined,
+  });
+
+  console.log(JSON.stringify(result, null, 2));
+  process.exit(result.failed > 0 ? 1 : 0);
+}
+
 if (command !== 'onboard') {
   console.error(`Unknown command: ${command}`);
-  console.error('Usage: aimetric onboard|status|doctor [--workspaceDir=...]');
+  console.error('Usage: aimetric onboard|status|doctor|flush [--workspaceDir=...]');
   process.exit(1);
 }
 

@@ -1,10 +1,11 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   buildEmployeeOnboardingStatus,
   buildEmployeeOnboardingConfig,
+  flushEmployeeOutbox,
   runEmployeeOnboardingDoctor,
   writeEmployeeOnboardingFiles,
 } from './onboarding.js';
@@ -256,6 +257,26 @@ describe('employee onboarding status and doctor', () => {
       mcpConfigPath: join(workspaceDir, '.aimetric', 'mcp.json'),
       collectorEndpoint: 'http://127.0.0.1:3000/ingestion',
       metricPlatformEndpoint: 'http://127.0.0.1:3001',
+      outboxDepth: 0,
+    });
+  });
+
+  it('reports pending local outbox depth in onboarding status', async () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), 'aimetric-onboarding-outbox-status-'));
+    temporaryWorkspaces.push(workspaceDir);
+    await writeEmployeeOnboardingFiles({
+      workspaceDir,
+      projectKey: 'aimetric',
+      memberId: 'alice',
+      repoName: 'AIMetric',
+      toolProfile: 'cursor',
+    });
+    writeOutboxBatch(workspaceDir, 'batch-1.json');
+    writeOutboxBatch(workspaceDir, 'batch-2.json');
+
+    await expect(buildEmployeeOnboardingStatus({ workspaceDir })).resolves.toMatchObject({
+      onboarded: true,
+      outboxDepth: 2,
     });
   });
 
@@ -286,6 +307,29 @@ describe('employee onboarding status and doctor', () => {
     expect(report.nextActions).toContain('Run aimetric status before your first AI session');
   });
 
+  it('doctor warns when local outbox contains pending batches', async () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), 'aimetric-onboarding-doctor-outbox-'));
+    temporaryWorkspaces.push(workspaceDir);
+    await writeEmployeeOnboardingFiles({
+      workspaceDir,
+      projectKey: 'aimetric',
+      memberId: 'alice',
+      repoName: 'AIMetric',
+      toolProfile: 'cursor',
+    });
+    writeOutboxBatch(workspaceDir, 'batch-1.json');
+
+    const report = await runEmployeeOnboardingDoctor({ workspaceDir });
+
+    expect(report.status).toBe('degraded');
+    expect(report.checks).toContainEqual({
+      key: 'outbox',
+      status: 'warn',
+      message: '1 local ingestion batch is waiting to be flushed',
+    });
+    expect(report.nextActions).toContain('Run aimetric flush to publish buffered events');
+  });
+
   it('doctor returns actionable repair suggestions when onboarding is missing', async () => {
     const workspaceDir = mkdtempSync(join(tmpdir(), 'aimetric-onboarding-missing-'));
     temporaryWorkspaces.push(workspaceDir);
@@ -303,3 +347,55 @@ describe('employee onboarding status and doctor', () => {
     );
   });
 });
+
+describe('flushEmployeeOutbox', () => {
+  it('flushes buffered ingestion batches using onboarding config', async () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), 'aimetric-onboarding-flush-'));
+    temporaryWorkspaces.push(workspaceDir);
+    await writeEmployeeOnboardingFiles({
+      workspaceDir,
+      projectKey: 'aimetric',
+      memberId: 'alice',
+      repoName: 'AIMetric',
+      toolProfile: 'cursor',
+    });
+    writeOutboxBatch(workspaceDir, 'batch-1.json');
+
+    const result = await flushEmployeeOutbox({
+      workspaceDir,
+      fetchImplementation: async () =>
+        new Response(JSON.stringify({ accepted: 1 }), { status: 200 }),
+    });
+
+    expect(result).toEqual({
+      attempted: 1,
+      published: 1,
+      failed: 0,
+      remainingDepth: 0,
+    });
+  });
+});
+
+const writeOutboxBatch = (workspaceDir: string, filename: string): void => {
+  const outboxDir = join(workspaceDir, '.aimetric', 'outbox');
+  mkdirSync(outboxDir, { recursive: true });
+  writeFileSync(
+    join(outboxDir, filename),
+    JSON.stringify({
+      schemaVersion: 'v1',
+      source: 'cursor',
+      events: [
+        {
+          eventType: 'session.recorded',
+          occurredAt: '2026-04-24T00:00:00.000Z',
+          payload: {
+            sessionId: filename,
+            projectKey: 'aimetric',
+            repoName: 'AIMetric',
+          },
+        },
+      ],
+    }),
+    'utf8',
+  );
+};
