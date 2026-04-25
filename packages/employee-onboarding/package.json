@@ -11,6 +11,7 @@
     }
   },
   "bin": {
+    "aimetric": "./dist/cli.js",
     "aimetric-onboard": "./dist/cli.js"
   },
   "dependencies": {

@@ -806,20 +806,30 @@ Agent 能力：
 
 - 把接入从“生成配置”升级为“企业安装体验”。
 
+当前已完成：
+
+- `@aimetric/employee-onboarding` 已新增统一命令入口 `aimetric`，兼容原 `aimetric-onboard`。
+- `aimetric onboard` 已支持 `cursor`、`cli`、`vscode`、`codex`、`claude-code`、`jetbrains` 多 profile。
+- Codex CLI / Claude Code profile 会生成 `.aimetric/codex.env`、`.aimetric/claude-code.env`，员工可直接 source 后进入工具会话。
+- `aimetric status` 已支持读取 `.aimetric/config.json` 并输出项目、成员、仓库、工具 profile、collector endpoint 和 metric platform endpoint。
+- `aimetric doctor` 已支持检查核心配置、MCP 配置和 collector token 环境变量提示，缺失时给出明确 onboarding 修复建议。
+- 员工端配置仍只保存 token 环境变量名，不保存真实 token。
+- 员工端安装路径继续沿用 `.aimetric/`，便于未来扩展卸载、升级、本地缓冲和隐私透明度说明。
+
 交付：
 
-- `aimetric onboard` 多 profile。
-- `aimetric doctor`。
-- 自动修复 MCP 配置。
-- 采集状态自检。
-- 本地缓冲状态查看。
-- 采集透明度说明。
+- `aimetric onboard` 多 profile：第一版已完成。
+- `aimetric doctor`：第一版已完成。
+- `aimetric status`：第一版已完成。
+- 自动修复 MCP 配置：待增强。
+- 本地缓冲状态查看：待 E5 异步采集与本地缓冲阶段补齐。
+- 采集透明度说明：待增强为员工可读说明页 / CLI 输出。
 
 验收标准：
 
-- 员工无需理解 MCP 配置即可接入。
-- 安装失败时能给出明确修复建议。
-- 采集失败不会阻断开发。
+- 员工无需理解 MCP 配置即可接入：第一版已满足，仍需补自动探测和自动修复。
+- 安装失败时能给出明确修复建议：第一版已满足。
+- 采集失败不会阻断开发：架构原则已满足，E5 需要通过本地缓冲和异步队列继续强化。
 
 ### Phase E5：异步采集与队列
 
@@ -1096,20 +1106,20 @@ Phase E2 指标注册与计算管线
 下一步执行：
 
 ```text
-Phase E2 指标注册与计算管线
+Phase E5 异步采集与队列
 ```
 
 第一批任务：
 
-1. 设计 `MetricRegistry` 和 `MetricCalculator` 接口。
-2. 把现有 AI 出码率接入新计算管线。
-3. 把会话数、Tab 接受行数、MCP 工具成功率映射为可计算指标。
-4. 增加按 `metricKey + scope + period + project + team + member` 的快照模型。
-5. Dashboard 使用统一指标 view model，而不是直接绑定零散 API。
+1. 为 collector-gateway 增加可插拔 ingestion queue 接口，默认保持同步直传，准生产可切换队列模式。
+2. 增加第一版内存 / 本地文件队列实现，验证失败不阻断员工端热路径。
+3. 增加 ingestion worker，把队列事件异步写入 metric-platform。
+4. 增加 retry、DLQ、队列积压、采集延迟和失败率指标。
+5. Dashboard / 管理 API 展示采集健康状态，为企业大规模接入做运营视图。
 
 阶段完成标志：
 
-- 平台至少有 4 个指标通过统一计算管线产出。
-- 新增一个指标不需要改 Dashboard 主加载流程。
-- 指标结果包含口径、数据源、计算时间、周期、置信度。
-- 管理端可以查看指标目录、指标值、指标解释和反误导说明。
+- collector-gateway 短暂不可用时，员工端采集不阻断正常开发。
+- worker 恢复后可以继续消费积压事件。
+- 重复事件不会重复计入指标。
+- 管理者能看到采集链路的延迟、失败、重试和 DLQ 情况。

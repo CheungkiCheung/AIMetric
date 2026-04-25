@@ -3,7 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  buildEmployeeOnboardingStatus,
   buildEmployeeOnboardingConfig,
+  runEmployeeOnboardingDoctor,
   writeEmployeeOnboardingFiles,
 } from './onboarding.js';
 
@@ -46,6 +48,41 @@ describe('buildEmployeeOnboardingConfig', () => {
     expect(config.collector.source).toBe('cli');
     expect(config.toolProfile).toBe('cli');
     expect(config.mcp.environment.AIMETRIC_TOOL_PROFILE).toBe('cli');
+  });
+
+  it('supports enterprise AI tool onboarding profiles', () => {
+    expect(
+      buildEmployeeOnboardingConfig({
+        projectKey: 'aimetric',
+        memberId: 'alice',
+        repoName: 'AIMetric',
+        toolProfile: 'codex',
+      }),
+    ).toMatchObject({
+      toolProfile: 'codex',
+      collector: { source: 'codex' },
+      mcp: {
+        environment: {
+          AIMETRIC_TOOL_PROFILE: 'codex',
+        },
+      },
+    });
+    expect(
+      buildEmployeeOnboardingConfig({
+        projectKey: 'aimetric',
+        memberId: 'alice',
+        repoName: 'AIMetric',
+        toolProfile: 'claude-code',
+      }).collector.source,
+    ).toBe('claude-code');
+    expect(
+      buildEmployeeOnboardingConfig({
+        projectKey: 'aimetric',
+        memberId: 'alice',
+        repoName: 'AIMetric',
+        toolProfile: 'jetbrains',
+      }).collector.source,
+    ).toBe('jetbrains');
   });
 });
 
@@ -161,5 +198,108 @@ describe('writeEmployeeOnboardingFiles', () => {
     expect(result.adapterPaths).toContain(cliEnvPath);
     expect(cliEnv).toContain(`export AIMETRIC_WORKSPACE_DIR="${workspaceDir}"`);
     expect(cliEnv).toContain('export AIMETRIC_TOOL_PROFILE="cli"');
+  });
+
+  it('writes profile-specific helper files for codex and claude-code onboarding', async () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), 'aimetric-onboarding-ai-cli-'));
+    temporaryWorkspaces.push(workspaceDir);
+
+    const codexResult = await writeEmployeeOnboardingFiles({
+      workspaceDir,
+      projectKey: 'aimetric',
+      memberId: 'alice',
+      repoName: 'AIMetric',
+      toolProfile: 'codex',
+    });
+    const codexPath = join(workspaceDir, '.aimetric', 'codex.env');
+
+    expect(codexResult.adapterPaths).toContain(codexPath);
+    expect(readFileSync(codexPath, 'utf8')).toContain(
+      'export AIMETRIC_TOOL_PROFILE="codex"',
+    );
+
+    const claudeResult = await writeEmployeeOnboardingFiles({
+      workspaceDir,
+      projectKey: 'aimetric',
+      memberId: 'alice',
+      repoName: 'AIMetric',
+      toolProfile: 'claude-code',
+    });
+    const claudePath = join(workspaceDir, '.aimetric', 'claude-code.env');
+
+    expect(claudeResult.adapterPaths).toContain(claudePath);
+    expect(readFileSync(claudePath, 'utf8')).toContain(
+      'export AIMETRIC_TOOL_PROFILE="claude-code"',
+    );
+  });
+});
+
+describe('employee onboarding status and doctor', () => {
+  it('reports onboarding status from generated files', async () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), 'aimetric-onboarding-status-'));
+    temporaryWorkspaces.push(workspaceDir);
+    await writeEmployeeOnboardingFiles({
+      workspaceDir,
+      projectKey: 'aimetric',
+      memberId: 'alice',
+      repoName: 'AIMetric',
+      toolProfile: 'cursor',
+    });
+
+    await expect(buildEmployeeOnboardingStatus({ workspaceDir })).resolves.toEqual({
+      onboarded: true,
+      projectKey: 'aimetric',
+      memberId: 'alice',
+      repoName: 'AIMetric',
+      toolProfile: 'cursor',
+      configPath: join(workspaceDir, '.aimetric', 'config.json'),
+      mcpConfigPath: join(workspaceDir, '.aimetric', 'mcp.json'),
+      collectorEndpoint: 'http://127.0.0.1:3000/ingestion',
+      metricPlatformEndpoint: 'http://127.0.0.1:3001',
+    });
+  });
+
+  it('doctor returns pass checks for a healthy onboarding workspace', async () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), 'aimetric-onboarding-doctor-'));
+    temporaryWorkspaces.push(workspaceDir);
+    await writeEmployeeOnboardingFiles({
+      workspaceDir,
+      projectKey: 'aimetric',
+      memberId: 'alice',
+      repoName: 'AIMetric',
+      toolProfile: 'cursor',
+    });
+
+    const report = await runEmployeeOnboardingDoctor({ workspaceDir });
+
+    expect(report.status).toBe('healthy');
+    expect(report.checks).toContainEqual({
+      key: 'config',
+      status: 'pass',
+      message: 'AIMetric config exists and is valid',
+    });
+    expect(report.checks).toContainEqual({
+      key: 'mcp-config',
+      status: 'pass',
+      message: 'MCP config exists',
+    });
+    expect(report.nextActions).toContain('Run aimetric status before your first AI session');
+  });
+
+  it('doctor returns actionable repair suggestions when onboarding is missing', async () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), 'aimetric-onboarding-missing-'));
+    temporaryWorkspaces.push(workspaceDir);
+
+    const report = await runEmployeeOnboardingDoctor({ workspaceDir });
+
+    expect(report.status).toBe('unhealthy');
+    expect(report.checks).toContainEqual({
+      key: 'config',
+      status: 'fail',
+      message: 'Missing .aimetric/config.json',
+    });
+    expect(report.nextActions).toContain(
+      'Run aimetric onboard --projectKey=<project> --memberId=<member> --repoName=<repo>',
+    );
   });
 });

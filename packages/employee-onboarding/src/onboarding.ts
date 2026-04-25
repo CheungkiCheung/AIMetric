@@ -1,8 +1,14 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getProjectRulePack, getRuleTemplate } from '@aimetric/rule-engine';
 
-export type EmployeeToolProfile = 'cursor' | 'cli' | 'vscode';
+export type EmployeeToolProfile =
+  | 'cursor'
+  | 'cli'
+  | 'vscode'
+  | 'codex'
+  | 'claude-code'
+  | 'jetbrains';
 
 export interface EmployeeOnboardingInput {
   workspaceDir?: string;
@@ -48,6 +54,30 @@ export interface EmployeeOnboardingWriteResult {
   nextSteps: string[];
 }
 
+export interface EmployeeOnboardingStatus {
+  onboarded: boolean;
+  configPath: string;
+  mcpConfigPath: string;
+  projectKey?: string;
+  memberId?: string;
+  repoName?: string;
+  toolProfile?: EmployeeToolProfile;
+  collectorEndpoint?: string;
+  metricPlatformEndpoint?: string;
+}
+
+export interface EmployeeOnboardingDoctorCheck {
+  key: string;
+  status: 'pass' | 'warn' | 'fail';
+  message: string;
+}
+
+export interface EmployeeOnboardingDoctorReport {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  checks: EmployeeOnboardingDoctorCheck[];
+  nextActions: string[];
+}
+
 const defaultCollectorEndpoint = 'http://127.0.0.1:3000/ingestion';
 const defaultCollectorAuthTokenEnv = 'AIMETRIC_COLLECTOR_TOKEN';
 const defaultMetricPlatformEndpoint = 'http://127.0.0.1:3001';
@@ -86,6 +116,23 @@ const nextStepsByProfile: Record<EmployeeToolProfile, string[]> = {
     'Reload the VS Code window so the AIMetric MCP server is loaded',
     'Start collector-gateway before sending local events',
     'Run recordSession at the end of an AI coding session',
+  ],
+  codex: [
+    'Source .aimetric/codex.env before running Codex CLI in this workspace',
+    'Load .aimetric/mcp.json into your Codex MCP settings if supported',
+    'Run aimetric doctor to verify local AIMetric setup',
+    'Start collector-gateway before publishing local events',
+  ],
+  'claude-code': [
+    'Source .aimetric/claude-code.env before running Claude Code in this workspace',
+    'Load .aimetric/mcp.json into your Claude Code MCP settings',
+    'Run aimetric doctor to verify local AIMetric setup',
+    'Start collector-gateway before publishing local events',
+  ],
+  jetbrains: [
+    'Import .aimetric/mcp.json into your JetBrains AI or MCP-capable plugin settings',
+    'Run aimetric doctor to verify local AIMetric setup',
+    'Start collector-gateway before publishing local events',
   ],
 };
 
@@ -190,6 +237,104 @@ export async function writeEmployeeOnboardingFiles(
   };
 }
 
+export async function buildEmployeeOnboardingStatus(input: {
+  workspaceDir: string;
+}): Promise<EmployeeOnboardingStatus> {
+  const configPath = join(input.workspaceDir, '.aimetric', 'config.json');
+  const mcpConfigPath = join(input.workspaceDir, '.aimetric', 'mcp.json');
+
+  try {
+    const config = JSON.parse(
+      await readFile(configPath, 'utf8'),
+    ) as EmployeeOnboardingConfig;
+
+    return {
+      onboarded: true,
+      projectKey: config.projectKey,
+      memberId: config.memberId,
+      repoName: config.repoName,
+      toolProfile: config.toolProfile,
+      configPath,
+      mcpConfigPath,
+      collectorEndpoint: config.collector.endpoint,
+      metricPlatformEndpoint: config.metricPlatform.endpoint,
+    };
+  } catch {
+    return {
+      onboarded: false,
+      configPath,
+      mcpConfigPath,
+    };
+  }
+}
+
+export async function runEmployeeOnboardingDoctor(input: {
+  workspaceDir: string;
+}): Promise<EmployeeOnboardingDoctorReport> {
+  const configPath = join(input.workspaceDir, '.aimetric', 'config.json');
+  const mcpConfigPath = join(input.workspaceDir, '.aimetric', 'mcp.json');
+  const checks: EmployeeOnboardingDoctorCheck[] = [];
+  let config: EmployeeOnboardingConfig | undefined;
+
+  try {
+    config = JSON.parse(await readFile(configPath, 'utf8')) as EmployeeOnboardingConfig;
+    checks.push({
+      key: 'config',
+      status: 'pass',
+      message: 'AIMetric config exists and is valid',
+    });
+  } catch {
+    checks.push({
+      key: 'config',
+      status: 'fail',
+      message: 'Missing .aimetric/config.json',
+    });
+  }
+
+  checks.push(
+    (await fileExists(mcpConfigPath))
+      ? {
+          key: 'mcp-config',
+          status: 'pass',
+          message: 'MCP config exists',
+        }
+      : {
+          key: 'mcp-config',
+          status: 'fail',
+          message: 'Missing .aimetric/mcp.json',
+        },
+  );
+
+  if (config) {
+    checks.push({
+      key: 'collector-token',
+      status: 'pass',
+      message: `Ensure ${config.collector.authTokenEnv} is exported before publishing events`,
+    });
+  }
+
+  const status = checks.some((check) => check.status === 'fail')
+    ? 'unhealthy'
+    : checks.some((check) => check.status === 'warn')
+      ? 'degraded'
+      : 'healthy';
+  const nextActions =
+    status === 'unhealthy'
+      ? [
+          'Run aimetric onboard --projectKey=<project> --memberId=<member> --repoName=<repo>',
+        ]
+      : [
+          'Run aimetric status before your first AI session',
+          'Start collector-gateway before publishing events',
+        ];
+
+  return {
+    status,
+    checks,
+    nextActions,
+  };
+}
+
 const writeToolProfileArtifacts = async (input: {
   workspaceDir: string;
   toolProfile: EmployeeToolProfile;
@@ -270,12 +415,34 @@ const writeToolProfileArtifacts = async (input: {
     return [vscodeConfigPath];
   }
 
+  if (input.toolProfile === 'codex' || input.toolProfile === 'claude-code') {
+    const envPath = join(
+      input.workspaceDir,
+      '.aimetric',
+      `${input.toolProfile}.env`,
+    );
+
+    await writeFile(envPath, `${buildEnvContent(input.mcpEnvironment)}\n`, 'utf8');
+
+    return [envPath];
+  }
+
   const cliEnvPath = join(input.workspaceDir, '.aimetric', 'cli.env');
-  const cliEnvContent = Object.entries(input.mcpEnvironment)
+  await writeFile(cliEnvPath, `${buildEnvContent(input.mcpEnvironment)}\n`, 'utf8');
+
+  return [cliEnvPath];
+};
+
+const buildEnvContent = (environment: Record<string, string>): string =>
+  Object.entries(environment)
     .map(([key, value]) => `export ${key}="${value}"`)
     .join('\n');
 
-  await writeFile(cliEnvPath, `${cliEnvContent}\n`, 'utf8');
-
-  return [cliEnvPath];
+const fileExists = async (path: string): Promise<boolean> => {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
 };
