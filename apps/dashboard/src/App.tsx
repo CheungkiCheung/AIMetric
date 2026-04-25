@@ -27,6 +27,7 @@ import { PersonalDashboard } from './pages/personal-dashboard.js';
 import { RuleCenterDashboard } from './pages/rule-center-dashboard.js';
 import { SessionAnalysisTable } from './pages/session-analysis-table.js';
 import { TeamDashboard } from './pages/team-dashboard.js';
+import { ViewerScopeDashboard } from './pages/viewer-scope-dashboard.js';
 
 const shellStyle = {
   minHeight: '100vh',
@@ -276,6 +277,19 @@ export const App = ({
     }
   };
 
+  const saveViewerScope = async (input: {
+    viewerId: string;
+    teamKeys: string[];
+    projectKeys: string[];
+  }) => {
+    const savedAssignment = await client.updateViewerScopeAssignment(input);
+    const directory = await client.getGovernanceDirectory();
+
+    setGovernanceDirectory(directory);
+
+    return savedAssignment;
+  };
+
   const filterControls = (
     <section style={filterPanelStyle} aria-label="指标筛选">
       <div style={{ marginBottom: '16px' }}>
@@ -387,6 +401,11 @@ export const App = ({
           metricValues={enterpriseMetricValues}
         />
         <GovernanceDirectoryDashboard directory={governanceDirectory} />
+        <ViewerScopeDashboard
+          directory={governanceDirectory}
+          loadAssignment={(viewerId) => client.getViewerScopeAssignment(viewerId)}
+          saveAssignment={(input) => saveViewerScope(input)}
+        />
         <AnalysisSummarySection summary={analysisSummary} />
         <CollectorHealthDashboard health={collectorHealth} />
         <SessionAnalysisTable rows={sessionAnalysisRows} />

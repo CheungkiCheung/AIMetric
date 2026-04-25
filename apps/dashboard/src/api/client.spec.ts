@@ -199,6 +199,18 @@ describe('createDashboardClient', () => {
         );
       }
 
+      if (url.includes('/governance/viewer-scopes')) {
+        return new Response(
+          JSON.stringify({
+            viewerId: 'manager-1',
+            teamKeys: ['platform-engineering'],
+            projectKeys: ['aimetric'],
+            updatedAt: '2026-04-25T00:00:00.000Z',
+          }),
+          { status: 200 },
+        );
+      }
+
       return new Response(
         JSON.stringify({
           memberCount: 3,
@@ -277,6 +289,11 @@ describe('createDashboardClient', () => {
         key: 'aimetric-enterprise',
       },
       teams: [expect.objectContaining({ key: 'platform-engineering' })],
+    });
+    await expect(client.getViewerScopeAssignment('manager-1')).resolves.toMatchObject({
+      viewerId: 'manager-1',
+      teamKeys: ['platform-engineering'],
+      projectKeys: ['aimetric'],
     });
     await expect(
       client.updateRuleRollout({
@@ -475,6 +492,49 @@ describe('createDashboardClient', () => {
         candidateVersion: 'v1',
         percentage: 40,
         includedMembers: ['alice', 'bob'],
+      }),
+    });
+  });
+
+  it('posts viewer scope assignment updates to the metric platform', async () => {
+    const requests: Array<{
+      url: string;
+      method: string;
+      body: string;
+    }> = [];
+
+    globalThis.fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      requests.push({
+        url: String(input),
+        method: init?.method ?? 'GET',
+        body: typeof init?.body === 'string' ? init.body : '',
+      });
+      return new Response(
+        JSON.stringify({
+          viewerId: 'manager-1',
+          teamKeys: ['platform-engineering'],
+          projectKeys: ['aimetric'],
+          updatedAt: '2026-04-25T00:00:00.000Z',
+        }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+
+    const client = createDashboardClient('http://127.0.0.1:3001');
+
+    await client.updateViewerScopeAssignment({
+      viewerId: 'manager-1',
+      teamKeys: ['platform-engineering'],
+      projectKeys: ['aimetric'],
+    });
+
+    expect(requests[0]).toEqual({
+      url: 'http://127.0.0.1:3001/governance/viewer-scopes',
+      method: 'POST',
+      body: JSON.stringify({
+        viewerId: 'manager-1',
+        teamKeys: ['platform-engineering'],
+        projectKeys: ['aimetric'],
       }),
     });
   });

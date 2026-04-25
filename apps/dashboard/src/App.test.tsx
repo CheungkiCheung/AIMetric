@@ -226,6 +226,16 @@ const createClient = (
       },
     ],
   }),
+  getViewerScopeAssignment: async () => ({
+    viewerId: 'manager-1',
+    teamKeys: ['platform-engineering'],
+    projectKeys: ['aimetric'],
+    updatedAt: '2026-04-25T00:00:00.000Z',
+  }),
+  updateViewerScopeAssignment: async (input) => ({
+    ...input,
+    updatedAt: '2026-04-25T00:00:00.000Z',
+  }),
   updateRuleRollout: async (input: RuleRollout) => input,
   ...overrides,
 });
@@ -279,6 +289,7 @@ describe('App', () => {
     expect(await screen.findByText('个人出码视图')).toBeInTheDocument();
     expect(screen.getByText('团队出码视图')).toBeInTheDocument();
     expect(screen.getByText('组织治理概览')).toBeInTheDocument();
+    expect(screen.getByText('权限治理配置')).toBeInTheDocument();
     expect(screen.getByText('平台工程团队')).toBeInTheDocument();
     expect(screen.getByText('MCP 采集质量')).toBeInTheDocument();
     expect(screen.getByText('采集健康运营')).toBeInTheDocument();
@@ -375,6 +386,9 @@ describe('App', () => {
     const getGovernanceDirectory = vi.fn(
       createClient().getGovernanceDirectory,
     );
+    const getViewerScopeAssignment = vi.fn(
+      createClient().getViewerScopeAssignment,
+    );
 
     render(
       <App
@@ -392,6 +406,7 @@ describe('App', () => {
           getEnterpriseMetricValues,
           getCollectorIngestionHealth,
           getGovernanceDirectory,
+          getViewerScopeAssignment,
         })}
       />,
     );
@@ -429,6 +444,7 @@ describe('App', () => {
       );
       expect(getCollectorIngestionHealth).toHaveBeenCalledTimes(2);
       expect(getGovernanceDirectory).toHaveBeenCalledTimes(2);
+      expect(getViewerScopeAssignment).toHaveBeenCalledTimes(0);
     });
   });
 
@@ -500,6 +516,9 @@ describe('App', () => {
     const getGovernanceDirectory = vi.fn(
       createClient().getGovernanceDirectory,
     );
+    const getViewerScopeAssignment = vi.fn(
+      createClient().getViewerScopeAssignment,
+    );
 
     try {
       render(
@@ -519,6 +538,7 @@ describe('App', () => {
             getEnterpriseMetricValues,
             getCollectorIngestionHealth,
             getGovernanceDirectory,
+            getViewerScopeAssignment,
           })}
         />,
       );
@@ -546,6 +566,7 @@ describe('App', () => {
       expect(getEnterpriseMetricValues).toHaveBeenCalledTimes(2);
       expect(getCollectorIngestionHealth).toHaveBeenCalledTimes(2);
       expect(getGovernanceDirectory).toHaveBeenCalledTimes(2);
+      expect(getViewerScopeAssignment).toHaveBeenCalledTimes(0);
     } finally {
       vi.useRealTimers();
     }
