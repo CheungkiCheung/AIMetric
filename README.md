@@ -23,6 +23,8 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
   看 [docs/operations/production-runbook.md](/Users/zhangqixiang/0_1WORK/zhongxing/AIMetric/docs/operations/production-runbook.md)
 - 试点推进 / 管理者落地：
   看 [docs/operations/pilot-rollout-guide.md](/Users/zhangqixiang/0_1WORK/zhongxing/AIMetric/docs/operations/pilot-rollout-guide.md)
+- 管理者演示路径：
+  看 [docs/operations/dashboard-walkthrough.md](/Users/zhangqixiang/0_1WORK/zhongxing/AIMetric/docs/operations/dashboard-walkthrough.md)
 - 全量中文计划：
   看 [docs/superpowers/plans/2026-04-23-aimetric-中文执行计划.md](/Users/zhangqixiang/0_1WORK/zhongxing/AIMetric/docs/superpowers/plans/2026-04-23-aimetric-%E4%B8%AD%E6%96%87%E6%89%A7%E8%A1%8C%E8%AE%A1%E5%88%92.md)
 
@@ -202,7 +204,7 @@ corepack pnpm dev:dashboard
 
 1. 用 `aimetric onboard` 生成员工侧配置
 2. 用 `aimetric doctor` 检查接入状态
-3. 导入一批需求 / PR / CI / 发布 / 缺陷示例数据
+3. 用 `corepack pnpm demo:seed` 导入一批需求 / PR / CI / 发布 / 缺陷示例数据
 4. 打开 Dashboard 查看个人、团队、需求、PR、CI、发布、事故、缺陷与归因视图
 
 ## 本地启动
@@ -289,6 +291,14 @@ node packages/employee-onboarding/dist/cli.js status --workspaceDir=/path/to/rep
    让员工、技术管理者、提效管理者分别确认他们最关心的面板和口径
 3. 再扩大范围：
    扩到多团队后，再考虑 `SSO / K8s / 告警 / 数据保留 / Agent-RAG`
+
+如果需要一套固定演示路径：
+
+```bash
+corepack pnpm demo:seed
+```
+
+然后按 [docs/operations/dashboard-walkthrough.md](/Users/zhangqixiang/0_1WORK/zhongxing/AIMetric/docs/operations/dashboard-walkthrough.md) 里的顺序进行演示。
 
 ## API 示例
 

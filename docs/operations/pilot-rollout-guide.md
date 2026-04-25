@@ -102,7 +102,17 @@
 4. 第 4 周：
    决定是否扩大范围，或进入 Agent / RAG 智能分析阶段
 
-## 7. 当前阶段不建议做太重的事
+## 7. 演示与联调建议
+
+建议给试点团队一套固定联调动作：
+
+```bash
+corepack pnpm demo:seed
+```
+
+完成后，让管理者按 [dashboard-walkthrough.md](/Users/zhangqixiang/0_1WORK/zhongxing/AIMetric/docs/operations/dashboard-walkthrough.md) 的顺序查看面板，避免第一次演示时在看板里无序跳转。
+
+## 8. 当前阶段不建议做太重的事
 
 这一版先不要重投入：
 
