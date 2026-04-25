@@ -844,13 +844,14 @@ Agent 能力：
 - retry / DLQ：第一版已完成进程内队列重试和 DLQ 计数。
 - queue lag 指标：第一版已完成 queue depth / DLQ depth。
 - 采集失败率、重复率、延迟指标：第一版已完成失败投递计数，延迟和重复率待增强。
-- 管理端采集健康 API：第一版已完成 `GET /ingestion/health`。
+- 管理端采集健康 API：第一版已完成 `GET /ingestion/health`，Dashboard 已新增“采集健康运营”视图。
 
 验收标准：
 
 - collector-gateway 短暂不可用时员工端可以本地缓冲：第一版已完成，collector-sdk 支持 `.aimetric/outbox`，CLI adapter 和 Cursor adapter 已接入。
 - 员工端可恢复投递：第一版已完成，`aimetric status` 展示 `outboxDepth`，`aimetric doctor` 对待 flush 批次降级提醒，`aimetric flush` 可手动发送本地 outbox。
 - ingestion worker 可以恢复消费：第一版已满足，队列模式下 flush 后可恢复投递。
+- 管理者能看到采集链路状态：第一版已满足，可查看投递模式、queue depth、DLQ depth、forwarded total 和 failed forward total。
 - 重复事件不会重复计入指标：已有 ingestion key 幂等基础，E5 后续需要把队列重放场景纳入专项测试。
 
 ### Phase E6：组织权限与治理模型

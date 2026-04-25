@@ -150,6 +150,20 @@ describe('createDashboardClient', () => {
         );
       }
 
+      if (url.endsWith('/ingestion/health')) {
+        return new Response(
+          JSON.stringify({
+            deliveryMode: 'queue',
+            queueDepth: 3,
+            deadLetterDepth: 1,
+            enqueuedTotal: 10,
+            forwardedTotal: 7,
+            failedForwardTotal: 2,
+          }),
+          { status: 200 },
+        );
+      }
+
       return new Response(
         JSON.stringify({
           memberCount: 3,
@@ -216,6 +230,12 @@ describe('createDashboardClient', () => {
         }),
       }),
     ]);
+    await expect(client.getCollectorIngestionHealth()).resolves.toMatchObject({
+      deliveryMode: 'queue',
+      queueDepth: 3,
+      deadLetterDepth: 1,
+      failedForwardTotal: 2,
+    });
     await expect(
       client.updateRuleRollout({
         projectKey: 'aimetric',
@@ -286,6 +306,52 @@ describe('createDashboardClient', () => {
     expect(requestedUrls[6]).toBe(
       'http://127.0.0.1:3001/enterprise-metrics/values?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z&metricKey=ai_session_count',
     );
+  });
+
+  it('can use a separate collector-gateway base url for ingestion health', async () => {
+    const requestedUrls: string[] = [];
+    globalThis.fetch = vi.fn(async (input: string | URL | Request) => {
+      requestedUrls.push(String(input));
+      return new Response(
+        JSON.stringify({
+          deliveryMode: 'sync',
+          queueDepth: 0,
+          deadLetterDepth: 0,
+          enqueuedTotal: 0,
+          forwardedTotal: 4,
+          failedForwardTotal: 0,
+        }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+
+    const client = createDashboardClient(
+      'http://127.0.0.1:3001',
+      'http://127.0.0.1:3000',
+    );
+
+    await expect(client.getCollectorIngestionHealth()).resolves.toMatchObject({
+      deliveryMode: 'sync',
+      forwardedTotal: 4,
+    });
+    expect(requestedUrls).toEqual([
+      'http://127.0.0.1:3000/ingestion/health',
+    ]);
+  });
+
+  it('falls back to a safe collector health snapshot when gateway is unavailable', async () => {
+    globalThis.fetch = vi.fn(async () => new Response('', { status: 503 })) as typeof fetch;
+
+    const client = createDashboardClient('http://127.0.0.1:3001');
+
+    await expect(client.getCollectorIngestionHealth()).resolves.toEqual({
+      deliveryMode: 'sync',
+      queueDepth: 0,
+      deadLetterDepth: 0,
+      enqueuedTotal: 0,
+      forwardedTotal: 0,
+      failedForwardTotal: 0,
+    });
   });
 
   it('falls back to the bundled enterprise metric catalog when backend is unavailable', async () => {

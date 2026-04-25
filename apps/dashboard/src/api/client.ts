@@ -115,6 +115,15 @@ export interface OutputAnalysisRow {
   latestDiffSummary?: string;
 }
 
+export interface CollectorIngestionHealth {
+  deliveryMode: 'sync' | 'queue';
+  queueDepth: number;
+  deadLetterDepth: number;
+  enqueuedTotal: number;
+  forwardedTotal: number;
+  failedForwardTotal: number;
+}
+
 export interface DashboardClient {
   getPersonalSnapshot(filters?: DashboardFilters): Promise<PersonalSnapshot>;
   getTeamSnapshot(filters?: DashboardFilters): Promise<TeamSnapshot>;
@@ -135,6 +144,7 @@ export interface DashboardClient {
     filters?: DashboardFilters,
     metricKeys?: string[],
   ): Promise<MetricCalculationResult[]>;
+  getCollectorIngestionHealth(): Promise<CollectorIngestionHealth>;
   updateRuleRollout(input: RuleRollout): Promise<RuleRollout>;
 }
 
@@ -206,6 +216,15 @@ const fallbackRuleRolloutEvaluation: RuleRolloutEvaluation = {
 };
 
 const fallbackEnterpriseMetricCatalog = getEnterpriseMetricCatalog();
+
+const fallbackCollectorIngestionHealth: CollectorIngestionHealth = {
+  deliveryMode: 'sync',
+  queueDepth: 0,
+  deadLetterDepth: 0,
+  enqueuedTotal: 0,
+  forwardedTotal: 0,
+  failedForwardTotal: 0,
+};
 
 const fetchJson = async <T>(url: string, fallback: T): Promise<T> => {
   if (typeof fetch !== 'function') {
@@ -303,6 +322,7 @@ const buildRuleUrl = (
 
 export const createDashboardClient = (
   baseUrl = 'http://localhost:3001',
+  collectorGatewayBaseUrl = 'http://localhost:3000',
 ): DashboardClient => ({
   getPersonalSnapshot: (filters) =>
     fetchJson<PersonalSnapshot>(
@@ -363,6 +383,11 @@ export const createDashboardClient = (
         metricKeys,
       ),
       [],
+    ),
+  getCollectorIngestionHealth: () =>
+    fetchJson<CollectorIngestionHealth>(
+      new URL('/ingestion/health', collectorGatewayBaseUrl).toString(),
+      fallbackCollectorIngestionHealth,
     ),
   updateRuleRollout: (input) =>
     sendJson<RuleRollout>(

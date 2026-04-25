@@ -189,6 +189,14 @@ const createClient = (
       },
     },
   ],
+  getCollectorIngestionHealth: async () => ({
+    deliveryMode: 'queue',
+    queueDepth: 3,
+    deadLetterDepth: 1,
+    enqueuedTotal: 10,
+    forwardedTotal: 7,
+    failedForwardTotal: 2,
+  }),
   updateRuleRollout: async (input: RuleRollout) => input,
   ...overrides,
 });
@@ -242,6 +250,10 @@ describe('App', () => {
     expect(await screen.findByText('个人出码视图')).toBeInTheDocument();
     expect(screen.getByText('团队出码视图')).toBeInTheDocument();
     expect(screen.getByText('MCP 采集质量')).toBeInTheDocument();
+    expect(screen.getByText('采集健康运营')).toBeInTheDocument();
+    expect(screen.getByText('队列模式')).toBeInTheDocument();
+    expect(screen.getByText('待投递批次')).toBeInTheDocument();
+    expect(screen.getByText('DLQ 批次')).toBeInTheDocument();
     expect(screen.getByText('规则中心管理')).toBeInTheDocument();
     expect(screen.getByText('企业指标语义层')).toBeInTheDocument();
     expect(screen.getByText('统一指标计算管线')).toBeInTheDocument();
@@ -325,6 +337,9 @@ describe('App', () => {
     const getEnterpriseMetricValues = vi.fn(
       createClient().getEnterpriseMetricValues,
     );
+    const getCollectorIngestionHealth = vi.fn(
+      createClient().getCollectorIngestionHealth,
+    );
 
     render(
       <App
@@ -340,6 +355,7 @@ describe('App', () => {
           getOutputAnalysisRows,
           getEnterpriseMetricCatalog,
           getEnterpriseMetricValues,
+          getCollectorIngestionHealth,
         })}
       />,
     );
@@ -375,6 +391,7 @@ describe('App', () => {
       expect(getEnterpriseMetricValues).toHaveBeenLastCalledWith(
         expect.objectContaining({ projectKey: 'navigation' }),
       );
+      expect(getCollectorIngestionHealth).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -440,6 +457,9 @@ describe('App', () => {
     const getEnterpriseMetricValues = vi.fn(
       createClient().getEnterpriseMetricValues,
     );
+    const getCollectorIngestionHealth = vi.fn(
+      createClient().getCollectorIngestionHealth,
+    );
 
     try {
       render(
@@ -457,6 +477,7 @@ describe('App', () => {
             getOutputAnalysisRows,
             getEnterpriseMetricCatalog,
             getEnterpriseMetricValues,
+            getCollectorIngestionHealth,
           })}
         />,
       );
@@ -482,6 +503,7 @@ describe('App', () => {
       expect(getOutputAnalysisRows).toHaveBeenCalledTimes(2);
       expect(getEnterpriseMetricCatalog).toHaveBeenCalledTimes(1);
       expect(getEnterpriseMetricValues).toHaveBeenCalledTimes(2);
+      expect(getCollectorIngestionHealth).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }
