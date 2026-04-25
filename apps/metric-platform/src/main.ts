@@ -10,7 +10,10 @@ import type {
   MetricEventRepository,
   MetricSnapshotFilters,
 } from './database/postgres-event.repository.js';
-import type { GovernanceViewerScope } from './governance/governance-directory.service.js';
+import type {
+  GovernanceViewerScope,
+  GovernanceViewerScopeAssignment,
+} from './governance/governance-directory.service.js';
 import {
   createSnapshotRecalculationScheduler,
   type SnapshotRecalculationScheduler,
@@ -225,6 +228,35 @@ const getCollectorIdentityInputFromBody = (
   };
 };
 
+const getViewerScopeAssignmentInputFromBody = (
+  body: unknown,
+): GovernanceViewerScopeAssignment | undefined => {
+  if (!body || typeof body !== 'object') {
+    return undefined;
+  }
+
+  const payload = body as Record<string, unknown>;
+  const viewerId = payload.viewerId;
+  const teamKeys = payload.teamKeys;
+  const projectKeys = payload.projectKeys;
+
+  if (
+    typeof viewerId !== 'string' ||
+    !Array.isArray(teamKeys) ||
+    !Array.isArray(projectKeys) ||
+    teamKeys.some((value) => typeof value !== 'string') ||
+    projectKeys.some((value) => typeof value !== 'string')
+  ) {
+    return undefined;
+  }
+
+  return {
+    viewerId,
+    teamKeys: [...new Set(teamKeys)],
+    projectKeys: [...new Set(projectKeys)],
+  };
+};
+
 const applyViewerScopeToFilters = <T extends MetricSnapshotFilters>(
   filters: T,
   viewerScope?: GovernanceViewerScope,
@@ -399,6 +431,23 @@ const handleRequest = async (
       200,
       await appModule.getScopedOrganizationDirectory(viewerId),
     );
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/governance/viewer-scopes') {
+    if (!isAuthorizedAdminRequest(request, runtime.adminToken)) {
+      writeJson(response, 401, { message: 'Unauthorized admin request' });
+      return;
+    }
+
+    const viewerId = url.searchParams.get('viewerId');
+
+    if (!viewerId) {
+      writeJson(response, 400, { message: 'viewerId is required' });
+      return;
+    }
+
+    writeJson(response, 200, await appModule.getViewerScopeAssignment(viewerId));
     return;
   }
 
@@ -810,6 +859,27 @@ const handleRequest = async (
           error instanceof Error ? error.message : 'Failed to register collector identity',
       });
     }
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/governance/viewer-scopes') {
+    if (!isAuthorizedAdminRequest(request, runtime.adminToken)) {
+      writeJson(response, 401, { message: 'Unauthorized admin request' });
+      return;
+    }
+
+    const body = await readJsonBody(request);
+    const assignmentInput = getViewerScopeAssignmentInputFromBody(body);
+
+    if (!assignmentInput) {
+      writeJson(response, 400, {
+        message: 'viewerId, teamKeys, and projectKeys are required',
+      });
+      return;
+    }
+
+    writeJson(response, 200, await appModule.replaceViewerScopeAssignment(assignmentInput));
+    recordAdminAudit(runtime, request, 'governance.viewer-scopes.update');
     return;
   }
 

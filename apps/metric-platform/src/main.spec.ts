@@ -498,6 +498,81 @@ describe('bootstrap', () => {
     });
   });
 
+  it('updates and reads viewer scope assignments over admin HTTP APIs', async () => {
+    const metricEventRepository: MetricEventRepository = {
+      ...createEmptyRepository(),
+      async replaceViewerScopeAssignment(input) {
+        return {
+          ...input,
+          updatedAt: '2026-04-25T00:00:00.000Z',
+        };
+      },
+      async getViewerScopeAssignment(viewerId) {
+        if (viewerId !== 'manager-1') {
+          return undefined;
+        }
+
+        return {
+          viewerId,
+          teamKeys: ['team-a'],
+          projectKeys: ['project-b'],
+          updatedAt: '2026-04-25T00:00:00.000Z',
+        };
+      },
+    };
+    const app = await bootstrap({
+      port: 0,
+      adminToken: 'admin-secret',
+      metricEventRepository,
+    });
+    servers.push(app);
+
+    const updateResponse = await fetch(`${app.baseUrl}/governance/viewer-scopes`, {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer admin-secret',
+        'content-type': 'application/json',
+        'x-aimetric-actor': 'platform-admin',
+      },
+      body: JSON.stringify({
+        viewerId: 'manager-1',
+        teamKeys: ['team-a'],
+        projectKeys: ['project-b'],
+      }),
+    });
+    const readResponse = await fetch(
+      `${app.baseUrl}/governance/viewer-scopes?viewerId=manager-1`,
+      {
+        headers: {
+          authorization: 'Bearer admin-secret',
+        },
+      },
+    );
+    const auditResponse = await fetch(`${app.baseUrl}/admin/audit`, {
+      headers: {
+        authorization: 'Bearer admin-secret',
+      },
+    });
+
+    expect(updateResponse.status).toBe(200);
+    await expect(updateResponse.json()).resolves.toMatchObject({
+      viewerId: 'manager-1',
+      teamKeys: ['team-a'],
+      projectKeys: ['project-b'],
+    });
+    expect(readResponse.status).toBe(200);
+    await expect(readResponse.json()).resolves.toMatchObject({
+      viewerId: 'manager-1',
+      projectKeys: ['project-b'],
+    });
+    await expect(auditResponse.json()).resolves.toEqual([
+      expect.objectContaining({
+        action: 'governance.viewer-scopes.update',
+        actor: 'platform-admin',
+      }),
+    ]);
+  });
+
   it('serves enterprise metrics filtered by dimension over HTTP', async () => {
     const app = await bootstrap({
       port: 0,

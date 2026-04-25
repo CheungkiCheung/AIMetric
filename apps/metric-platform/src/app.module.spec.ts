@@ -243,6 +243,41 @@ describe('AppModule', () => {
     expect(resolved?.memberId).toBe('alice');
   });
 
+  it('replaces and reads viewer scope assignments through the repository abstraction', async () => {
+    const repository = {
+      ...createEmptyRepository(),
+      replaceViewerScopeAssignment: vi.fn(async () => ({
+        viewerId: 'manager-1',
+        teamKeys: ['team-a'],
+        projectKeys: ['project-b'],
+        updatedAt: '2026-04-25T00:00:00.000Z',
+      })),
+      getViewerScopeAssignment: vi.fn(async () => ({
+        viewerId: 'manager-1',
+        teamKeys: ['team-a'],
+        projectKeys: ['project-b'],
+        updatedAt: '2026-04-25T00:00:00.000Z',
+      })),
+    };
+    const appModule = new AppModule(repository);
+
+    const updated = await appModule.replaceViewerScopeAssignment({
+      viewerId: 'manager-1',
+      teamKeys: ['team-a'],
+      projectKeys: ['project-b'],
+    });
+    const current = await appModule.getViewerScopeAssignment('manager-1');
+
+    expect(repository.replaceViewerScopeAssignment).toHaveBeenCalledWith({
+      viewerId: 'manager-1',
+      teamKeys: ['team-a'],
+      projectKeys: ['project-b'],
+    });
+    expect(repository.getViewerScopeAssignment).toHaveBeenCalledWith('manager-1');
+    expect(updated.projectKeys).toEqual(['project-b']);
+    expect(current?.teamKeys).toEqual(['team-a']);
+  });
+
   it('filters enterprise metrics by dimension', () => {
     const appModule = new AppModule(createEmptyRepository());
     const metrics = appModule.listEnterpriseMetricsByDimension('quality-risk');

@@ -15,11 +15,13 @@ import {
   type MetricSnapshotRecord,
   type MetricSnapshotFilters,
   type RecordedMetricEvent,
+  type ViewerScopeAssignmentRecord,
 } from './database/postgres-event.repository.js';
 import { GovernanceDirectoryService } from './governance/governance-directory.service.js';
 import {
   buildGovernanceViewerScope,
   filterGovernanceDirectoryByViewerScope,
+  type GovernanceViewerScopeAssignment,
   type GovernanceViewerScope,
 } from './governance/governance-directory.service.js';
 import { KnowledgeSearchService } from './knowledge/knowledge-search.service.js';
@@ -225,6 +227,24 @@ export class AppModule {
     }
 
     return this.metricEventRepository.getCollectorIdentity(identityKey);
+  }
+
+  async replaceViewerScopeAssignment(input: GovernanceViewerScopeAssignment) {
+    if (!this.metricEventRepository.replaceViewerScopeAssignment) {
+      throw new Error('Viewer scope assignment is not configured');
+    }
+
+    return this.metricEventRepository.replaceViewerScopeAssignment(input);
+  }
+
+  async getViewerScopeAssignment(
+    viewerId: string,
+  ): Promise<ViewerScopeAssignmentRecord | undefined> {
+    if (!this.metricEventRepository.getViewerScopeAssignment) {
+      return undefined;
+    }
+
+    return this.metricEventRepository.getViewerScopeAssignment(viewerId);
   }
 
   listEnterpriseMetricsByDimension(dimension: EnterpriseMetricDimensionKey) {

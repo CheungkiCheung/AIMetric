@@ -37,6 +37,12 @@ export interface GovernanceViewerScope {
   memberIds: string[];
 }
 
+export interface GovernanceViewerScopeAssignment {
+  viewerId: string;
+  teamKeys: string[];
+  projectKeys: string[];
+}
+
 export interface GovernanceDirectory {
   organization: GovernanceOrganization;
   teams: GovernanceTeam[];
@@ -71,20 +77,45 @@ export const buildGovernanceViewerScope = (
     return undefined;
   }
 
-  const teamKeys =
-    viewer.role === 'platform-admin'
-      ? directory.teams.map((team) => team.key)
-      : [viewer.teamKey];
-  const allowedTeamKeys = new Set(teamKeys);
-
-  return {
+  return buildGovernanceViewerScopeFromAccess(directory, {
     viewerId,
     role: viewer.role,
+    teamKeys:
+      viewer.role === 'platform-admin'
+        ? directory.teams.map((team) => team.key)
+        : [viewer.teamKey],
+    projectKeys: [],
+  });
+};
+
+export const buildGovernanceViewerScopeFromAccess = (
+  directory: GovernanceDirectory,
+  input: {
+    viewerId: string;
+    role: GovernanceRole;
+    teamKeys: string[];
+    projectKeys: string[];
+  },
+): GovernanceViewerScope => {
+  const allowedTeamKeys = new Set(input.teamKeys);
+  const teamKeysFromProjects = directory.projects
+    .filter((project) => input.projectKeys.includes(project.key))
+    .map((project) => project.teamKey);
+  teamKeysFromProjects.forEach((teamKey) => allowedTeamKeys.add(teamKey));
+
+  const resolvedProjectKeys = new Set(input.projectKeys);
+  directory.projects
+    .filter((project) => allowedTeamKeys.has(project.teamKey))
+    .forEach((project) => {
+      resolvedProjectKeys.add(project.key);
+    });
+
+  return {
+    viewerId: input.viewerId,
+    role: input.role,
     organizationKey: directory.organization.key,
-    teamKeys,
-    projectKeys: directory.projects
-      .filter((project) => allowedTeamKeys.has(project.teamKey))
-      .map((project) => project.key),
+    teamKeys: Array.from(allowedTeamKeys),
+    projectKeys: Array.from(resolvedProjectKeys),
     memberIds: directory.members
       .filter((member) => allowedTeamKeys.has(member.teamKey))
       .map((member) => member.memberId),

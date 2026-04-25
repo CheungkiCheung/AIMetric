@@ -122,3 +122,25 @@ CREATE TABLE IF NOT EXISTS governance_collector_identities (
   registered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS governance_viewer_scope_assignments (
+  id BIGSERIAL PRIMARY KEY,
+  viewer_id TEXT NOT NULL UNIQUE REFERENCES governance_members (member_id),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS governance_viewer_scope_team_grants (
+  id BIGSERIAL PRIMARY KEY,
+  viewer_id TEXT NOT NULL REFERENCES governance_viewer_scope_assignments (viewer_id),
+  team_key TEXT NOT NULL REFERENCES governance_teams (team_key),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (viewer_id, team_key)
+);
+
+CREATE TABLE IF NOT EXISTS governance_viewer_scope_project_grants (
+  id BIGSERIAL PRIMARY KEY,
+  viewer_id TEXT NOT NULL REFERENCES governance_viewer_scope_assignments (viewer_id),
+  project_key TEXT NOT NULL REFERENCES governance_projects (project_key),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (viewer_id, project_key)
+);

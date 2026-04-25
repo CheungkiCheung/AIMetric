@@ -565,6 +565,144 @@ describe('PostgresMetricEventRepository query mapping', () => {
     ).toBe(true);
   });
 
+  it('prefers explicit viewer scope assignments over default team scope', async () => {
+    const queries: Array<{ text: string; values?: unknown[] }> = [];
+    const repository = new PostgresMetricEventRepository({
+      async query<T extends QueryResultRow = QueryResultRow>(
+        text: string,
+        values?: unknown[],
+      ) {
+        queries.push({ text, values });
+
+        if (text.includes('CREATE TABLE') || text.includes('CREATE UNIQUE INDEX')) {
+          return {
+            command: '',
+            rowCount: 0,
+            oid: 0,
+            fields: [],
+            rows: [] as T[],
+          };
+        }
+
+        if (text.includes('SELECT COUNT(*) AS organization_count')) {
+          return {
+            command: '',
+            rowCount: 1,
+            oid: 0,
+            fields: [],
+            rows: ([{ organization_count: '1' }] as unknown) as T[],
+          };
+        }
+
+        if (text.includes('FROM governance_organizations')) {
+          return {
+            command: '',
+            rowCount: 1,
+            oid: 0,
+            fields: [],
+            rows: ([{ organization_key: 'enterprise-a', name: 'Enterprise A' }] as unknown) as T[],
+          };
+        }
+
+        if (text.includes('FROM governance_teams')) {
+          return {
+            command: '',
+            rowCount: 2,
+            oid: 0,
+            fields: [],
+            rows: ([
+              { team_key: 'team-a', organization_key: 'enterprise-a', name: 'Team A' },
+              { team_key: 'team-b', organization_key: 'enterprise-a', name: 'Team B' },
+            ] as unknown) as T[],
+          };
+        }
+
+        if (text.includes('FROM governance_projects projects')) {
+          return {
+            command: '',
+            rowCount: 2,
+            oid: 0,
+            fields: [],
+            rows: ([
+              { project_key: 'project-a', team_key: 'team-a', name: 'Project A' },
+              { project_key: 'project-b', team_key: 'team-b', name: 'Project B' },
+            ] as unknown) as T[],
+          };
+        }
+
+        if (text.includes('memberships.is_primary = TRUE')) {
+          return {
+            command: '',
+            rowCount: 2,
+            oid: 0,
+            fields: [],
+            rows: ([
+              {
+                member_id: 'manager-1',
+                display_name: 'Manager 1',
+                team_key: 'team-a',
+                role: 'engineering-manager',
+              },
+              {
+                member_id: 'developer-2',
+                display_name: 'Developer 2',
+                team_key: 'team-b',
+                role: 'developer',
+              },
+            ] as unknown) as T[],
+          };
+        }
+
+        if (text.includes('FROM governance_viewer_scope_assignments')) {
+          return {
+            command: '',
+            rowCount: 1,
+            oid: 0,
+            fields: [],
+            rows: ([
+              {
+                viewer_id: 'manager-1',
+                updated_at: new Date('2026-04-25T00:00:00.000Z'),
+              },
+            ] as unknown) as T[],
+          };
+        }
+
+        if (text.includes('FROM governance_viewer_scope_team_grants')) {
+          return {
+            command: '',
+            rowCount: 0,
+            oid: 0,
+            fields: [],
+            rows: [] as T[],
+          };
+        }
+
+        return {
+          command: '',
+          rowCount: 1,
+          oid: 0,
+          fields: [],
+          rows: ([{ project_key: 'project-b' }] as unknown) as T[],
+        };
+      },
+    });
+
+    const scope = await repository.getGovernanceViewerScope('manager-1');
+
+    expect(scope).toMatchObject({
+      viewerId: 'manager-1',
+      teamKeys: ['team-b'],
+      projectKeys: ['project-b'],
+      memberIds: ['developer-2'],
+    });
+    expect(
+      queries.some((query) =>
+        query.text.includes('FROM governance_viewer_scope_project_grants'),
+      ),
+    ).toBe(true);
+  });
+
   it('includes ingestion_key in insert statements for deduplicated session events', async () => {
     const queries: Array<{ text: string; values?: unknown[] }> = [];
     const repository = new PostgresMetricEventRepository({

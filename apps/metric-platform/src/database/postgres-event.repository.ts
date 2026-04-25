@@ -3,10 +3,12 @@ import type { IngestionBatch } from '@aimetric/event-schema';
 import type { MetricCalculationResult } from '@aimetric/metric-core';
 import {
   buildGovernanceViewerScope,
+  buildGovernanceViewerScopeFromAccess,
   cloneGovernanceDirectory,
   defaultGovernanceDirectory,
   type GovernanceDirectory,
   type GovernanceMember,
+  type GovernanceViewerScopeAssignment,
   type GovernanceViewerScope,
 } from '../governance/governance-directory.service.js';
 
@@ -125,6 +127,10 @@ export interface CollectorIdentityRecord {
   updatedAt: string;
 }
 
+export interface ViewerScopeAssignmentRecord extends GovernanceViewerScopeAssignment {
+  updatedAt: string;
+}
+
 export interface MetricEventRepository {
   saveIngestionBatch(batch: IngestionBatch): Promise<void>;
   listRecordedMetricEvents(
@@ -160,6 +166,12 @@ export interface MetricEventRepository {
   getGovernanceViewerScope?(
     viewerId: string,
   ): Promise<GovernanceViewerScope | undefined>;
+  replaceViewerScopeAssignment?(
+    input: GovernanceViewerScopeAssignment,
+  ): Promise<ViewerScopeAssignmentRecord>;
+  getViewerScopeAssignment?(
+    viewerId: string,
+  ): Promise<ViewerScopeAssignmentRecord | undefined>;
   registerCollectorIdentity?(
     input: Omit<CollectorIdentityRecord, 'status' | 'registeredAt' | 'updatedAt'>,
   ): Promise<CollectorIdentityRecord>;
@@ -342,6 +354,31 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
             status TEXT NOT NULL DEFAULT 'active',
             registered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `);
+        await this.database.query(`
+          CREATE TABLE IF NOT EXISTS governance_viewer_scope_assignments (
+            id BIGSERIAL PRIMARY KEY,
+            viewer_id TEXT NOT NULL UNIQUE REFERENCES governance_members (member_id),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `);
+        await this.database.query(`
+          CREATE TABLE IF NOT EXISTS governance_viewer_scope_team_grants (
+            id BIGSERIAL PRIMARY KEY,
+            viewer_id TEXT NOT NULL REFERENCES governance_viewer_scope_assignments (viewer_id),
+            team_key TEXT NOT NULL REFERENCES governance_teams (team_key),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (viewer_id, team_key)
+          )
+        `);
+        await this.database.query(`
+          CREATE TABLE IF NOT EXISTS governance_viewer_scope_project_grants (
+            id BIGSERIAL PRIMARY KEY,
+            viewer_id TEXT NOT NULL REFERENCES governance_viewer_scope_assignments (viewer_id),
+            project_key TEXT NOT NULL REFERENCES governance_projects (project_key),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (viewer_id, project_key)
           )
         `);
         await this.seedDefaultGovernanceDirectory();
@@ -1364,8 +1401,138 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
     viewerId: string,
   ): Promise<GovernanceViewerScope | undefined> {
     const directory = await this.getGovernanceDirectory();
+    const assignment = await this.getViewerScopeAssignment(viewerId);
+    const viewer = directory.members.find((member) => member.memberId === viewerId);
+
+    if (!viewer) {
+      return undefined;
+    }
+
+    if (assignment) {
+      return buildGovernanceViewerScopeFromAccess(directory, {
+        viewerId,
+        role: viewer.role,
+        teamKeys: assignment.teamKeys,
+        projectKeys: assignment.projectKeys,
+      });
+    }
 
     return buildGovernanceViewerScope(directory, viewerId);
+  }
+
+  async replaceViewerScopeAssignment(
+    input: GovernanceViewerScopeAssignment,
+  ): Promise<ViewerScopeAssignmentRecord> {
+    await this.ensureSchema();
+
+    await this.database.query(
+      `
+        INSERT INTO governance_viewer_scope_assignments (viewer_id)
+        VALUES ($1)
+        ON CONFLICT (viewer_id)
+        DO UPDATE SET
+          updated_at = NOW()
+      `,
+      [input.viewerId],
+    );
+    await this.database.query(
+      `
+        DELETE FROM governance_viewer_scope_team_grants
+        WHERE viewer_id = $1
+      `,
+      [input.viewerId],
+    );
+    await this.database.query(
+      `
+        DELETE FROM governance_viewer_scope_project_grants
+        WHERE viewer_id = $1
+      `,
+      [input.viewerId],
+    );
+
+    await Promise.all(
+      input.teamKeys.map((teamKey) =>
+        this.database.query(
+          `
+            INSERT INTO governance_viewer_scope_team_grants (viewer_id, team_key)
+            VALUES ($1, $2)
+            ON CONFLICT (viewer_id, team_key) DO NOTHING
+          `,
+          [input.viewerId, teamKey],
+        ),
+      ),
+    );
+    await Promise.all(
+      input.projectKeys.map((projectKey) =>
+        this.database.query(
+          `
+            INSERT INTO governance_viewer_scope_project_grants (viewer_id, project_key)
+            VALUES ($1, $2)
+            ON CONFLICT (viewer_id, project_key) DO NOTHING
+          `,
+          [input.viewerId, projectKey],
+        ),
+      ),
+    );
+
+    return (await this.getViewerScopeAssignment(input.viewerId)) ?? {
+      viewerId: input.viewerId,
+      teamKeys: [...input.teamKeys],
+      projectKeys: [...input.projectKeys],
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  async getViewerScopeAssignment(
+    viewerId: string,
+  ): Promise<ViewerScopeAssignmentRecord | undefined> {
+    await this.ensureSchema();
+
+    const assignmentResult = await this.database.query<{
+      viewer_id: string;
+      updated_at: Date | string;
+    }>(
+      `
+        SELECT viewer_id, updated_at
+        FROM governance_viewer_scope_assignments
+        WHERE viewer_id = $1
+        LIMIT 1
+      `,
+      [viewerId],
+    );
+    const assignment = assignmentResult.rows[0];
+
+    if (!assignment) {
+      return undefined;
+    }
+
+    const [teamGrantResult, projectGrantResult] = await Promise.all([
+      this.database.query<{ team_key: string }>(
+        `
+          SELECT team_key
+          FROM governance_viewer_scope_team_grants
+          WHERE viewer_id = $1
+          ORDER BY team_key ASC
+        `,
+        [viewerId],
+      ),
+      this.database.query<{ project_key: string }>(
+        `
+          SELECT project_key
+          FROM governance_viewer_scope_project_grants
+          WHERE viewer_id = $1
+          ORDER BY project_key ASC
+        `,
+        [viewerId],
+      ),
+    ]);
+
+    return {
+      viewerId: assignment.viewer_id,
+      teamKeys: teamGrantResult.rows.map((row) => row.team_key),
+      projectKeys: projectGrantResult.rows.map((row) => row.project_key),
+      updatedAt: toIsoString(assignment.updated_at),
+    };
   }
 
   async registerCollectorIdentity(
