@@ -13,6 +13,8 @@ import {
   type PersonalSnapshot,
   type PullRequestRecord,
   type PullRequestSummary,
+  type RequirementRecord,
+  type RequirementSummary,
   type RuleRollout,
   type RuleRolloutEvaluation,
   type RuleVersionCatalog,
@@ -27,6 +29,7 @@ import { McpAuditDashboard } from './pages/mcp-audit-dashboard.js';
 import { OutputAnalysisTable } from './pages/output-analysis-table.js';
 import { PersonalDashboard } from './pages/personal-dashboard.js';
 import { PullRequestDashboard } from './pages/pull-request-dashboard.js';
+import { RequirementDashboard } from './pages/requirement-dashboard.js';
 import { RuleCenterDashboard } from './pages/rule-center-dashboard.js';
 import { SessionAnalysisTable } from './pages/session-analysis-table.js';
 import { TeamDashboard } from './pages/team-dashboard.js';
@@ -113,6 +116,9 @@ export const App = ({
   const [pullRequestSummary, setPullRequestSummary] =
     useState<PullRequestSummary | null>(null);
   const [pullRequests, setPullRequests] = useState<PullRequestRecord[]>([]);
+  const [requirementSummary, setRequirementSummary] =
+    useState<RequirementSummary | null>(null);
+  const [requirements, setRequirements] = useState<RequirementRecord[]>([]);
   const [ruleVersions, setRuleVersions] = useState<RuleVersionCatalog | null>(null);
   const [ruleRollout, setRuleRollout] = useState<RuleRollout | null>(null);
   const [ruleRolloutEvaluation, setRuleRolloutEvaluation] =
@@ -137,6 +143,8 @@ export const App = ({
       directory,
       prSummary,
       prRows,
+      requirementSummary,
+      requirementRows,
     ] = await Promise.all([
       client.getPersonalSnapshot(nextFilters),
       client.getTeamSnapshot(nextFilters),
@@ -152,6 +160,8 @@ export const App = ({
       client.getGovernanceDirectory(),
       client.getPullRequestSummary(nextFilters),
       client.getPullRequests(nextFilters),
+      client.getRequirementSummary(nextFilters),
+      client.getRequirements(nextFilters),
     ]);
 
     return {
@@ -169,6 +179,8 @@ export const App = ({
       directory,
       prSummary,
       prRows,
+      requirementSummary,
+      requirementRows,
     };
   };
 
@@ -191,6 +203,8 @@ export const App = ({
         directory,
         prSummary,
         prRows,
+        requirementSummary,
+        requirementRows,
       } = await loadDashboard(filters);
 
       if (!active) {
@@ -211,6 +225,8 @@ export const App = ({
       setGovernanceDirectory(directory);
       setPullRequestSummary(prSummary);
       setPullRequests(prRows);
+      setRequirementSummary(requirementSummary);
+      setRequirements(requirementRows);
     };
 
     void load();
@@ -276,6 +292,8 @@ export const App = ({
         directory,
         prSummary,
         prRows,
+        requirementSummary,
+        requirementRows,
       } = await loadDashboard(filters);
 
       setPersonalSnapshot(personal);
@@ -292,6 +310,8 @@ export const App = ({
       setGovernanceDirectory(directory);
       setPullRequestSummary(prSummary);
       setPullRequests(prRows);
+      setRequirementSummary(requirementSummary);
+      setRequirements(requirementRows);
     } finally {
       setSavingRuleRollout(false);
     }
@@ -371,6 +391,7 @@ export const App = ({
     !collectorHealth ||
     !governanceDirectory ||
     !pullRequestSummary ||
+    !requirementSummary ||
     !enterpriseMetricCatalog ||
     !ruleVersions ||
     !ruleRollout ||
@@ -429,6 +450,7 @@ export const App = ({
         />
         <AnalysisSummarySection summary={analysisSummary} />
         <CollectorHealthDashboard health={collectorHealth} />
+        <RequirementDashboard summary={requirementSummary} rows={requirements} />
         <PullRequestDashboard summary={pullRequestSummary} rows={pullRequests} />
         <SessionAnalysisTable rows={sessionAnalysisRows} />
         <OutputAnalysisTable rows={outputAnalysisRows} />

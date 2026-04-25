@@ -9,6 +9,8 @@ import type {
   DashboardFilters,
   PullRequestRecord,
   PullRequestSummary,
+  RequirementRecord,
+  RequirementSummary,
   RuleRollout,
 } from './api/client.js';
 
@@ -37,6 +39,31 @@ const createClient = (
       mergedAt: '2026-04-24T12:00:00.000Z',
       cycleTimeHours: 12,
       updatedAt: '2026-04-24T12:00:00.000Z',
+    },
+  ],
+  getRequirementSummary: async (): Promise<RequirementSummary> => ({
+    totalRequirementCount: 5,
+    aiTouchedRequirementCount: 3,
+    aiTouchedRequirementRatio: 0.6,
+    completedRequirementCount: 2,
+    averageLeadTimeHours: 36,
+    averageLeadTimeToFirstPrHours: 8,
+  }),
+  getRequirements: async (): Promise<RequirementRecord[]> => [
+    {
+      provider: 'jira',
+      projectKey: 'aimetric',
+      requirementKey: 'AIM-101',
+      title: 'Build management dashboard',
+      ownerMemberId: 'alice',
+      status: 'done',
+      aiTouched: true,
+      firstPrCreatedAt: '2026-04-24T08:00:00.000Z',
+      completedAt: '2026-04-25T12:00:00.000Z',
+      leadTimeHours: 36,
+      leadTimeToFirstPrHours: 8,
+      createdAt: '2026-04-24T00:00:00.000Z',
+      updatedAt: '2026-04-25T12:00:00.000Z',
     },
   ],
   getPersonalSnapshot: async () => ({
@@ -323,8 +350,13 @@ describe('App', () => {
     expect(screen.getByText('平台工程团队')).toBeInTheDocument();
     expect(screen.getByText('MCP 采集质量')).toBeInTheDocument();
     expect(screen.getByText('采集健康运营')).toBeInTheDocument();
+    expect(screen.getByText('需求交付概览')).toBeInTheDocument();
     expect(screen.getByText('GitHub PR 交付概览')).toBeInTheDocument();
     expect(screen.getByText('队列模式')).toBeInTheDocument();
+    expect(screen.getByText('AI 触达需求占比')).toBeInTheDocument();
+    expect(screen.getByText('60.0%')).toBeInTheDocument();
+    expect(screen.getByText('36.0 小时')).toBeInTheDocument();
+    expect(screen.getByText('Jira AIM-101 Build management dashboard')).toBeInTheDocument();
     expect(screen.getByText('AI 触达 PR 占比')).toBeInTheDocument();
     expect(screen.getByText('75.0%')).toBeInTheDocument();
     expect(screen.getByText('18.0 小时')).toBeInTheDocument();
@@ -415,6 +447,8 @@ describe('App', () => {
     const getEnterpriseMetricValues = vi.fn(
       createClient().getEnterpriseMetricValues,
     );
+    const getRequirementSummary = vi.fn(createClient().getRequirementSummary);
+    const getRequirements = vi.fn(createClient().getRequirements);
     const getPullRequestSummary = vi.fn(createClient().getPullRequestSummary);
     const getPullRequests = vi.fn(createClient().getPullRequests);
     const getCollectorIngestionHealth = vi.fn(
@@ -441,6 +475,8 @@ describe('App', () => {
           getOutputAnalysisRows,
           getEnterpriseMetricCatalog,
           getEnterpriseMetricValues,
+          getRequirementSummary,
+          getRequirements,
           getPullRequestSummary,
           getPullRequests,
           getCollectorIngestionHealth,
@@ -479,6 +515,12 @@ describe('App', () => {
       );
       expect(getEnterpriseMetricCatalog).toHaveBeenCalledTimes(1);
       expect(getEnterpriseMetricValues).toHaveBeenLastCalledWith(
+        expect.objectContaining({ projectKey: 'navigation' }),
+      );
+      expect(getRequirementSummary).toHaveBeenLastCalledWith(
+        expect.objectContaining({ projectKey: 'navigation' }),
+      );
+      expect(getRequirements).toHaveBeenLastCalledWith(
         expect.objectContaining({ projectKey: 'navigation' }),
       );
       expect(getPullRequestSummary).toHaveBeenLastCalledWith(
@@ -555,6 +597,8 @@ describe('App', () => {
     const getEnterpriseMetricValues = vi.fn(
       createClient().getEnterpriseMetricValues,
     );
+    const getRequirementSummary = vi.fn(createClient().getRequirementSummary);
+    const getRequirements = vi.fn(createClient().getRequirements);
     const getPullRequestSummary = vi.fn(createClient().getPullRequestSummary);
     const getPullRequests = vi.fn(createClient().getPullRequests);
     const getCollectorIngestionHealth = vi.fn(
@@ -583,6 +627,8 @@ describe('App', () => {
             getOutputAnalysisRows,
             getEnterpriseMetricCatalog,
             getEnterpriseMetricValues,
+            getRequirementSummary,
+            getRequirements,
             getPullRequestSummary,
             getPullRequests,
             getCollectorIngestionHealth,
@@ -613,6 +659,8 @@ describe('App', () => {
       expect(getOutputAnalysisRows).toHaveBeenCalledTimes(2);
       expect(getEnterpriseMetricCatalog).toHaveBeenCalledTimes(1);
       expect(getEnterpriseMetricValues).toHaveBeenCalledTimes(2);
+      expect(getRequirementSummary).toHaveBeenCalledTimes(2);
+      expect(getRequirements).toHaveBeenCalledTimes(2);
       expect(getPullRequestSummary).toHaveBeenCalledTimes(2);
       expect(getPullRequests).toHaveBeenCalledTimes(2);
       expect(getCollectorIngestionHealth).toHaveBeenCalledTimes(2);

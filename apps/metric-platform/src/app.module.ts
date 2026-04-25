@@ -16,6 +16,8 @@ import {
   type MetricSnapshotFilters,
   type PullRequestRecord,
   type PullRequestSummary,
+  type RequirementRecord,
+  type RequirementSummary,
   type RecordedMetricEvent,
   type ViewerScopeAssignmentRecord,
 } from './database/postgres-event.repository.js';
@@ -201,6 +203,37 @@ export class AppModule {
         aiTouchedPrRatio: 0,
         mergedPrCount: 0,
         averageCycleTimeHours: 0,
+      }
+    );
+  }
+
+  async importRequirements(requirements: RequirementRecord[]) {
+    if (!this.metricEventRepository.importRequirements) {
+      throw new Error('Requirement import is not configured');
+    }
+
+    await this.metricEventRepository.importRequirements(requirements);
+
+    return {
+      importedRequirements: requirements.length,
+    };
+  }
+
+  async listRequirements(filters: MetricSnapshotFilters = {}) {
+    return (await this.metricEventRepository.listRequirements?.(filters)) ?? [];
+  }
+
+  async buildRequirementSummary(
+    filters: MetricSnapshotFilters = {},
+  ): Promise<RequirementSummary> {
+    return (
+      (await this.metricEventRepository.buildRequirementSummary?.(filters)) ?? {
+        totalRequirementCount: 0,
+        aiTouchedRequirementCount: 0,
+        aiTouchedRequirementRatio: 0,
+        completedRequirementCount: 0,
+        averageLeadTimeHours: 0,
+        averageLeadTimeToFirstPrHours: 0,
       }
     );
   }

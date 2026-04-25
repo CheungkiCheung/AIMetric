@@ -702,6 +702,138 @@ describe('bootstrap', () => {
     ]);
   });
 
+  it('imports and serves requirement data over HTTP', async () => {
+    const importedRequirements: unknown[] = [];
+    const metricEventRepository: MetricEventRepository = {
+      ...createEmptyRepository(),
+      async importRequirements(requirements) {
+        importedRequirements.push(...requirements);
+      },
+      async listRequirements(filters) {
+        expect(filters).toEqual({ projectKey: 'aimetric' });
+
+        return [
+          {
+            provider: 'jira' as const,
+            projectKey: 'aimetric',
+            requirementKey: 'AIM-101',
+            title: 'Build management dashboard',
+            ownerMemberId: 'alice',
+            status: 'done' as const,
+            aiTouched: true,
+            firstPrCreatedAt: '2026-04-25T06:00:00.000Z',
+            completedAt: '2026-04-26T00:00:00.000Z',
+            leadTimeHours: 24,
+            leadTimeToFirstPrHours: 6,
+            createdAt: '2026-04-25T00:00:00.000Z',
+            updatedAt: '2026-04-26T00:00:00.000Z',
+          },
+          {
+            provider: 'tapd' as const,
+            projectKey: 'aimetric',
+            requirementKey: 'TAPD-7',
+            title: 'Integrate requirement feed',
+            ownerMemberId: 'bob',
+            status: 'in-progress' as const,
+            aiTouched: false,
+            firstPrCreatedAt: '2026-04-26T08:00:00.000Z',
+            leadTimeToFirstPrHours: 8,
+            createdAt: '2026-04-26T00:00:00.000Z',
+            updatedAt: '2026-04-26T08:00:00.000Z',
+          },
+        ];
+      },
+      async buildRequirementSummary() {
+        return {
+          totalRequirementCount: 2,
+          aiTouchedRequirementCount: 1,
+          aiTouchedRequirementRatio: 0.5,
+          completedRequirementCount: 1,
+          averageLeadTimeHours: 24,
+          averageLeadTimeToFirstPrHours: 7,
+        };
+      },
+    };
+    const app = await bootstrap({
+      port: 0,
+      adminToken: 'admin-secret',
+      metricEventRepository,
+    });
+    servers.push(app);
+
+    const importResponse = await fetch(
+      `${app.baseUrl}/integrations/requirements/import`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer admin-secret',
+          'content-type': 'application/json',
+          'x-aimetric-actor': 'platform-admin',
+        },
+        body: JSON.stringify({
+          requirements: [
+            {
+              provider: 'jira',
+              projectKey: 'aimetric',
+              requirementKey: 'AIM-101',
+              title: 'Build management dashboard',
+              ownerMemberId: 'alice',
+              status: 'done',
+              aiTouched: true,
+              firstPrCreatedAt: '2026-04-25T06:00:00.000Z',
+              completedAt: '2026-04-26T00:00:00.000Z',
+              createdAt: '2026-04-25T00:00:00.000Z',
+              updatedAt: '2026-04-26T00:00:00.000Z',
+            },
+          ],
+        }),
+      },
+    );
+    const listResponse = await fetch(
+      `${app.baseUrl}/integrations/requirements?projectKey=aimetric`,
+    );
+    const summaryResponse = await fetch(
+      `${app.baseUrl}/integrations/requirements/summary?projectKey=aimetric`,
+    );
+    const auditResponse = await fetch(`${app.baseUrl}/admin/audit`, {
+      headers: {
+        authorization: 'Bearer admin-secret',
+      },
+    });
+
+    expect(importResponse.status).toBe(200);
+    await expect(importResponse.json()).resolves.toEqual({
+      importedRequirements: 1,
+    });
+    expect(importedRequirements).toHaveLength(1);
+    expect(listResponse.status).toBe(200);
+    await expect(listResponse.json()).resolves.toEqual([
+      expect.objectContaining({
+        requirementKey: 'AIM-101',
+        aiTouched: true,
+      }),
+      expect.objectContaining({
+        requirementKey: 'TAPD-7',
+        aiTouched: false,
+      }),
+    ]);
+    expect(summaryResponse.status).toBe(200);
+    await expect(summaryResponse.json()).resolves.toEqual({
+      totalRequirementCount: 2,
+      aiTouchedRequirementCount: 1,
+      aiTouchedRequirementRatio: 0.5,
+      completedRequirementCount: 1,
+      averageLeadTimeHours: 24,
+      averageLeadTimeToFirstPrHours: 7,
+    });
+    await expect(auditResponse.json()).resolves.toEqual([
+      expect.objectContaining({
+        action: 'requirements.import',
+        actor: 'platform-admin',
+      }),
+    ]);
+  });
+
   it('serves enterprise metrics filtered by dimension over HTTP', async () => {
     const app = await bootstrap({
       port: 0,

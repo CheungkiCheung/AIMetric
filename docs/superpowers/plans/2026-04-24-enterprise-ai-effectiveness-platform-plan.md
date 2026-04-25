@@ -888,7 +888,7 @@ Agent 能力：
 - GitHub PR 集成：第一版已完成，已支持 `POST /integrations/github/pull-requests/import` 导入、`GET /integrations/github/pull-requests` 查询、`GET /integrations/github/pull-requests/summary` 汇总，以及 Dashboard“GitHub PR 交付概览”展示。
 - GitLab PR 集成。
 - CI/CD 集成。
-- 需求系统集成。
+- 需求系统集成：第一版已完成，已支持 `POST /integrations/requirements/import` 导入、`GET /integrations/requirements` 查询、`GET /integrations/requirements/summary` 汇总，以及 Dashboard“需求交付概览”展示，当前兼容 `jira / tapd` 两类 provider。
 - 缺陷系统集成。
 - 发布系统集成。
 - AI 参与需求 / PR / 发布链路归因。
@@ -896,7 +896,7 @@ Agent 能力：
 验收标准：
 
 - 能计算 AI 参与 PR 占比：第一版已完成。
-- 能计算 AI 参与需求 Lead Time 对比。
+- 能计算 AI 参与需求 Lead Time 对比：第一版已具备需求 Lead Time 与“需求到首个 PR”基础事实承载能力，待补需求与 PR 自动关联后完善对比分析。
 - 能计算 AI 参与 PR 的质量风险指标：当前已具备 PR 基础数据承载能力，待补 Review / CI / 缺陷联动后完善。
 
 ### Phase E8：管理者多维分析工作台

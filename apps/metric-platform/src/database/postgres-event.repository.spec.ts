@@ -823,6 +823,129 @@ describe('PostgresMetricEventRepository query mapping', () => {
     ).toBe(true);
   });
 
+  it('imports and summarizes requirements through query mapping', async () => {
+    const queries: Array<{ text: string; values?: unknown[] }> = [];
+    const repository = new PostgresMetricEventRepository({
+      async query<T extends QueryResultRow = QueryResultRow>(
+        text: string,
+        values?: unknown[],
+      ) {
+        queries.push({ text, values });
+
+        if (text.includes('CREATE TABLE') || text.includes('CREATE UNIQUE INDEX')) {
+          return {
+            command: '',
+            rowCount: 0,
+            oid: 0,
+            fields: [],
+            rows: [] as T[],
+          };
+        }
+
+        if (text.includes('SELECT COUNT(*) AS organization_count')) {
+          return {
+            command: '',
+            rowCount: 1,
+            oid: 0,
+            fields: [],
+            rows: ([{ organization_count: '1' }] as unknown) as T[],
+          };
+        }
+
+        if (text.includes('INSERT INTO delivery_requirements')) {
+          return {
+            command: '',
+            rowCount: 1,
+            oid: 0,
+            fields: [],
+            rows: [] as T[],
+          };
+        }
+
+        return {
+          command: '',
+          rowCount: 2,
+          oid: 0,
+          fields: [],
+          rows: ([
+            {
+              provider: 'jira',
+              project_key: 'aimetric',
+              requirement_key: 'AIM-101',
+              title: 'Build management dashboard',
+              owner_member_id: 'alice',
+              status: 'done',
+              ai_touched: true,
+              first_pr_created_at: new Date('2026-04-25T06:00:00.000Z'),
+              completed_at: new Date('2026-04-26T00:00:00.000Z'),
+              created_at: new Date('2026-04-25T00:00:00.000Z'),
+              updated_at: new Date('2026-04-26T00:00:00.000Z'),
+            },
+            {
+              provider: 'tapd',
+              project_key: 'aimetric',
+              requirement_key: 'TAPD-7',
+              title: 'Integrate requirement feed',
+              owner_member_id: 'bob',
+              status: 'in-progress',
+              ai_touched: false,
+              first_pr_created_at: new Date('2026-04-26T08:00:00.000Z'),
+              completed_at: null,
+              created_at: new Date('2026-04-26T00:00:00.000Z'),
+              updated_at: new Date('2026-04-26T08:00:00.000Z'),
+            },
+          ] as unknown) as T[],
+        };
+      },
+    });
+
+    await repository.importRequirements([
+      {
+        provider: 'jira',
+        projectKey: 'aimetric',
+        requirementKey: 'AIM-101',
+        title: 'Build management dashboard',
+        ownerMemberId: 'alice',
+        status: 'done',
+        aiTouched: true,
+        firstPrCreatedAt: '2026-04-25T06:00:00.000Z',
+        completedAt: '2026-04-26T00:00:00.000Z',
+        createdAt: '2026-04-25T00:00:00.000Z',
+        updatedAt: '2026-04-26T00:00:00.000Z',
+      },
+    ]);
+    const requirements = await repository.listRequirements({
+      projectKey: 'aimetric',
+    });
+    const summary = await repository.buildRequirementSummary({
+      projectKey: 'aimetric',
+    });
+
+    expect(requirements).toEqual([
+      expect.objectContaining({
+        requirementKey: 'AIM-101',
+        leadTimeHours: 24,
+        leadTimeToFirstPrHours: 6,
+      }),
+      expect.objectContaining({
+        requirementKey: 'TAPD-7',
+        aiTouched: false,
+        leadTimeToFirstPrHours: 8,
+      }),
+    ]);
+    expect(summary).toEqual({
+      totalRequirementCount: 2,
+      aiTouchedRequirementCount: 1,
+      aiTouchedRequirementRatio: 0.5,
+      completedRequirementCount: 1,
+      averageLeadTimeHours: 24,
+      averageLeadTimeToFirstPrHours: 7,
+    });
+    expect(
+      queries.some((query) => query.text.includes('INSERT INTO delivery_requirements')),
+    ).toBe(true);
+  });
+
   it('includes ingestion_key in insert statements for deduplicated session events', async () => {
     const queries: Array<{ text: string; values?: unknown[] }> = [];
     const repository = new PostgresMetricEventRepository({

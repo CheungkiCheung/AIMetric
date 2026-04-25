@@ -82,6 +82,22 @@ CREATE TABLE IF NOT EXISTS github_pull_requests (
   UNIQUE (project_key, repo_name, pr_number)
 );
 
+CREATE TABLE IF NOT EXISTS delivery_requirements (
+  id BIGSERIAL PRIMARY KEY,
+  provider TEXT NOT NULL,
+  project_key TEXT NOT NULL,
+  requirement_key TEXT NOT NULL,
+  title TEXT NOT NULL,
+  owner_member_id TEXT,
+  status TEXT NOT NULL,
+  ai_touched BOOLEAN NOT NULL DEFAULT FALSE,
+  first_pr_created_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL,
+  UNIQUE (provider, project_key, requirement_key)
+);
+
 CREATE TABLE IF NOT EXISTS governance_organizations (
   id BIGSERIAL PRIMARY KEY,
   organization_key TEXT NOT NULL UNIQUE,

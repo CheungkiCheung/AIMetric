@@ -235,6 +235,43 @@ describe('createDashboardClient', () => {
         );
       }
 
+      if (url.endsWith('/integrations/requirements/summary')) {
+        return new Response(
+          JSON.stringify({
+            totalRequirementCount: 5,
+            aiTouchedRequirementCount: 3,
+            aiTouchedRequirementRatio: 0.6,
+            completedRequirementCount: 2,
+            averageLeadTimeHours: 36,
+            averageLeadTimeToFirstPrHours: 8,
+          }),
+          { status: 200 },
+        );
+      }
+
+      if (url.endsWith('/integrations/requirements')) {
+        return new Response(
+          JSON.stringify([
+            {
+              provider: 'jira',
+              projectKey: 'aimetric',
+              requirementKey: 'AIM-101',
+              title: 'Build management dashboard',
+              ownerMemberId: 'alice',
+              status: 'done',
+              aiTouched: true,
+              firstPrCreatedAt: '2026-04-24T08:00:00.000Z',
+              completedAt: '2026-04-25T12:00:00.000Z',
+              leadTimeHours: 36,
+              leadTimeToFirstPrHours: 8,
+              createdAt: '2026-04-24T00:00:00.000Z',
+              updatedAt: '2026-04-25T12:00:00.000Z',
+            },
+          ]),
+          { status: 200 },
+        );
+      }
+
       if (url.includes('/governance/viewer-scopes')) {
         return new Response(
           JSON.stringify({
@@ -341,6 +378,22 @@ describe('createDashboardClient', () => {
         cycleTimeHours: 12,
       }),
     ]);
+    await expect(client.getRequirementSummary()).resolves.toMatchObject({
+      totalRequirementCount: 5,
+      aiTouchedRequirementCount: 3,
+      aiTouchedRequirementRatio: 0.6,
+      completedRequirementCount: 2,
+      averageLeadTimeHours: 36,
+      averageLeadTimeToFirstPrHours: 8,
+    });
+    await expect(client.getRequirements()).resolves.toEqual([
+      expect.objectContaining({
+        provider: 'jira',
+        requirementKey: 'AIM-101',
+        aiTouched: true,
+        leadTimeHours: 36,
+      }),
+    ]);
     await expect(client.getViewerScopeAssignment('manager-1')).resolves.toMatchObject({
       viewerId: 'manager-1',
       teamKeys: ['platform-engineering'],
@@ -396,6 +449,8 @@ describe('createDashboardClient', () => {
     await client.getEnterpriseMetricValues(filters, ['ai_session_count']);
     await client.getPullRequestSummary(filters);
     await client.getPullRequests(filters);
+    await client.getRequirementSummary(filters);
+    await client.getRequirements(filters);
 
     expect(requestedUrls[0]).toBe(
       'http://127.0.0.1:3001/metrics/personal?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
@@ -423,6 +478,12 @@ describe('createDashboardClient', () => {
     );
     expect(requestedUrls[8]).toBe(
       'http://127.0.0.1:3001/integrations/github/pull-requests?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+    );
+    expect(requestedUrls[9]).toBe(
+      'http://127.0.0.1:3001/integrations/requirements/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+    );
+    expect(requestedUrls[10]).toBe(
+      'http://127.0.0.1:3001/integrations/requirements?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
   });
 

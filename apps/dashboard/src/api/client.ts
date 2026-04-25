@@ -187,6 +187,31 @@ export interface PullRequestSummary {
   averageCycleTimeHours: number;
 }
 
+export interface RequirementRecord {
+  provider: 'jira' | 'tapd';
+  projectKey: string;
+  requirementKey: string;
+  title: string;
+  ownerMemberId?: string;
+  status: 'open' | 'in-progress' | 'done' | 'closed';
+  aiTouched: boolean;
+  firstPrCreatedAt?: string;
+  completedAt?: string;
+  leadTimeHours?: number;
+  leadTimeToFirstPrHours?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RequirementSummary {
+  totalRequirementCount: number;
+  aiTouchedRequirementCount: number;
+  aiTouchedRequirementRatio: number;
+  completedRequirementCount: number;
+  averageLeadTimeHours: number;
+  averageLeadTimeToFirstPrHours: number;
+}
+
 export interface DashboardClient {
   getPersonalSnapshot(filters?: DashboardFilters): Promise<PersonalSnapshot>;
   getTeamSnapshot(filters?: DashboardFilters): Promise<TeamSnapshot>;
@@ -213,6 +238,8 @@ export interface DashboardClient {
   updateViewerScopeAssignment(input: ViewerScopeAssignment): Promise<ViewerScopeAssignment>;
   getPullRequestSummary(filters?: DashboardFilters): Promise<PullRequestSummary>;
   getPullRequests(filters?: DashboardFilters): Promise<PullRequestRecord[]>;
+  getRequirementSummary(filters?: DashboardFilters): Promise<RequirementSummary>;
+  getRequirements(filters?: DashboardFilters): Promise<RequirementRecord[]>;
   updateRuleRollout(input: RuleRollout): Promise<RuleRollout>;
 }
 
@@ -317,6 +344,15 @@ const fallbackPullRequestSummary: PullRequestSummary = {
   aiTouchedPrRatio: 0,
   mergedPrCount: 0,
   averageCycleTimeHours: 0,
+};
+
+const fallbackRequirementSummary: RequirementSummary = {
+  totalRequirementCount: 0,
+  aiTouchedRequirementCount: 0,
+  aiTouchedRequirementRatio: 0,
+  completedRequirementCount: 0,
+  averageLeadTimeHours: 0,
+  averageLeadTimeToFirstPrHours: 0,
 };
 
 const buildViewerHeaders = (viewerId?: string): HeadersInit | undefined =>
@@ -553,6 +589,20 @@ export const createDashboardClient = (
   getPullRequests: (filters) =>
     fetchJson<PullRequestRecord[]>(
       buildMetricUrl(baseUrl, '/integrations/github/pull-requests', filters),
+      [],
+      viewerId,
+      adminToken,
+    ),
+  getRequirementSummary: (filters) =>
+    fetchJson<RequirementSummary>(
+      buildMetricUrl(baseUrl, '/integrations/requirements/summary', filters),
+      fallbackRequirementSummary,
+      viewerId,
+      adminToken,
+    ),
+  getRequirements: (filters) =>
+    fetchJson<RequirementRecord[]>(
+      buildMetricUrl(baseUrl, '/integrations/requirements', filters),
       [],
       viewerId,
       adminToken,

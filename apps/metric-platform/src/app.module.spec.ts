@@ -351,6 +351,82 @@ describe('AppModule', () => {
     });
   });
 
+  it('imports requirements and builds a requirement summary through the repository', async () => {
+    const repository = {
+      ...createEmptyRepository(),
+      importRequirements: vi.fn(async () => undefined),
+      listRequirements: vi.fn(async () => [
+        {
+          provider: 'jira' as const,
+          projectKey: 'aimetric',
+          requirementKey: 'AIM-101',
+          title: 'Build management dashboard',
+          ownerMemberId: 'alice',
+          status: 'done' as const,
+          aiTouched: true,
+          firstPrCreatedAt: '2026-04-25T06:00:00.000Z',
+          completedAt: '2026-04-26T00:00:00.000Z',
+          leadTimeHours: 24,
+          leadTimeToFirstPrHours: 6,
+          createdAt: '2026-04-25T00:00:00.000Z',
+          updatedAt: '2026-04-26T00:00:00.000Z',
+        },
+        {
+          provider: 'tapd' as const,
+          projectKey: 'aimetric',
+          requirementKey: 'TAPD-7',
+          title: 'Integrate requirement feed',
+          ownerMemberId: 'bob',
+          status: 'in-progress' as const,
+          aiTouched: false,
+          firstPrCreatedAt: '2026-04-26T08:00:00.000Z',
+          leadTimeToFirstPrHours: 8,
+          createdAt: '2026-04-26T00:00:00.000Z',
+          updatedAt: '2026-04-26T08:00:00.000Z',
+        },
+      ]),
+      buildRequirementSummary: vi.fn(async () => ({
+        totalRequirementCount: 2,
+        aiTouchedRequirementCount: 1,
+        aiTouchedRequirementRatio: 0.5,
+        completedRequirementCount: 1,
+        averageLeadTimeHours: 24,
+        averageLeadTimeToFirstPrHours: 7,
+      })),
+    };
+    const appModule = new AppModule(repository);
+
+    const importResult = await appModule.importRequirements([
+      {
+        provider: 'jira',
+        projectKey: 'aimetric',
+        requirementKey: 'AIM-101',
+        title: 'Build management dashboard',
+        ownerMemberId: 'alice',
+        status: 'done',
+        aiTouched: true,
+        firstPrCreatedAt: '2026-04-25T06:00:00.000Z',
+        completedAt: '2026-04-26T00:00:00.000Z',
+        createdAt: '2026-04-25T00:00:00.000Z',
+        updatedAt: '2026-04-26T00:00:00.000Z',
+      },
+    ]);
+    const summary = await appModule.buildRequirementSummary({
+      projectKey: 'aimetric',
+    });
+
+    expect(importResult).toEqual({ importedRequirements: 1 });
+    expect(repository.importRequirements).toHaveBeenCalledTimes(1);
+    expect(summary).toEqual({
+      totalRequirementCount: 2,
+      aiTouchedRequirementCount: 1,
+      aiTouchedRequirementRatio: 0.5,
+      completedRequirementCount: 1,
+      averageLeadTimeHours: 24,
+      averageLeadTimeToFirstPrHours: 7,
+    });
+  });
+
   it('filters enterprise metrics by dimension', () => {
     const appModule = new AppModule(createEmptyRepository());
     const metrics = appModule.listEnterpriseMetricsByDimension('quality-risk');

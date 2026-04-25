@@ -10,6 +10,7 @@ import type {
   MetricEventRepository,
   MetricSnapshotFilters,
   PullRequestRecord,
+  RequirementRecord,
 } from './database/postgres-event.repository.js';
 import type {
   GovernanceViewerScope,
@@ -315,6 +316,63 @@ const getPullRequestsFromBody = (body: unknown): PullRequestRecord[] | undefined
   return normalized.length === pullRequests.length ? normalized : undefined;
 };
 
+const getRequirementsFromBody = (body: unknown): RequirementRecord[] | undefined => {
+  if (!body || typeof body !== 'object') {
+    return undefined;
+  }
+
+  const requirements = (body as Record<string, unknown>).requirements;
+
+  if (!Array.isArray(requirements)) {
+    return undefined;
+  }
+
+  const normalized = requirements.flatMap((item) => {
+    if (!item || typeof item !== 'object') {
+      return [];
+    }
+
+    const payload = item as Record<string, unknown>;
+
+    if (
+      (payload.provider !== 'jira' && payload.provider !== 'tapd') ||
+      typeof payload.projectKey !== 'string' ||
+      typeof payload.requirementKey !== 'string' ||
+      typeof payload.title !== 'string' ||
+      typeof payload.status !== 'string' ||
+      typeof payload.aiTouched !== 'boolean' ||
+      typeof payload.createdAt !== 'string' ||
+      typeof payload.updatedAt !== 'string'
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        provider: payload.provider as RequirementRecord['provider'],
+        projectKey: payload.projectKey,
+        requirementKey: payload.requirementKey,
+        title: payload.title,
+        ...(typeof payload.ownerMemberId === 'string'
+          ? { ownerMemberId: payload.ownerMemberId }
+          : {}),
+        status: payload.status as RequirementRecord['status'],
+        aiTouched: payload.aiTouched,
+        ...(typeof payload.firstPrCreatedAt === 'string'
+          ? { firstPrCreatedAt: payload.firstPrCreatedAt }
+          : {}),
+        ...(typeof payload.completedAt === 'string'
+          ? { completedAt: payload.completedAt }
+          : {}),
+        createdAt: payload.createdAt,
+        updatedAt: payload.updatedAt,
+      },
+    ];
+  });
+
+  return normalized.length === requirements.length ? normalized : undefined;
+};
+
 const applyViewerScopeToFilters = <T extends MetricSnapshotFilters>(
   filters: T,
   viewerScope?: GovernanceViewerScope,
@@ -598,6 +656,36 @@ const handleRequest = async (
     }
 
     writeJson(response, 200, await appModule.buildPullRequestSummary(scoped.filters));
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/integrations/requirements') {
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
+    writeJson(response, 200, await appModule.listRequirements(scoped.filters));
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/integrations/requirements/summary') {
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
+    writeJson(response, 200, await appModule.buildRequirementSummary(scoped.filters));
     return;
   }
 
@@ -989,6 +1077,27 @@ const handleRequest = async (
 
     writeJson(response, 200, await appModule.importPullRequests(pullRequests));
     recordAdminAudit(runtime, request, 'github.pull-requests.import');
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/integrations/requirements/import') {
+    if (!isAuthorizedAdminRequest(request, runtime.adminToken)) {
+      writeJson(response, 401, { message: 'Unauthorized admin request' });
+      return;
+    }
+
+    const body = await readJsonBody(request);
+    const requirements = getRequirementsFromBody(body);
+
+    if (!requirements) {
+      writeJson(response, 400, {
+        message: 'requirements is required and must contain valid requirement records',
+      });
+      return;
+    }
+
+    writeJson(response, 200, await appModule.importRequirements(requirements));
+    recordAdminAudit(runtime, request, 'requirements.import');
     return;
   }
 

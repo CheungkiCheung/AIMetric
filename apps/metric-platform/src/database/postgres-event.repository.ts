@@ -140,6 +140,31 @@ export interface PullRequestSummary {
   averageCycleTimeHours: number;
 }
 
+export interface RequirementRecord {
+  provider: 'jira' | 'tapd';
+  projectKey: string;
+  requirementKey: string;
+  title: string;
+  ownerMemberId?: string;
+  status: 'open' | 'in-progress' | 'done' | 'closed';
+  aiTouched: boolean;
+  firstPrCreatedAt?: string;
+  completedAt?: string;
+  leadTimeHours?: number;
+  leadTimeToFirstPrHours?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RequirementSummary {
+  totalRequirementCount: number;
+  aiTouchedRequirementCount: number;
+  aiTouchedRequirementRatio: number;
+  completedRequirementCount: number;
+  averageLeadTimeHours: number;
+  averageLeadTimeToFirstPrHours: number;
+}
+
 export interface CollectorIdentityRecord {
   identityKey: string;
   memberId: string;
@@ -187,6 +212,13 @@ export interface MetricEventRepository {
   buildPullRequestSummary?(
     filters?: MetricSnapshotFilters,
   ): Promise<PullRequestSummary>;
+  importRequirements?(requirements: RequirementRecord[]): Promise<void>;
+  listRequirements?(
+    filters?: MetricSnapshotFilters,
+  ): Promise<RequirementRecord[]>;
+  buildRequirementSummary?(
+    filters?: MetricSnapshotFilters,
+  ): Promise<RequirementSummary>;
   listSessionAnalysisRows?(
     filters?: MetricSnapshotFilters,
   ): Promise<SessionAnalysisRow[]>;
@@ -339,6 +371,23 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
             merged_at TIMESTAMPTZ,
             updated_at TIMESTAMPTZ NOT NULL,
             UNIQUE (project_key, repo_name, pr_number)
+          )
+        `);
+        await this.database.query(`
+          CREATE TABLE IF NOT EXISTS delivery_requirements (
+            id BIGSERIAL PRIMARY KEY,
+            provider TEXT NOT NULL,
+            project_key TEXT NOT NULL,
+            requirement_key TEXT NOT NULL,
+            title TEXT NOT NULL,
+            owner_member_id TEXT,
+            status TEXT NOT NULL,
+            ai_touched BOOLEAN NOT NULL DEFAULT FALSE,
+            first_pr_created_at TIMESTAMPTZ,
+            completed_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL,
+            UNIQUE (provider, project_key, requirement_key)
           )
         `);
         await this.database.query(`
@@ -1040,6 +1089,189 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
         mergedPullRequests.length === 0
           ? 0
           : totalCycleTimeHours / mergedPullRequests.length,
+    };
+  }
+
+  async importRequirements(requirements: RequirementRecord[]): Promise<void> {
+    if (requirements.length === 0) {
+      return;
+    }
+
+    await this.ensureSchema();
+
+    await Promise.all(
+      requirements.map((requirement) =>
+        this.database.query(
+          `
+            INSERT INTO delivery_requirements (
+              provider,
+              project_key,
+              requirement_key,
+              title,
+              owner_member_id,
+              status,
+              ai_touched,
+              first_pr_created_at,
+              completed_at,
+              created_at,
+              updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            ON CONFLICT (provider, project_key, requirement_key)
+            DO UPDATE SET
+              title = EXCLUDED.title,
+              owner_member_id = EXCLUDED.owner_member_id,
+              status = EXCLUDED.status,
+              ai_touched = EXCLUDED.ai_touched,
+              first_pr_created_at = EXCLUDED.first_pr_created_at,
+              completed_at = EXCLUDED.completed_at,
+              created_at = EXCLUDED.created_at,
+              updated_at = EXCLUDED.updated_at
+          `,
+          [
+            requirement.provider,
+            requirement.projectKey,
+            requirement.requirementKey,
+            requirement.title,
+            requirement.ownerMemberId ?? null,
+            requirement.status,
+            requirement.aiTouched,
+            requirement.firstPrCreatedAt ?? null,
+            requirement.completedAt ?? null,
+            requirement.createdAt,
+            requirement.updatedAt,
+          ],
+        ),
+      ),
+    );
+  }
+
+  async listRequirements(
+    filters: MetricSnapshotFilters = {},
+  ): Promise<RequirementRecord[]> {
+    await this.ensureSchema();
+
+    const values: Array<string | string[]> = [];
+    const whereClauses: string[] = [];
+
+    appendProjectFilterClauses(values, whereClauses, filters, 'project_key');
+
+    if (filters.memberId) {
+      values.push(filters.memberId);
+      whereClauses.push(`owner_member_id = $${values.length}`);
+    }
+
+    if (filters.from) {
+      values.push(filters.from);
+      whereClauses.push(`created_at >= $${values.length}`);
+    }
+
+    if (filters.to) {
+      values.push(filters.to);
+      whereClauses.push(`created_at <= $${values.length}`);
+    }
+
+    const result = await this.database.query<{
+      provider: RequirementRecord['provider'];
+      project_key: string;
+      requirement_key: string;
+      title: string;
+      owner_member_id: string | null;
+      status: RequirementRecord['status'];
+      ai_touched: boolean;
+      first_pr_created_at: Date | string | null;
+      completed_at: Date | string | null;
+      created_at: Date | string;
+      updated_at: Date | string;
+    }>(
+      `
+        SELECT
+          provider,
+          project_key,
+          requirement_key,
+          title,
+          owner_member_id,
+          status,
+          ai_touched,
+          first_pr_created_at,
+          completed_at,
+          created_at,
+          updated_at
+        FROM delivery_requirements
+        ${whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : ''}
+        ORDER BY updated_at DESC, requirement_key ASC
+      `,
+      values,
+    );
+
+    return result.rows.map((row) => ({
+      provider: row.provider,
+      projectKey: row.project_key,
+      requirementKey: row.requirement_key,
+      title: row.title,
+      ...(row.owner_member_id ? { ownerMemberId: row.owner_member_id } : {}),
+      status: row.status,
+      aiTouched: row.ai_touched,
+      ...(row.first_pr_created_at
+        ? { firstPrCreatedAt: toIsoString(row.first_pr_created_at) }
+        : {}),
+      ...(row.completed_at ? { completedAt: toIsoString(row.completed_at) } : {}),
+      ...(row.completed_at
+        ? {
+            leadTimeHours: calculateCycleTimeHours(
+              toIsoString(row.created_at),
+              toIsoString(row.completed_at),
+            ),
+          }
+        : {}),
+      ...(row.first_pr_created_at
+        ? {
+            leadTimeToFirstPrHours: calculateCycleTimeHours(
+              toIsoString(row.created_at),
+              toIsoString(row.first_pr_created_at),
+            ),
+          }
+        : {}),
+      createdAt: toIsoString(row.created_at),
+      updatedAt: toIsoString(row.updated_at),
+    }));
+  }
+
+  async buildRequirementSummary(
+    filters: MetricSnapshotFilters = {},
+  ): Promise<RequirementSummary> {
+    const requirements = await this.listRequirements(filters);
+    const completedRequirements = requirements.filter(
+      (requirement) => requirement.status === 'done' || requirement.status === 'closed',
+    );
+    const aiTouchedRequirementCount = requirements.filter(
+      (requirement) => requirement.aiTouched,
+    ).length;
+    const leadTimeValues = completedRequirements
+      .map((requirement) => requirement.leadTimeHours)
+      .filter((value): value is number => typeof value === 'number');
+    const leadTimeToFirstPrValues = requirements
+      .map((requirement) => requirement.leadTimeToFirstPrHours)
+      .filter((value): value is number => typeof value === 'number');
+
+    return {
+      totalRequirementCount: requirements.length,
+      aiTouchedRequirementCount,
+      aiTouchedRequirementRatio:
+        requirements.length === 0
+          ? 0
+          : aiTouchedRequirementCount / requirements.length,
+      completedRequirementCount: completedRequirements.length,
+      averageLeadTimeHours:
+        leadTimeValues.length === 0
+          ? 0
+          : leadTimeValues.reduce((sum, value) => sum + value, 0) /
+            leadTimeValues.length,
+      averageLeadTimeToFirstPrHours:
+        leadTimeToFirstPrValues.length === 0
+          ? 0
+          : leadTimeToFirstPrValues.reduce((sum, value) => sum + value, 0) /
+            leadTimeToFirstPrValues.length,
     };
   }
 
