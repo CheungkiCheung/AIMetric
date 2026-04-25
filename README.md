@@ -204,8 +204,9 @@ corepack pnpm dev:dashboard
 
 1. 用 `aimetric onboard` 生成员工侧配置
 2. 用 `aimetric doctor` 检查接入状态
-3. 用 `corepack pnpm demo:seed` 导入一批需求 / PR / CI / 发布 / 缺陷示例数据
-4. 打开 Dashboard 查看个人、团队、需求、PR、CI、发布、事故、缺陷与归因视图
+3. 用 `corepack pnpm demo:check` 检查 demo 所需服务和关键接口
+4. 用 `corepack pnpm demo:seed` 导入一批需求 / PR / CI / 发布 / 缺陷示例数据
+5. 打开 Dashboard 查看个人、团队、需求、PR、CI、发布、事故、缺陷与归因视图
 
 ## 本地启动
 
@@ -295,8 +296,11 @@ node packages/employee-onboarding/dist/cli.js status --workspaceDir=/path/to/rep
 如果需要一套固定演示路径：
 
 ```bash
+corepack pnpm demo:check
 corepack pnpm demo:seed
 ```
+
+如果 `demo:check` 失败，说明本地服务或关键接口还没准备好；命令会直接返回非 `0`，方便联调前快速发现问题。
 
 然后按 [docs/operations/dashboard-walkthrough.md](/Users/zhangqixiang/0_1WORK/zhongxing/AIMetric/docs/operations/dashboard-walkthrough.md) 里的顺序进行演示。
 

@@ -5,6 +5,7 @@
   "scripts": {
     "build": "pnpm -r build",
     "dev:dashboard": "pnpm --filter @aimetric/dashboard dev",
+    "demo:check": "node ./scripts/check-demo-readiness.mjs",
     "demo:seed": "node ./scripts/seed-demo-data.mjs",
     "demo:seed:dry": "node ./scripts/seed-demo-data.mjs --dry-run",
     "start:collector-gateway": "pnpm --filter @aimetric/collector-gateway build && pnpm --filter @aimetric/collector-gateway start",

@@ -23,6 +23,18 @@ corepack pnpm demo:seed
 corepack pnpm demo:seed:dry
 ```
 
+先做联调检查：
+
+```bash
+corepack pnpm demo:check
+```
+
+如果检查失败，优先确认：
+
+- `collector-gateway` 是否运行在 `127.0.0.1:3000`
+- `metric-platform` 是否运行在 `127.0.0.1:3001`
+- 当前 `projectKey` 是否与导入数据一致
+
 ## 2. 推荐演示顺序
 
 建议按下面顺序讲：
