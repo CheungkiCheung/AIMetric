@@ -22,6 +22,7 @@ export AIMETRIC_COLLECTOR_TOKEN='replace-with-collector-token'
 export METRIC_PLATFORM_ADMIN_TOKEN='replace-with-admin-token'
 export METRIC_PLATFORM_URL='http://metric-platform:3001'
 export METRIC_SNAPSHOT_RECALCULATION_INTERVAL_MS=60000
+export INGESTION_DELIVERY_MODE='sync'
 ```
 
 变量说明：
@@ -31,6 +32,7 @@ export METRIC_SNAPSHOT_RECALCULATION_INTERVAL_MS=60000
 - `DATABASE_URL`：PostgreSQL 连接串。
 - `METRIC_PLATFORM_URL`：`collector-gateway` 转发事件到 `metric-platform` 的地址。
 - `METRIC_SNAPSHOT_RECALCULATION_INTERVAL_MS`：指标快照自动回算周期。
+- `INGESTION_DELIVERY_MODE`：采集投递模式，默认 `sync`；设置为 `queue` 时，`collector-gateway` 先接收并入队，再由 flush worker / 手动 flush 投递到 `metric-platform`。
 
 ## 3. 本地准生产启动
 
@@ -73,6 +75,7 @@ curl -X POST http://127.0.0.1:3001/metrics/recalculate \
 curl http://127.0.0.1:3000/health
 curl http://127.0.0.1:3000/ready
 curl http://127.0.0.1:3000/metrics
+curl http://127.0.0.1:3000/ingestion/health
 
 curl http://127.0.0.1:3001/health
 curl http://127.0.0.1:3001/ready
@@ -83,9 +86,43 @@ Prometheus 可抓取：
 
 - `aimetric_collector_gateway_uptime_seconds`
 - `aimetric_collector_gateway_requests_total`
+- `aimetric_collector_gateway_ingestion_queue_depth`
+- `aimetric_collector_gateway_ingestion_dead_letter_depth`
+- `aimetric_collector_gateway_ingestion_forwarded_total`
+- `aimetric_collector_gateway_ingestion_failed_forward_total`
 - `aimetric_metric_platform_uptime_seconds`
 - `aimetric_metric_platform_requests_total`
 - `aimetric_metric_platform_admin_audit_events_total`
+
+## 4.1 采集队列模式
+
+第一版队列模式使用 collector-gateway 进程内队列，用于验证异步采集协议、健康指标、重试和 DLQ 行为。准生产多副本部署前，应替换为 Redis Stream / BullMQ。
+
+开启方式：
+
+```bash
+export INGESTION_DELIVERY_MODE='queue'
+corepack pnpm start:collector-gateway
+```
+
+查看采集队列健康：
+
+```bash
+curl http://127.0.0.1:3000/ingestion/health
+```
+
+手动触发队列 flush：
+
+```bash
+curl -X POST http://127.0.0.1:3000/ingestion/flush
+```
+
+排障判断：
+
+- `queueDepth` 持续增长：检查 `METRIC_PLATFORM_URL`、网络连通性和 `metric-platform /events/import`。
+- `deadLetterDepth` 大于 0：说明批次多次投递失败，应先修复下游，再基于 DLQ 内容设计重放工具。
+- `failedForwardTotal` 增长：说明存在下游不可用、HTTP 非 2xx 或网络异常。
+- 当前内存队列重启会丢失，不能作为最终企业级持久队列。
 
 ## 5. 管理审计
 

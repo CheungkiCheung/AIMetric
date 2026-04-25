@@ -839,18 +839,18 @@ Agent 能力：
 
 交付：
 
-- Redis Stream / BullMQ。
-- ingestion worker。
-- retry / DLQ。
-- queue lag 指标。
-- 采集失败率、重复率、延迟指标。
-- 管理端采集健康 API。
+- Redis Stream / BullMQ：待企业级持久队列替换。
+- ingestion worker：第一版已完成手动 flush worker 入口 `POST /ingestion/flush`。
+- retry / DLQ：第一版已完成进程内队列重试和 DLQ 计数。
+- queue lag 指标：第一版已完成 queue depth / DLQ depth。
+- 采集失败率、重复率、延迟指标：第一版已完成失败投递计数，延迟和重复率待增强。
+- 管理端采集健康 API：第一版已完成 `GET /ingestion/health`。
 
 验收标准：
 
-- collector-gateway 短暂不可用时员工端可以本地缓冲。
-- ingestion worker 可以恢复消费。
-- 重复事件不会重复计入指标。
+- collector-gateway 短暂不可用时员工端可以本地缓冲：待 collector-sdk 本地缓冲联动增强。
+- ingestion worker 可以恢复消费：第一版已满足，队列模式下 flush 后可恢复投递。
+- 重复事件不会重复计入指标：已有 ingestion key 幂等基础，E5 后续需要把队列重放场景纳入专项测试。
 
 ### Phase E6：组织权限与治理模型
 

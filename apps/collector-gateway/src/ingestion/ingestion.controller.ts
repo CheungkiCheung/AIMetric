@@ -6,4 +6,12 @@ export class IngestionController {
   ingest(batch: unknown) {
     return this.ingestionService.ingest(batch);
   }
+
+  health() {
+    return this.ingestionService.getHealth();
+  }
+
+  flushQueuedBatches() {
+    return this.ingestionService.flushQueuedBatches();
+  }
 }

@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { AppModule } from './app.module.js';
+import type { IngestionDeliveryMode } from './ingestion/ingestion.service.js';
 
 export interface CollectorGatewayServer {
   baseUrl: string;
@@ -12,6 +13,7 @@ export interface BootstrapOptions {
   host?: string;
   port?: number;
   collectorToken?: string;
+  ingestionDeliveryMode?: IngestionDeliveryMode;
 }
 
 const readJsonBody = async (request: IncomingMessage): Promise<unknown> =>
@@ -80,6 +82,7 @@ const handleRequest = async (
 
   if (method === 'GET' && url === '/metrics') {
     const uptimeSeconds = Math.max(0, (Date.now() - metrics.startedAt) / 1_000);
+    const ingestionHealth = appModule.ingestionController.health();
     writeText(
       response,
       200,
@@ -90,9 +93,36 @@ const handleRequest = async (
         '# HELP aimetric_collector_gateway_requests_total Collector gateway HTTP requests',
         '# TYPE aimetric_collector_gateway_requests_total counter',
         `aimetric_collector_gateway_requests_total ${metrics.requestCount}`,
+        '# HELP aimetric_collector_gateway_ingestion_queue_depth Queued ingestion batches waiting for delivery',
+        '# TYPE aimetric_collector_gateway_ingestion_queue_depth gauge',
+        `aimetric_collector_gateway_ingestion_queue_depth ${ingestionHealth.queueDepth}`,
+        '# HELP aimetric_collector_gateway_ingestion_dead_letter_depth Ingestion batches in the dead letter queue',
+        '# TYPE aimetric_collector_gateway_ingestion_dead_letter_depth gauge',
+        `aimetric_collector_gateway_ingestion_dead_letter_depth ${ingestionHealth.deadLetterDepth}`,
+        '# HELP aimetric_collector_gateway_ingestion_forwarded_total Ingestion batches forwarded to metric-platform',
+        '# TYPE aimetric_collector_gateway_ingestion_forwarded_total counter',
+        `aimetric_collector_gateway_ingestion_forwarded_total ${ingestionHealth.forwardedTotal}`,
+        '# HELP aimetric_collector_gateway_ingestion_failed_forward_total Failed metric-platform forwarding attempts',
+        '# TYPE aimetric_collector_gateway_ingestion_failed_forward_total counter',
+        `aimetric_collector_gateway_ingestion_failed_forward_total ${ingestionHealth.failedForwardTotal}`,
         '',
       ].join('\n'),
     );
+    return;
+  }
+
+  if (method === 'GET' && url === '/ingestion/health') {
+    writeJson(response, 200, appModule.ingestionController.health());
+    return;
+  }
+
+  if (method === 'POST' && url === '/ingestion/flush') {
+    if (!isAuthorizedIngestionRequest(request, collectorToken)) {
+      writeJson(response, 401, { message: 'Unauthorized ingestion request' });
+      return;
+    }
+
+    writeJson(response, 200, await appModule.ingestionController.flushQueuedBatches());
     return;
   }
 
@@ -148,7 +178,9 @@ export async function bootstrap(
   const port = options.port ?? 3000;
   const collectorToken =
     options.collectorToken ?? process.env.AIMETRIC_COLLECTOR_TOKEN;
-  const appModule = new AppModule();
+  const appModule = new AppModule({
+    deliveryMode: options.ingestionDeliveryMode,
+  });
   const metrics = {
     startedAt: Date.now(),
     requestCount: 0,

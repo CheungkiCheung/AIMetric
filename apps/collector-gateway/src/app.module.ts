@@ -1,11 +1,14 @@
 import { IngestionController } from './ingestion/ingestion.controller.js';
-import { IngestionService } from './ingestion/ingestion.service.js';
+import {
+  IngestionService,
+  type IngestionServiceOptions,
+} from './ingestion/ingestion.service.js';
 
 export class AppModule {
   readonly ingestionController: IngestionController;
 
-  constructor() {
-    const ingestionService = new IngestionService();
+  constructor(options: IngestionServiceOptions = {}) {
+    const ingestionService = new IngestionService(options);
     this.ingestionController = new IngestionController(ingestionService);
   }
 }

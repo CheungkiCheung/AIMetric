@@ -94,6 +94,68 @@ describe('collector gateway bootstrap', () => {
       'aimetric_collector_gateway_uptime_seconds',
     );
   });
+
+  it('reports queued ingestion health over HTTP', async () => {
+    const app = await bootstrap({
+      port: 0,
+      ingestionDeliveryMode: 'queue',
+    });
+    servers.push(app);
+
+    const ingestionResponse = await fetch(`${app.baseUrl}/ingestion`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(createIngestionBatch()),
+    });
+    const healthResponse = await fetch(`${app.baseUrl}/ingestion/health`);
+    const metricsResponse = await fetch(`${app.baseUrl}/metrics`);
+
+    expect(ingestionResponse.status).toBe(200);
+    await expect(ingestionResponse.json()).resolves.toMatchObject({
+      accepted: 1,
+      queued: true,
+      queueDepth: 1,
+    });
+    expect(healthResponse.status).toBe(200);
+    await expect(healthResponse.json()).resolves.toMatchObject({
+      deliveryMode: 'queue',
+      queueDepth: 1,
+      deadLetterDepth: 0,
+    });
+    await expect(metricsResponse.text()).resolves.toContain(
+      'aimetric_collector_gateway_ingestion_queue_depth 1',
+    );
+  });
+
+  it('requires a bearer token for manual ingestion flush when auth is configured', async () => {
+    const app = await bootstrap({
+      port: 0,
+      collectorToken: 'secret-token',
+      ingestionDeliveryMode: 'queue',
+    });
+    servers.push(app);
+
+    const unauthorizedResponse = await fetch(`${app.baseUrl}/ingestion/flush`, {
+      method: 'POST',
+    });
+    const authorizedResponse = await fetch(`${app.baseUrl}/ingestion/flush`, {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer secret-token',
+      },
+    });
+
+    expect(unauthorizedResponse.status).toBe(401);
+    await expect(unauthorizedResponse.json()).resolves.toEqual({
+      message: 'Unauthorized ingestion request',
+    });
+    expect(authorizedResponse.status).toBe(200);
+    await expect(authorizedResponse.json()).resolves.toMatchObject({
+      attempted: 0,
+    });
+  });
 });
 
 const createIngestionBatch = () => ({
