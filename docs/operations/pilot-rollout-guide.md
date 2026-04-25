@@ -107,6 +107,8 @@
 建议给试点团队一套固定联调动作：
 
 ```bash
+corepack pnpm demo:runbook
+corepack pnpm demo:check
 corepack pnpm demo:seed
 ```
 

@@ -25,6 +25,8 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
   看 [docs/operations/pilot-rollout-guide.md](/Users/zhangqixiang/0_1WORK/zhongxing/AIMetric/docs/operations/pilot-rollout-guide.md)
 - 管理者演示路径：
   看 [docs/operations/dashboard-walkthrough.md](/Users/zhangqixiang/0_1WORK/zhongxing/AIMetric/docs/operations/dashboard-walkthrough.md)
+- 本地演示 Runbook：
+  看 [docs/operations/demo-runbook.md](/Users/zhangqixiang/0_1WORK/zhongxing/AIMetric/docs/operations/demo-runbook.md)
 - 全量中文计划：
   看 [docs/superpowers/plans/2026-04-23-aimetric-中文执行计划.md](/Users/zhangqixiang/0_1WORK/zhongxing/AIMetric/docs/superpowers/plans/2026-04-23-aimetric-%E4%B8%AD%E6%96%87%E6%89%A7%E8%A1%8C%E8%AE%A1%E5%88%92.md)
 
@@ -296,6 +298,7 @@ node packages/employee-onboarding/dist/cli.js status --workspaceDir=/path/to/rep
 如果需要一套固定演示路径：
 
 ```bash
+corepack pnpm demo:runbook
 corepack pnpm demo:check
 corepack pnpm demo:seed
 ```
