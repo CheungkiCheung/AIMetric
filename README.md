@@ -1,6 +1,6 @@
 # AIMetric
 
-AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研发效率的量化与优化》的同构复现项目，并已经扩展为可继续工程化落地的企业级 AI 研发效能平台原型。
+AIMetric 是一个面向企业落地的 AI 研发效能平台，用来统一采集研发工具链信号，沉淀多维度效能事实，并为提效管理者、技术管理者和平台管理员提供分析、治理与决策支持。
 
 当前版本重点解决四件事：
 
@@ -13,7 +13,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 
 - 对内试点版：可用于企业内部 AI 研发提效试点
 - 管理平台骨架：可继续补 SSO、租户隔离、K8s、告警、数据治理
-- 文章同构复现：尽量保持文章里的模块边界、术语和分层
+- 企业产品底座：可继续扩展更多 AI 工具、指标与管理场景
 
 ## 角色入口
 
@@ -35,7 +35,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 按最初的全量规划估算：
 
 - `Phase 1 主链路 MVP`：约 `100%` 完成
-- `全量文章同构系统`：约 `98%` 完成
+- `企业试点版平台能力`：约 `98%` 完成
 
 已完成：
 
@@ -44,7 +44,7 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 - MCP 主链路工具：`beforeEditFile`、`afterEditFile`、`recordSession`
 - `collector-gateway` 采集接入服务
 - `metric-platform` 事件导入、PostgreSQL 持久化、基础归因、个人/团队指标快照、快照表、手动/定时回算
-- `rule-engine` 项目规则包解析、文章同构术语与知识引用
+- `rule-engine` 项目规则包解析、规则模板与知识引用
 - `rule-engine` 项目规则版本目录、文件化规则模板与激活版本 manifest
 - `mcp-server` 新增 `getProjectRules`、`listRuleVersions`、`getRuleTemplate`、`validateRuleTemplate`、`setActiveRuleVersion`、`getRuleRollout`、`setRuleRollout`、`evaluateRuleRollout`、`searchKnowledge` 基础工具
 - `mcp-server` 新增最小 MCP JSON-RPC runtime，支持 `initialize`、`tools/list`、`tools/call` 与 stdio 启动入口
@@ -95,13 +95,13 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 
 ## 架构分层
 
-项目按文章里的四层架构复现：
+项目按企业级产品能力分层：
 
 - `采集平台层`：Cursor / CLI / IDE 入口，当前先以 SDK 与 MCP 工具为主
 - `数据采集层`：MCP 工具、采集 SDK、采集网关
 - `平台能力层`：指标平台、归因证据、指标计算、PostgreSQL 事实表
 - `证据关联层`：会话主线、编辑证据、后续 Git 归因与分析查询
-- `指标展示层`：个人出码视图、团队出码视图、会话分析、出码分析
+- `指标展示层`：提效管理驾驶舱、个人出码视图、团队出码视图、会话分析、出码分析
 
 当前主链路：
 

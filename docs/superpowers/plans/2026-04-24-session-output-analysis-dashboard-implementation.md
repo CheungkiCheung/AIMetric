@@ -416,7 +416,7 @@ git commit -m "feat: add session and output analysis dashboard"
 ```md
 - `metric-platform` 已新增分析 API：`/analysis/summary`、`/analysis/sessions`、`/analysis/output`
 - `dashboard` 已新增会话分析与出码分析展示区
-- `全量文章同构系统`：约 `91%` 完成
+- `企业试点版平台能力`：约 `91%` 完成
 ```
 
 - [ ] **Step 2: Run full verification**

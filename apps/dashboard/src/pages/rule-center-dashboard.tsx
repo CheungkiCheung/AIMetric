@@ -163,7 +163,7 @@ export const RuleCenterDashboard = ({
           规则中心管理
         </h2>
         <p style={{ margin: '8px 0 0', color: '#6b523c' }}>
-          对齐文章中的规则中心分层，展示当前生效模板、版本库存与灰度发布策略。
+          展示当前生效模板、版本库存与灰度发布策略，支撑企业环境下的规则治理与安全迭代。
         </p>
       </div>
       <div style={gridStyle}>

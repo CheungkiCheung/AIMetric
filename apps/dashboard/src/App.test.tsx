@@ -407,6 +407,60 @@ const createClient = (
       },
     },
   ],
+  getEnterpriseMetricSnapshots: async () => [
+    {
+      metricKey: 'ai_output_rate',
+      value: 0.62,
+      unit: 'ratio',
+      confidence: 'high',
+      scope: 'team',
+      projectKey: 'aimetric',
+      periodStart: '2026-04-01T00:00:00.000Z',
+      periodEnd: '2026-04-08T00:00:00.000Z',
+      calculatedAt: '2026-04-08T01:00:00.000Z',
+      definitionVersion: 1,
+      dataRequirements: ['recorded-metric-events'],
+      definition: {
+        key: 'ai_output_rate',
+        name: 'AI 出码率',
+        dimension: 'effective-output',
+        question: 'AI 生成或辅助的代码在总代码变更中占多少。',
+        formula: 'AI 采纳代码行数 / 提交总代码变更行数',
+        dataSources: ['mcp-events', 'git-provider', 'tool-adapter-events'],
+        automationLevel: 'high',
+        updateFrequency: 'daily',
+        dashboardPlacement: 'engineering-management',
+        assessmentUsage: 'team-improvement',
+        antiGamingNote: '出码率不是越高越好，必须同时看质量、返工和业务交付。',
+      },
+    },
+    {
+      metricKey: 'ai_output_rate',
+      value: 0.7,
+      unit: 'ratio',
+      confidence: 'high',
+      scope: 'team',
+      projectKey: 'aimetric',
+      periodStart: '2026-04-08T00:00:00.000Z',
+      periodEnd: '2026-04-24T00:00:00.000Z',
+      calculatedAt: '2026-04-24T01:00:00.000Z',
+      definitionVersion: 1,
+      dataRequirements: ['recorded-metric-events'],
+      definition: {
+        key: 'ai_output_rate',
+        name: 'AI 出码率',
+        dimension: 'effective-output',
+        question: 'AI 生成或辅助的代码在总代码变更中占多少。',
+        formula: 'AI 采纳代码行数 / 提交总代码变更行数',
+        dataSources: ['mcp-events', 'git-provider', 'tool-adapter-events'],
+        automationLevel: 'high',
+        updateFrequency: 'daily',
+        dashboardPlacement: 'engineering-management',
+        assessmentUsage: 'team-improvement',
+        antiGamingNote: '出码率不是越高越好，必须同时看质量、返工和业务交付。',
+      },
+    },
+  ],
   getCollectorIngestionHealth: async () => ({
     deliveryMode: 'queue',
     queueBackend: 'file',
@@ -504,7 +558,12 @@ describe('App', () => {
       />,
     );
 
-    expect(await screen.findByText('个人出码视图')).toBeInTheDocument();
+    expect(await screen.findByText('提效管理者运营驾驶舱')).toBeInTheDocument();
+    expect(screen.getByText('趋势分析层')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '近 30 天' })).toBeInTheDocument();
+    expect(screen.getByText('专题分析与治理页')).toBeInTheDocument();
+    expect(screen.getByText('企业级 AI 研发效能平台')).toBeInTheDocument();
+    expect(screen.getByText('个人出码视图')).toBeInTheDocument();
     expect(screen.getByText('团队出码视图')).toBeInTheDocument();
     expect(screen.getByText('组织治理概览')).toBeInTheDocument();
     expect(screen.getByText('权限治理配置')).toBeInTheDocument();
@@ -519,8 +578,8 @@ describe('App', () => {
     expect(screen.getByText('需求交付概览')).toBeInTheDocument();
     expect(screen.getByText('PR 交付概览')).toBeInTheDocument();
     expect(screen.getByText('队列模式')).toBeInTheDocument();
-    expect(screen.getByText('AI 触达需求占比')).toBeInTheDocument();
-    expect(screen.getByText('60.0%')).toBeInTheDocument();
+    expect(screen.getAllByText('AI 触达需求占比').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('60.0%').length).toBeGreaterThan(0);
     expect(screen.getByText('36.0 小时')).toBeInTheDocument();
     expect(screen.getByText('Jira AIM-101 Build management dashboard')).toBeInTheDocument();
     expect(screen.getAllByText('75.0%').length).toBeGreaterThan(0);
@@ -540,7 +599,7 @@ describe('App', () => {
     expect(screen.getByText('发布失败关联缺陷')).toBeInTheDocument();
     expect(screen.getByText(/关联 PR：2/)).toBeInTheDocument();
     expect(screen.getByText(/PR 编号：101, 103/)).toBeInTheDocument();
-    expect(screen.getByText('AI 触达 PR 占比')).toBeInTheDocument();
+    expect(screen.getAllByText('AI 触达 PR 占比').length).toBeGreaterThan(0);
     expect(screen.getAllByText('75.0%').length).toBeGreaterThan(0);
     expect(screen.getByText('18.0 小时')).toBeInTheDocument();
     expect(screen.getByText('[GITHUB] AIMetric #101 Add collector health dashboard')).toBeInTheDocument();
@@ -562,7 +621,7 @@ describe('App', () => {
     expect(screen.getByText('出码分析')).toBeInTheDocument();
     expect(screen.getByText('编辑证据数')).toBeInTheDocument();
     expect(screen.getByText('/repo/src/demo.ts')).toBeInTheDocument();
-    expect(screen.getByText('70.0%')).toBeInTheDocument();
+    expect(screen.getAllByText('70.0%').length).toBeGreaterThan(0);
     expect(screen.getByText('62.5%')).toBeInTheDocument();
     expect(screen.getByText('83.3%')).toBeInTheDocument();
     expect(screen.getByText('25%')).toBeInTheDocument();
@@ -633,6 +692,9 @@ describe('App', () => {
     const getEnterpriseMetricValues = vi.fn(
       createClient().getEnterpriseMetricValues,
     );
+    const getEnterpriseMetricSnapshots = vi.fn(
+      createClient().getEnterpriseMetricSnapshots,
+    );
     const getRequirementSummary = vi.fn(createClient().getRequirementSummary);
     const getRequirements = vi.fn(createClient().getRequirements);
     const getCiRunSummary = vi.fn(createClient().getCiRunSummary);
@@ -663,6 +725,7 @@ describe('App', () => {
           getOutputAnalysisRows,
           getEnterpriseMetricCatalog,
           getEnterpriseMetricValues,
+          getEnterpriseMetricSnapshots,
           getRequirementSummary,
           getRequirements,
           getCiRunSummary,
@@ -676,7 +739,7 @@ describe('App', () => {
       />,
     );
 
-    await screen.findByText('个人出码视图');
+    await screen.findByText('提效管理者运营驾驶舱');
     fireEvent.change(screen.getByLabelText('项目'), {
       target: { value: 'navigation' },
     });
@@ -706,6 +769,17 @@ describe('App', () => {
       expect(getEnterpriseMetricCatalog).toHaveBeenCalledTimes(1);
       expect(getEnterpriseMetricValues).toHaveBeenLastCalledWith(
         expect.objectContaining({ projectKey: 'navigation' }),
+      );
+      expect(getEnterpriseMetricSnapshots).toHaveBeenLastCalledWith(
+        expect.objectContaining({ projectKey: 'navigation' }),
+        [
+          'ai_output_rate',
+          'lead_time_ai_vs_non_ai',
+          'ci_pass_rate',
+          'change_failure_rate',
+          'defect_rate',
+          'critical_requirement_cycle_time',
+        ],
       );
       expect(getRequirementSummary).toHaveBeenLastCalledWith(
         expect.objectContaining({ projectKey: 'navigation' }),
@@ -793,6 +867,9 @@ describe('App', () => {
     const getEnterpriseMetricValues = vi.fn(
       createClient().getEnterpriseMetricValues,
     );
+    const getEnterpriseMetricSnapshots = vi.fn(
+      createClient().getEnterpriseMetricSnapshots,
+    );
     const getRequirementSummary = vi.fn(createClient().getRequirementSummary);
     const getRequirements = vi.fn(createClient().getRequirements);
     const getCiRunSummary = vi.fn(createClient().getCiRunSummary);
@@ -825,6 +902,7 @@ describe('App', () => {
             getOutputAnalysisRows,
             getEnterpriseMetricCatalog,
             getEnterpriseMetricValues,
+            getEnterpriseMetricSnapshots,
             getRequirementSummary,
             getRequirements,
             getCiRunSummary,
@@ -841,7 +919,7 @@ describe('App', () => {
       await act(async () => {
         await Promise.resolve();
       });
-      expect(screen.getByText('个人出码视图')).toBeInTheDocument();
+      expect(screen.getByText('提效管理者运营驾驶舱')).toBeInTheDocument();
 
       await act(async () => {
         vi.advanceTimersByTime(1000);
@@ -859,6 +937,7 @@ describe('App', () => {
       expect(getOutputAnalysisRows).toHaveBeenCalledTimes(2);
       expect(getEnterpriseMetricCatalog).toHaveBeenCalledTimes(1);
       expect(getEnterpriseMetricValues).toHaveBeenCalledTimes(2);
+      expect(getEnterpriseMetricSnapshots).toHaveBeenCalledTimes(2);
       expect(getRequirementSummary).toHaveBeenCalledTimes(2);
       expect(getRequirements).toHaveBeenCalledTimes(2);
       expect(getCiRunSummary).toHaveBeenCalledTimes(2);

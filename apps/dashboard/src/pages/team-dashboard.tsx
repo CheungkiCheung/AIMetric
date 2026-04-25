@@ -10,7 +10,7 @@ export const TeamDashboard = ({ snapshot }: TeamDashboardProps) => (
     <div style={{ marginBottom: '16px' }}>
       <h2 style={{ margin: 0, fontSize: '28px', color: '#241c15' }}>团队出码视图</h2>
       <p style={{ margin: '8px 0 0', color: '#6b523c' }}>
-        汇总成员采纳与提交表现，贴近文章里的团队量化视角。
+        汇总成员采纳与提交表现，帮助管理者观察团队层面的 AI 产出转化情况。
       </p>
     </div>
     <div

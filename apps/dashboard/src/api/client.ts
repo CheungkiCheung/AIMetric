@@ -363,6 +363,10 @@ export interface DashboardClient {
     filters?: DashboardFilters,
     metricKeys?: string[],
   ): Promise<MetricCalculationResult[]>;
+  getEnterpriseMetricSnapshots(
+    filters?: DashboardFilters,
+    metricKeys?: string[],
+  ): Promise<MetricCalculationResult[]>;
   getCollectorIngestionHealth(): Promise<CollectorIngestionHealth>;
   getGovernanceDirectory(): Promise<GovernanceDirectory>;
   getViewerScopeAssignment(viewerId: string): Promise<ViewerScopeAssignment | null>;
@@ -751,6 +755,18 @@ export const createDashboardClient = (
       buildMetricUrl(
         baseUrl,
         '/enterprise-metrics/values',
+        filters,
+        metricKeys,
+      ),
+      [],
+      viewerId,
+      adminToken,
+    ),
+  getEnterpriseMetricSnapshots: (filters, metricKeys) =>
+    fetchJson<MetricCalculationResult[]>(
+      buildMetricUrl(
+        baseUrl,
+        '/enterprise-metrics/snapshots',
         filters,
         metricKeys,
       ),

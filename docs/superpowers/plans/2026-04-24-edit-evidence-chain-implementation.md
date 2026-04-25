@@ -609,7 +609,7 @@ curl 'http://127.0.0.1:3001/evidence/edits?projectKey=aimetric&sessionId=sess_1'
 - [ ] **Step 2: Update the Chinese execution plan progress**
 
 ```md
-- `全量文章同构系统`：约 `87%` 完成
+- `企业试点版平台能力`：约 `87%` 完成
 - 已新增“会话 -> 编辑证据”链路，支持 `edit.span.recorded` 采集与平台查询
 ```
 

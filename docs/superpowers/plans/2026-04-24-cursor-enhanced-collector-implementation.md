@@ -666,7 +666,7 @@ node apps/cursor-adapter/dist/cli.js --workspaceDir=/path/to/project --publish
 - [ ] **Step 2: Update the Chinese execution plan progress**
 
 ```md
-- `全量文章同构系统`：约 `83%` 完成
+- `企业试点版平台能力`：约 `83%` 完成
 - 已新增 `Cursor 增强采集模块`，支持跨平台路径发现、会话主线采集、定时扫描幂等和 onboarding 增强档
 ```
 

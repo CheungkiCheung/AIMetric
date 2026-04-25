@@ -150,6 +150,32 @@ describe('createDashboardClient', () => {
         );
       }
 
+      if (url.endsWith('/enterprise-metrics/snapshots')) {
+        return new Response(
+          JSON.stringify([
+            {
+              metricKey: 'ai_output_rate',
+              value: 0.62,
+              unit: 'ratio',
+              confidence: 'high',
+              scope: 'team',
+              projectKey: 'aimetric',
+              periodStart: '2026-04-01T00:00:00.000Z',
+              periodEnd: '2026-04-08T00:00:00.000Z',
+              calculatedAt: '2026-04-08T01:00:00.000Z',
+              definitionVersion: 1,
+              dataRequirements: ['recorded-metric-events'],
+              definition: {
+                key: 'ai_output_rate',
+                name: 'AI 出码率',
+                dimension: 'effective-output',
+              },
+            },
+          ]),
+          { status: 200 },
+        );
+      }
+
       if (url.endsWith('/ingestion/health')) {
         return new Response(
           JSON.stringify({
@@ -534,6 +560,15 @@ describe('createDashboardClient', () => {
         }),
       }),
     ]);
+    await expect(client.getEnterpriseMetricSnapshots()).resolves.toEqual([
+      expect.objectContaining({
+        metricKey: 'ai_output_rate',
+        value: 0.62,
+        definition: expect.objectContaining({
+          name: 'AI 出码率',
+        }),
+      }),
+    ]);
     await expect(client.getCollectorIngestionHealth()).resolves.toMatchObject({
       deliveryMode: 'queue',
       queueBackend: 'file',
@@ -669,6 +704,7 @@ describe('createDashboardClient', () => {
     await client.getRuleRolloutEvaluation('navigation', 'alice');
     await client.getEnterpriseMetricCatalog();
     await client.getEnterpriseMetricValues(filters, ['ai_session_count']);
+    await client.getEnterpriseMetricSnapshots(filters, ['ai_output_rate']);
     await client.getPullRequestSummary(filters);
     await client.getPullRequests(filters);
     await client.getRequirementSummary(filters);
@@ -706,45 +742,48 @@ describe('createDashboardClient', () => {
       'http://127.0.0.1:3001/enterprise-metrics/values?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z&metricKey=ai_session_count',
     );
     expect(requestedUrls[7]).toBe(
-      'http://127.0.0.1:3001/integrations/pull-requests/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+      'http://127.0.0.1:3001/enterprise-metrics/snapshots?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z&metricKey=ai_output_rate',
     );
     expect(requestedUrls[8]).toBe(
-      'http://127.0.0.1:3001/integrations/pull-requests?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+      'http://127.0.0.1:3001/integrations/pull-requests/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
     expect(requestedUrls[9]).toBe(
-      'http://127.0.0.1:3001/integrations/requirements/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+      'http://127.0.0.1:3001/integrations/pull-requests?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
     expect(requestedUrls[10]).toBe(
-      'http://127.0.0.1:3001/integrations/requirements?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+      'http://127.0.0.1:3001/integrations/requirements/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
     expect(requestedUrls[11]).toBe(
-      'http://127.0.0.1:3001/integrations/ci/runs/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+      'http://127.0.0.1:3001/integrations/requirements?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
     expect(requestedUrls[12]).toBe(
-      'http://127.0.0.1:3001/integrations/ci/runs?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+      'http://127.0.0.1:3001/integrations/ci/runs/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
     expect(requestedUrls[13]).toBe(
-      'http://127.0.0.1:3001/integrations/deployments/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+      'http://127.0.0.1:3001/integrations/ci/runs?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
     expect(requestedUrls[14]).toBe(
-      'http://127.0.0.1:3001/integrations/deployments?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+      'http://127.0.0.1:3001/integrations/deployments/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
     expect(requestedUrls[15]).toBe(
-      'http://127.0.0.1:3001/integrations/incidents/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+      'http://127.0.0.1:3001/integrations/deployments?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
     expect(requestedUrls[16]).toBe(
-      'http://127.0.0.1:3001/integrations/incidents?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+      'http://127.0.0.1:3001/integrations/incidents/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
     expect(requestedUrls[17]).toBe(
-      'http://127.0.0.1:3001/integrations/defects/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+      'http://127.0.0.1:3001/integrations/incidents?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
     expect(requestedUrls[18]).toBe(
-      'http://127.0.0.1:3001/integrations/defects?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+      'http://127.0.0.1:3001/integrations/defects/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
     expect(requestedUrls[19]).toBe(
-      'http://127.0.0.1:3001/integrations/defects/attribution/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+      'http://127.0.0.1:3001/integrations/defects?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
     expect(requestedUrls[20]).toBe(
+      'http://127.0.0.1:3001/integrations/defects/attribution/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+    );
+    expect(requestedUrls[21]).toBe(
       'http://127.0.0.1:3001/integrations/defects/attribution?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
   });

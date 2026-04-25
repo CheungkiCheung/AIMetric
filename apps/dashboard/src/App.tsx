@@ -38,6 +38,7 @@ import { DeploymentDashboard } from './pages/deployment-dashboard.js';
 import { DefectDashboard } from './pages/defect-dashboard.js';
 import { DefectAttributionDashboard } from './pages/defect-attribution-dashboard.js';
 import { EnterpriseMetricCatalogPanel } from './pages/enterprise-metric-catalog.js';
+import { EffectivenessManagerCockpit } from './pages/effectiveness-manager-cockpit.js';
 import { GovernanceDirectoryDashboard } from './pages/governance-directory-dashboard.js';
 import { IncidentDashboard } from './pages/incident-dashboard.js';
 import { McpAuditDashboard } from './pages/mcp-audit-dashboard.js';
@@ -99,6 +100,28 @@ const filterInputStyle = {
   font: 'inherit',
 };
 
+const toIsoDateTime = (date: Date) => date.toISOString().slice(0, 16);
+
+const getDefaultFilters = (windowDays: number): DashboardFilters => {
+  const to = new Date();
+  const from = new Date(to.getTime() - windowDays * 24 * 60 * 60 * 1000);
+
+  return {
+    projectKey: 'aimetric',
+    from: toIsoDateTime(from),
+    to: toIsoDateTime(to),
+  };
+};
+
+const trendMetricKeys = [
+  'ai_output_rate',
+  'lead_time_ai_vs_non_ai',
+  'ci_pass_rate',
+  'change_failure_rate',
+  'defect_rate',
+  'critical_requirement_cycle_time',
+];
+
 export interface AppProps {
   client?: DashboardClient;
   refreshIntervalMs?: number;
@@ -119,6 +142,9 @@ export const App = ({
   const [enterpriseMetricCatalog, setEnterpriseMetricCatalog] =
     useState<EnterpriseMetricCatalog | null>(null);
   const [enterpriseMetricValues, setEnterpriseMetricValues] = useState<
+    MetricCalculationResult[]
+  >([]);
+  const [enterpriseMetricSnapshots, setEnterpriseMetricSnapshots] = useState<
     MetricCalculationResult[]
   >([]);
   const [personalSnapshot, setPersonalSnapshot] = useState<PersonalSnapshot | null>(null);
@@ -152,7 +178,8 @@ export const App = ({
   const [ruleRollout, setRuleRollout] = useState<RuleRollout | null>(null);
   const [ruleRolloutEvaluation, setRuleRolloutEvaluation] =
     useState<RuleRolloutEvaluation | null>(null);
-  const [filters, setFilters] = useState<DashboardFilters>({});
+  const [selectedWindowDays, setSelectedWindowDays] = useState(30);
+  const [filters, setFilters] = useState<DashboardFilters>(getDefaultFilters(30));
   const [savingRuleRollout, setSavingRuleRollout] = useState(false);
 
   const loadDashboard = async (nextFilters: DashboardFilters) => {
@@ -168,6 +195,7 @@ export const App = ({
       rollout,
       rolloutEvaluation,
       metricValues,
+      metricSnapshots,
       collectorIngestionHealth,
       ciSummary,
       ciRows,
@@ -195,6 +223,7 @@ export const App = ({
       client.getRuleRollout(projectKey),
       client.getRuleRolloutEvaluation(projectKey, nextFilters.memberId),
       client.getEnterpriseMetricValues(nextFilters),
+      client.getEnterpriseMetricSnapshots(nextFilters, trendMetricKeys),
       client.getCollectorIngestionHealth(),
       client.getCiRunSummary(nextFilters),
       client.getCiRuns(nextFilters),
@@ -224,6 +253,7 @@ export const App = ({
       rollout,
       rolloutEvaluation,
       metricValues,
+      metricSnapshots,
       collectorIngestionHealth,
       ciSummary,
       ciRows,
@@ -258,6 +288,7 @@ export const App = ({
         rollout,
         rolloutEvaluation,
         metricValues,
+        metricSnapshots,
         collectorIngestionHealth,
         ciSummary,
         ciRows,
@@ -290,6 +321,7 @@ export const App = ({
       setRuleRollout(rollout);
       setRuleRolloutEvaluation(rolloutEvaluation);
       setEnterpriseMetricValues(metricValues);
+      setEnterpriseMetricSnapshots(metricSnapshots);
       setCollectorHealth(collectorIngestionHealth);
       setCiRunSummary(ciSummary);
       setCiRuns(ciRows);
@@ -351,6 +383,16 @@ export const App = ({
     );
   };
 
+  const selectWindow = (days: number) => {
+    setSelectedWindowDays(days);
+    setFilters((currentFilters) =>
+      normalizeFilters({
+        ...getDefaultFilters(days),
+        memberId: currentFilters.memberId,
+      }),
+    );
+  };
+
   const saveRuleRollout = async (input: RuleRollout) => {
     setSavingRuleRollout(true);
 
@@ -367,6 +409,7 @@ export const App = ({
         rollout,
         rolloutEvaluation,
         metricValues,
+        metricSnapshots,
         collectorIngestionHealth,
         ciSummary,
         ciRows,
@@ -395,6 +438,7 @@ export const App = ({
       setRuleRollout(rollout);
       setRuleRolloutEvaluation(rolloutEvaluation);
       setEnterpriseMetricValues(metricValues);
+      setEnterpriseMetricSnapshots(metricSnapshots);
       setCollectorHealth(collectorIngestionHealth);
       setCiRunSummary(ciSummary);
       setCiRuns(ciRows);
@@ -434,7 +478,7 @@ export const App = ({
       <div style={{ marginBottom: '16px' }}>
         <h2 style={{ margin: 0, fontSize: '22px' }}>指标筛选与自动刷新</h2>
         <p style={{ margin: '6px 0 0', color: '#6b523c' }}>
-          按文章中的项目、成员与周期维度收敛快照口径，看板默认 30 秒自动刷新。
+          面向提效管理者按项目、成员与观察周期切换经营口径，看板默认 30 秒自动刷新。
         </p>
       </div>
       <div style={filterGridStyle}>
@@ -444,7 +488,7 @@ export const App = ({
             id="projectKey"
             style={filterInputStyle}
             value={filters.projectKey ?? ''}
-            placeholder="例如 navigation"
+            placeholder="例如 aimetric"
             onChange={(event) => updateFilter('projectKey', event.target.value)}
           />
         </label>
@@ -505,7 +549,7 @@ export const App = ({
       <main style={shellStyle}>
         <div style={panelStyle}>
           {filterControls}
-          <p style={{ margin: 0, fontSize: '18px' }}>正在加载 AIMetric 仪表盘...</p>
+          <p style={{ margin: 0, fontSize: '18px' }}>正在加载 AIMetric Enterprise...</p>
         </div>
       </main>
     );
@@ -532,16 +576,50 @@ export const App = ({
               color: '#8b6846',
             }}
           >
-            AIMetric Phase 1
+            AIMetric Enterprise
           </p>
           <h1 style={{ margin: '12px 0 8px', fontSize: '44px', lineHeight: 1.05 }}>
-            AI 研发效能量化看板
+            企业级 AI 研发效能平台
           </h1>
           <p style={{ margin: 0, maxWidth: '680px', color: '#5d4733', fontSize: '16px' }}>
-            对齐文章里的个人、团队、会话与出码视图，展示 MCP 主链路采集后沉淀出的核心分析指标。
+            统一承接员工端轻量采集、研发工具链信号、多维效能指标与治理配置，
+            让管理者从经营视角观察 AI 使用渗透、转化效率与质量风险。
           </p>
         </header>
+        <EffectivenessManagerCockpit
+          filters={filters}
+          selectedWindowDays={selectedWindowDays}
+          onSelectWindow={selectWindow}
+          metricValues={enterpriseMetricValues}
+          metricSnapshots={enterpriseMetricSnapshots}
+          teamSnapshot={teamSnapshot}
+          requirementSummary={requirementSummary}
+          pullRequestSummary={pullRequestSummary}
+          ciRunSummary={ciRunSummary}
+          defectAttributionSummary={defectAttributionSummary}
+          collectorHealth={collectorHealth}
+          governanceDirectory={governanceDirectory}
+        />
         {filterControls}
+        <section style={filterPanelStyle}>
+          <div style={{ display: 'grid', gap: '8px' }}>
+            <p
+              style={{
+                margin: 0,
+                color: '#6b523c',
+                fontSize: '13px',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+              }}
+            >
+              Deep Dive Views
+            </p>
+            <h2 style={{ margin: 0, fontSize: '28px' }}>专题分析与治理页</h2>
+            <p style={{ margin: 0, color: '#6b523c', lineHeight: 1.7 }}>
+              首页先给提效管理者一个经营驾驶舱，再把需求、PR、CI、发布、缺陷归因、采集健康和权限治理作为专题页继续下钻。
+            </p>
+          </div>
+        </section>
         <EnterpriseMetricCatalogPanel
           catalog={enterpriseMetricCatalog}
           metricValues={enterpriseMetricValues}

@@ -16,7 +16,7 @@ export const AnalysisSummarySection = ({ summary }: AnalysisSummaryProps) => (
     <div style={{ marginBottom: '16px' }}>
       <h2 style={{ margin: 0, fontSize: '28px', color: '#241c15' }}>分析摘要</h2>
       <p style={{ margin: '8px 0 0', color: '#6b523c' }}>
-        用真实采集数据汇总文章里的会话、编辑证据与 Tab 接受主口径。
+        用真实采集数据汇总会话、编辑证据与 Tab 接受等核心研发信号。
       </p>
     </div>
     <div style={gridStyle}>
