@@ -163,6 +163,30 @@ export interface ViewerScopeAssignment {
   updatedAt?: string;
 }
 
+export interface PullRequestRecord {
+  provider: 'github';
+  projectKey: string;
+  repoName: string;
+  prNumber: number;
+  title: string;
+  authorMemberId?: string;
+  state: 'open' | 'closed' | 'merged';
+  aiTouched: boolean;
+  reviewDecision?: 'approved' | 'changes-requested' | 'commented';
+  createdAt: string;
+  mergedAt?: string;
+  cycleTimeHours?: number;
+  updatedAt: string;
+}
+
+export interface PullRequestSummary {
+  totalPrCount: number;
+  aiTouchedPrCount: number;
+  aiTouchedPrRatio: number;
+  mergedPrCount: number;
+  averageCycleTimeHours: number;
+}
+
 export interface DashboardClient {
   getPersonalSnapshot(filters?: DashboardFilters): Promise<PersonalSnapshot>;
   getTeamSnapshot(filters?: DashboardFilters): Promise<TeamSnapshot>;
@@ -187,6 +211,8 @@ export interface DashboardClient {
   getGovernanceDirectory(): Promise<GovernanceDirectory>;
   getViewerScopeAssignment(viewerId: string): Promise<ViewerScopeAssignment | null>;
   updateViewerScopeAssignment(input: ViewerScopeAssignment): Promise<ViewerScopeAssignment>;
+  getPullRequestSummary(filters?: DashboardFilters): Promise<PullRequestSummary>;
+  getPullRequests(filters?: DashboardFilters): Promise<PullRequestRecord[]>;
   updateRuleRollout(input: RuleRollout): Promise<RuleRollout>;
 }
 
@@ -284,6 +310,14 @@ const fallbackViewerScopeAssignment = (viewerId: string): ViewerScopeAssignment 
   teamKeys: [],
   projectKeys: [],
 });
+
+const fallbackPullRequestSummary: PullRequestSummary = {
+  totalPrCount: 0,
+  aiTouchedPrCount: 0,
+  aiTouchedPrRatio: 0,
+  mergedPrCount: 0,
+  averageCycleTimeHours: 0,
+};
 
 const buildViewerHeaders = (viewerId?: string): HeadersInit | undefined =>
   viewerId
@@ -506,6 +540,20 @@ export const createDashboardClient = (
     fetchJson<GovernanceDirectory>(
       new URL('/governance/directory', baseUrl).toString(),
       fallbackGovernanceDirectory,
+      viewerId,
+      adminToken,
+    ),
+  getPullRequestSummary: (filters) =>
+    fetchJson<PullRequestSummary>(
+      buildMetricUrl(baseUrl, '/integrations/github/pull-requests/summary', filters),
+      fallbackPullRequestSummary,
+      viewerId,
+      adminToken,
+    ),
+  getPullRequests: (filters) =>
+    fetchJson<PullRequestRecord[]>(
+      buildMetricUrl(baseUrl, '/integrations/github/pull-requests', filters),
+      [],
       viewerId,
       adminToken,
     ),

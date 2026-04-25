@@ -14,6 +14,8 @@ import {
   type MetricEventRepository,
   type MetricSnapshotRecord,
   type MetricSnapshotFilters,
+  type PullRequestRecord,
+  type PullRequestSummary,
   type RecordedMetricEvent,
   type ViewerScopeAssignmentRecord,
 } from './database/postgres-event.repository.js';
@@ -171,6 +173,36 @@ export class AppModule {
 
   async listOutputAnalysisRows(filters: MetricSnapshotFilters = {}) {
     return (await this.metricEventRepository.listOutputAnalysisRows?.(filters)) ?? [];
+  }
+
+  async importPullRequests(pullRequests: PullRequestRecord[]) {
+    if (!this.metricEventRepository.importPullRequests) {
+      throw new Error('Pull request import is not configured');
+    }
+
+    await this.metricEventRepository.importPullRequests(pullRequests);
+
+    return {
+      importedPullRequests: pullRequests.length,
+    };
+  }
+
+  async listPullRequests(filters: MetricSnapshotFilters = {}) {
+    return (await this.metricEventRepository.listPullRequests?.(filters)) ?? [];
+  }
+
+  async buildPullRequestSummary(
+    filters: MetricSnapshotFilters = {},
+  ): Promise<PullRequestSummary> {
+    return (
+      (await this.metricEventRepository.buildPullRequestSummary?.(filters)) ?? {
+        totalPrCount: 0,
+        aiTouchedPrCount: 0,
+        aiTouchedPrRatio: 0,
+        mergedPrCount: 0,
+        averageCycleTimeHours: 0,
+      }
+    );
   }
 
   getEnterpriseMetricCatalog() {

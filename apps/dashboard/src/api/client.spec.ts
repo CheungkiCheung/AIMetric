@@ -199,6 +199,42 @@ describe('createDashboardClient', () => {
         );
       }
 
+      if (url.endsWith('/integrations/github/pull-requests/summary')) {
+        return new Response(
+          JSON.stringify({
+            totalPrCount: 4,
+            aiTouchedPrCount: 3,
+            aiTouchedPrRatio: 0.75,
+            mergedPrCount: 2,
+            averageCycleTimeHours: 18,
+          }),
+          { status: 200 },
+        );
+      }
+
+      if (url.endsWith('/integrations/github/pull-requests')) {
+        return new Response(
+          JSON.stringify([
+            {
+              provider: 'github',
+              projectKey: 'aimetric',
+              repoName: 'AIMetric',
+              prNumber: 101,
+              title: 'Add collector health dashboard',
+              authorMemberId: 'alice',
+              state: 'merged',
+              aiTouched: true,
+              reviewDecision: 'approved',
+              createdAt: '2026-04-24T00:00:00.000Z',
+              mergedAt: '2026-04-24T12:00:00.000Z',
+              cycleTimeHours: 12,
+              updatedAt: '2026-04-24T12:00:00.000Z',
+            },
+          ]),
+          { status: 200 },
+        );
+      }
+
       if (url.includes('/governance/viewer-scopes')) {
         return new Response(
           JSON.stringify({
@@ -290,6 +326,21 @@ describe('createDashboardClient', () => {
       },
       teams: [expect.objectContaining({ key: 'platform-engineering' })],
     });
+    await expect(client.getPullRequestSummary()).resolves.toMatchObject({
+      totalPrCount: 4,
+      aiTouchedPrCount: 3,
+      aiTouchedPrRatio: 0.75,
+      mergedPrCount: 2,
+      averageCycleTimeHours: 18,
+    });
+    await expect(client.getPullRequests()).resolves.toEqual([
+      expect.objectContaining({
+        provider: 'github',
+        prNumber: 101,
+        aiTouched: true,
+        cycleTimeHours: 12,
+      }),
+    ]);
     await expect(client.getViewerScopeAssignment('manager-1')).resolves.toMatchObject({
       viewerId: 'manager-1',
       teamKeys: ['platform-engineering'],
@@ -343,6 +394,8 @@ describe('createDashboardClient', () => {
     await client.getRuleRolloutEvaluation('navigation', 'alice');
     await client.getEnterpriseMetricCatalog();
     await client.getEnterpriseMetricValues(filters, ['ai_session_count']);
+    await client.getPullRequestSummary(filters);
+    await client.getPullRequests(filters);
 
     expect(requestedUrls[0]).toBe(
       'http://127.0.0.1:3001/metrics/personal?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
@@ -364,6 +417,12 @@ describe('createDashboardClient', () => {
     );
     expect(requestedUrls[6]).toBe(
       'http://127.0.0.1:3001/enterprise-metrics/values?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z&metricKey=ai_session_count',
+    );
+    expect(requestedUrls[7]).toBe(
+      'http://127.0.0.1:3001/integrations/github/pull-requests/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+    );
+    expect(requestedUrls[8]).toBe(
+      'http://127.0.0.1:3001/integrations/github/pull-requests?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
   });
 

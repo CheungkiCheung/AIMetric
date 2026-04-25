@@ -703,6 +703,126 @@ describe('PostgresMetricEventRepository query mapping', () => {
     ).toBe(true);
   });
 
+  it('imports and summarizes github pull requests through query mapping', async () => {
+    const queries: Array<{ text: string; values?: unknown[] }> = [];
+    const repository = new PostgresMetricEventRepository({
+      async query<T extends QueryResultRow = QueryResultRow>(
+        text: string,
+        values?: unknown[],
+      ) {
+        queries.push({ text, values });
+
+        if (text.includes('CREATE TABLE') || text.includes('CREATE UNIQUE INDEX')) {
+          return {
+            command: '',
+            rowCount: 0,
+            oid: 0,
+            fields: [],
+            rows: [] as T[],
+          };
+        }
+
+        if (text.includes('SELECT COUNT(*) AS organization_count')) {
+          return {
+            command: '',
+            rowCount: 1,
+            oid: 0,
+            fields: [],
+            rows: ([{ organization_count: '1' }] as unknown) as T[],
+          };
+        }
+
+        if (text.includes('INSERT INTO github_pull_requests')) {
+          return {
+            command: '',
+            rowCount: 1,
+            oid: 0,
+            fields: [],
+            rows: [] as T[],
+          };
+        }
+
+        return {
+          command: '',
+          rowCount: 2,
+          oid: 0,
+          fields: [],
+          rows: ([
+            {
+              project_key: 'aimetric',
+              repo_name: 'AIMetric',
+              pr_number: 101,
+              title: 'Add PR provider integration',
+              author_member_id: 'alice',
+              state: 'merged',
+              ai_touched: true,
+              review_decision: 'approved',
+              created_at: new Date('2026-04-25T00:00:00.000Z'),
+              merged_at: new Date('2026-04-25T12:00:00.000Z'),
+              updated_at: new Date('2026-04-25T12:00:00.000Z'),
+            },
+            {
+              project_key: 'aimetric',
+              repo_name: 'AIMetric',
+              pr_number: 102,
+              title: 'Add delivery summary',
+              author_member_id: 'bob',
+              state: 'open',
+              ai_touched: false,
+              review_decision: null,
+              created_at: new Date('2026-04-26T00:00:00.000Z'),
+              merged_at: null,
+              updated_at: new Date('2026-04-26T04:00:00.000Z'),
+            },
+          ] as unknown) as T[],
+        };
+      },
+    });
+
+    await repository.importPullRequests([
+      {
+        provider: 'github',
+        projectKey: 'aimetric',
+        repoName: 'AIMetric',
+        prNumber: 101,
+        title: 'Add PR provider integration',
+        authorMemberId: 'alice',
+        state: 'merged',
+        aiTouched: true,
+        createdAt: '2026-04-25T00:00:00.000Z',
+        mergedAt: '2026-04-25T12:00:00.000Z',
+        updatedAt: '2026-04-25T12:00:00.000Z',
+      },
+    ]);
+    const pullRequests = await repository.listPullRequests({
+      projectKey: 'aimetric',
+    });
+    const summary = await repository.buildPullRequestSummary({
+      projectKey: 'aimetric',
+    });
+
+    expect(pullRequests).toEqual([
+      expect.objectContaining({
+        prNumber: 101,
+        cycleTimeHours: 12,
+      }),
+      expect.objectContaining({
+        prNumber: 102,
+        aiTouched: false,
+      }),
+    ]);
+    expect(summary).toEqual({
+      totalPrCount: 2,
+      aiTouchedPrCount: 1,
+      aiTouchedPrRatio: 0.5,
+      mergedPrCount: 1,
+      averageCycleTimeHours: 12,
+    });
+    expect(
+      queries.some((query) => query.text.includes('INSERT INTO github_pull_requests')),
+    ).toBe(true);
+  });
+
   it('includes ingestion_key in insert statements for deduplicated session events', async () => {
     const queries: Array<{ text: string; values?: unknown[] }> = [];
     const repository = new PostgresMetricEventRepository({

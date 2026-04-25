@@ -116,6 +116,30 @@ export interface OutputAnalysisRow {
   latestDiffSummary: string;
 }
 
+export interface PullRequestRecord {
+  provider: 'github';
+  projectKey: string;
+  repoName: string;
+  prNumber: number;
+  title: string;
+  authorMemberId?: string;
+  state: 'open' | 'closed' | 'merged';
+  aiTouched: boolean;
+  reviewDecision?: 'approved' | 'changes-requested' | 'commented';
+  createdAt: string;
+  mergedAt?: string;
+  cycleTimeHours?: number;
+  updatedAt: string;
+}
+
+export interface PullRequestSummary {
+  totalPrCount: number;
+  aiTouchedPrCount: number;
+  aiTouchedPrRatio: number;
+  mergedPrCount: number;
+  averageCycleTimeHours: number;
+}
+
 export interface CollectorIdentityRecord {
   identityKey: string;
   memberId: string;
@@ -156,6 +180,13 @@ export interface MetricEventRepository {
   buildAnalysisSummary?(
     filters?: MetricSnapshotFilters,
   ): Promise<AnalysisSummaryRecord>;
+  importPullRequests?(pullRequests: PullRequestRecord[]): Promise<void>;
+  listPullRequests?(
+    filters?: MetricSnapshotFilters,
+  ): Promise<PullRequestRecord[]>;
+  buildPullRequestSummary?(
+    filters?: MetricSnapshotFilters,
+  ): Promise<PullRequestSummary>;
   listSessionAnalysisRows?(
     filters?: MetricSnapshotFilters,
   ): Promise<SessionAnalysisRow[]>;
@@ -291,6 +322,23 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
               period_end,
               definition_version
             )
+          )
+        `);
+        await this.database.query(`
+          CREATE TABLE IF NOT EXISTS github_pull_requests (
+            id BIGSERIAL PRIMARY KEY,
+            project_key TEXT NOT NULL,
+            repo_name TEXT NOT NULL,
+            pr_number INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            author_member_id TEXT,
+            state TEXT NOT NULL,
+            ai_touched BOOLEAN NOT NULL DEFAULT FALSE,
+            review_decision TEXT,
+            created_at TIMESTAMPTZ NOT NULL,
+            merged_at TIMESTAMPTZ,
+            updated_at TIMESTAMPTZ NOT NULL,
+            UNIQUE (project_key, repo_name, pr_number)
           )
         `);
         await this.database.query(`
@@ -836,6 +884,162 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
       editSpanCount: Number(row?.edit_span_count ?? 0),
       tabAcceptedCount: Number(row?.tab_accepted_count ?? 0),
       tabAcceptedLines: Number(row?.tab_accepted_lines ?? 0),
+    };
+  }
+
+  async importPullRequests(pullRequests: PullRequestRecord[]): Promise<void> {
+    await this.ensureSchema();
+
+    await Promise.all(
+      pullRequests.map((pullRequest) =>
+        this.database.query(
+          `
+            INSERT INTO github_pull_requests (
+              project_key,
+              repo_name,
+              pr_number,
+              title,
+              author_member_id,
+              state,
+              ai_touched,
+              review_decision,
+              created_at,
+              merged_at,
+              updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            ON CONFLICT (project_key, repo_name, pr_number)
+            DO UPDATE SET
+              title = EXCLUDED.title,
+              author_member_id = EXCLUDED.author_member_id,
+              state = EXCLUDED.state,
+              ai_touched = EXCLUDED.ai_touched,
+              review_decision = EXCLUDED.review_decision,
+              created_at = EXCLUDED.created_at,
+              merged_at = EXCLUDED.merged_at,
+              updated_at = EXCLUDED.updated_at
+          `,
+          [
+            pullRequest.projectKey,
+            pullRequest.repoName,
+            pullRequest.prNumber,
+            pullRequest.title,
+            pullRequest.authorMemberId ?? null,
+            pullRequest.state,
+            pullRequest.aiTouched,
+            pullRequest.reviewDecision ?? null,
+            pullRequest.createdAt,
+            pullRequest.mergedAt ?? null,
+            pullRequest.updatedAt,
+          ],
+        ),
+      ),
+    );
+  }
+
+  async listPullRequests(
+    filters: MetricSnapshotFilters = {},
+  ): Promise<PullRequestRecord[]> {
+    await this.ensureSchema();
+
+    const values: Array<string | string[]> = [];
+    const whereClauses: string[] = [];
+
+    appendProjectFilterClauses(values, whereClauses, filters, 'project_key');
+
+    if (filters.memberId) {
+      values.push(filters.memberId);
+      whereClauses.push(`author_member_id = $${values.length}`);
+    }
+
+    if (filters.from) {
+      values.push(filters.from);
+      whereClauses.push(`created_at >= $${values.length}`);
+    }
+
+    if (filters.to) {
+      values.push(filters.to);
+      whereClauses.push(`created_at <= $${values.length}`);
+    }
+
+    const result = await this.database.query<{
+      project_key: string;
+      repo_name: string;
+      pr_number: number;
+      title: string;
+      author_member_id: string | null;
+      state: PullRequestRecord['state'];
+      ai_touched: boolean;
+      review_decision: PullRequestRecord['reviewDecision'] | null;
+      created_at: Date | string;
+      merged_at: Date | string | null;
+      updated_at: Date | string;
+    }>(
+      `
+        SELECT
+          project_key,
+          repo_name,
+          pr_number,
+          title,
+          author_member_id,
+          state,
+          ai_touched,
+          review_decision,
+          created_at,
+          merged_at,
+          updated_at
+        FROM github_pull_requests
+        ${whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : ''}
+        ORDER BY updated_at DESC, pr_number DESC
+      `,
+      values,
+    );
+
+    return result.rows.map((row) => ({
+      provider: 'github',
+      projectKey: row.project_key,
+      repoName: row.repo_name,
+      prNumber: row.pr_number,
+      title: row.title,
+      ...(row.author_member_id ? { authorMemberId: row.author_member_id } : {}),
+      state: row.state,
+      aiTouched: row.ai_touched,
+      ...(row.review_decision ? { reviewDecision: row.review_decision } : {}),
+      createdAt: toIsoString(row.created_at),
+      ...(row.merged_at ? { mergedAt: toIsoString(row.merged_at) } : {}),
+      ...(row.merged_at
+        ? {
+            cycleTimeHours: calculateCycleTimeHours(
+              toIsoString(row.created_at),
+              toIsoString(row.merged_at),
+            ),
+          }
+        : {}),
+      updatedAt: toIsoString(row.updated_at),
+    }));
+  }
+
+  async buildPullRequestSummary(
+    filters: MetricSnapshotFilters = {},
+  ): Promise<PullRequestSummary> {
+    const pullRequests = await this.listPullRequests(filters);
+    const mergedPullRequests = pullRequests.filter((pullRequest) => pullRequest.mergedAt);
+    const totalCycleTimeHours = mergedPullRequests.reduce(
+      (sum, pullRequest) => sum + (pullRequest.cycleTimeHours ?? 0),
+      0,
+    );
+    const aiTouchedPrCount = pullRequests.filter((pullRequest) => pullRequest.aiTouched).length;
+
+    return {
+      totalPrCount: pullRequests.length,
+      aiTouchedPrCount,
+      aiTouchedPrRatio:
+        pullRequests.length === 0 ? 0 : aiTouchedPrCount / pullRequests.length,
+      mergedPrCount: mergedPullRequests.length,
+      averageCycleTimeHours:
+        mergedPullRequests.length === 0
+          ? 0
+          : totalCycleTimeHours / mergedPullRequests.length,
     };
   }
 
@@ -1677,3 +1881,10 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
 
 const toIsoString = (value: Date | string): string =>
   value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+
+const calculateCycleTimeHours = (
+  createdAt: string,
+  mergedAt: string,
+): number =>
+  Math.max(0, new Date(mergedAt).getTime() - new Date(createdAt).getTime()) /
+  (1000 * 60 * 60);

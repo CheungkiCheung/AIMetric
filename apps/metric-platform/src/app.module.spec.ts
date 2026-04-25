@@ -278,6 +278,79 @@ describe('AppModule', () => {
     expect(current?.teamKeys).toEqual(['team-a']);
   });
 
+  it('imports pull requests and builds a pull request summary through the repository', async () => {
+    const repository = {
+      ...createEmptyRepository(),
+      importPullRequests: vi.fn(async () => undefined),
+      listPullRequests: vi.fn(async () => [
+        {
+          provider: 'github' as const,
+          projectKey: 'aimetric',
+          repoName: 'AIMetric',
+          prNumber: 101,
+          title: 'Add PR provider integration',
+          authorMemberId: 'alice',
+          state: 'merged' as const,
+          aiTouched: true,
+          reviewDecision: 'approved' as const,
+          createdAt: '2026-04-25T00:00:00.000Z',
+          mergedAt: '2026-04-25T12:00:00.000Z',
+          cycleTimeHours: 12,
+          updatedAt: '2026-04-25T12:00:00.000Z',
+        },
+        {
+          provider: 'github' as const,
+          projectKey: 'aimetric',
+          repoName: 'AIMetric',
+          prNumber: 102,
+          title: 'Add delivery summary',
+          authorMemberId: 'bob',
+          state: 'open' as const,
+          aiTouched: false,
+          createdAt: '2026-04-26T00:00:00.000Z',
+          updatedAt: '2026-04-26T04:00:00.000Z',
+        },
+      ]),
+      buildPullRequestSummary: vi.fn(async () => ({
+        totalPrCount: 2,
+        aiTouchedPrCount: 1,
+        aiTouchedPrRatio: 0.5,
+        mergedPrCount: 1,
+        averageCycleTimeHours: 12,
+      })),
+    };
+    const appModule = new AppModule(repository);
+
+    const importResult = await appModule.importPullRequests([
+      {
+        provider: 'github',
+        projectKey: 'aimetric',
+        repoName: 'AIMetric',
+        prNumber: 101,
+        title: 'Add PR provider integration',
+        authorMemberId: 'alice',
+        state: 'merged',
+        aiTouched: true,
+        createdAt: '2026-04-25T00:00:00.000Z',
+        mergedAt: '2026-04-25T12:00:00.000Z',
+        updatedAt: '2026-04-25T12:00:00.000Z',
+      },
+    ]);
+    const summary = await appModule.buildPullRequestSummary({
+      projectKey: 'aimetric',
+    });
+
+    expect(importResult).toEqual({ importedPullRequests: 1 });
+    expect(repository.importPullRequests).toHaveBeenCalledTimes(1);
+    expect(summary).toEqual({
+      totalPrCount: 2,
+      aiTouchedPrCount: 1,
+      aiTouchedPrRatio: 0.5,
+      mergedPrCount: 1,
+      averageCycleTimeHours: 12,
+    });
+  });
+
   it('filters enterprise metrics by dimension', () => {
     const appModule = new AppModule(createEmptyRepository());
     const metrics = appModule.listEnterpriseMetricsByDimension('quality-risk');

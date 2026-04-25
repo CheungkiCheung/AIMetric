@@ -573,6 +573,135 @@ describe('bootstrap', () => {
     ]);
   });
 
+  it('imports and serves GitHub pull request data over HTTP', async () => {
+    const importedPullRequests: unknown[] = [];
+    const metricEventRepository: MetricEventRepository = {
+      ...createEmptyRepository(),
+      async importPullRequests(pullRequests) {
+        importedPullRequests.push(...pullRequests);
+      },
+      async listPullRequests(filters) {
+        expect(filters).toEqual({ projectKey: 'aimetric' });
+
+        return [
+          {
+            provider: 'github' as const,
+            projectKey: 'aimetric',
+            repoName: 'AIMetric',
+            prNumber: 101,
+            title: 'Add PR provider integration',
+            authorMemberId: 'alice',
+            state: 'merged' as const,
+            aiTouched: true,
+            reviewDecision: 'approved' as const,
+            createdAt: '2026-04-25T00:00:00.000Z',
+            mergedAt: '2026-04-25T12:00:00.000Z',
+            cycleTimeHours: 12,
+            updatedAt: '2026-04-25T12:00:00.000Z',
+          },
+          {
+            provider: 'github' as const,
+            projectKey: 'aimetric',
+            repoName: 'AIMetric',
+            prNumber: 102,
+            title: 'Add delivery summary',
+            authorMemberId: 'bob',
+            state: 'open' as const,
+            aiTouched: false,
+            createdAt: '2026-04-26T00:00:00.000Z',
+            updatedAt: '2026-04-26T04:00:00.000Z',
+          },
+        ];
+      },
+      async buildPullRequestSummary() {
+        return {
+          totalPrCount: 2,
+          aiTouchedPrCount: 1,
+          aiTouchedPrRatio: 0.5,
+          mergedPrCount: 1,
+          averageCycleTimeHours: 12,
+        };
+      },
+    };
+    const app = await bootstrap({
+      port: 0,
+      adminToken: 'admin-secret',
+      metricEventRepository,
+    });
+    servers.push(app);
+
+    const importResponse = await fetch(
+      `${app.baseUrl}/integrations/github/pull-requests/import`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer admin-secret',
+          'content-type': 'application/json',
+          'x-aimetric-actor': 'platform-admin',
+        },
+        body: JSON.stringify({
+          pullRequests: [
+            {
+              provider: 'github',
+              projectKey: 'aimetric',
+              repoName: 'AIMetric',
+              prNumber: 101,
+              title: 'Add PR provider integration',
+              authorMemberId: 'alice',
+              state: 'merged',
+              aiTouched: true,
+              createdAt: '2026-04-25T00:00:00.000Z',
+              mergedAt: '2026-04-25T12:00:00.000Z',
+              updatedAt: '2026-04-25T12:00:00.000Z',
+            },
+          ],
+        }),
+      },
+    );
+    const listResponse = await fetch(
+      `${app.baseUrl}/integrations/github/pull-requests?projectKey=aimetric`,
+    );
+    const summaryResponse = await fetch(
+      `${app.baseUrl}/integrations/github/pull-requests/summary?projectKey=aimetric`,
+    );
+    const auditResponse = await fetch(`${app.baseUrl}/admin/audit`, {
+      headers: {
+        authorization: 'Bearer admin-secret',
+      },
+    });
+
+    expect(importResponse.status).toBe(200);
+    await expect(importResponse.json()).resolves.toEqual({
+      importedPullRequests: 1,
+    });
+    expect(importedPullRequests).toHaveLength(1);
+    expect(listResponse.status).toBe(200);
+    await expect(listResponse.json()).resolves.toEqual([
+      expect.objectContaining({
+        prNumber: 101,
+        aiTouched: true,
+      }),
+      expect.objectContaining({
+        prNumber: 102,
+        aiTouched: false,
+      }),
+    ]);
+    expect(summaryResponse.status).toBe(200);
+    await expect(summaryResponse.json()).resolves.toEqual({
+      totalPrCount: 2,
+      aiTouchedPrCount: 1,
+      aiTouchedPrRatio: 0.5,
+      mergedPrCount: 1,
+      averageCycleTimeHours: 12,
+    });
+    await expect(auditResponse.json()).resolves.toEqual([
+      expect.objectContaining({
+        action: 'github.pull-requests.import',
+        actor: 'platform-admin',
+      }),
+    ]);
+  });
+
   it('serves enterprise metrics filtered by dimension over HTTP', async () => {
     const app = await bootstrap({
       port: 0,

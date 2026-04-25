@@ -66,6 +66,22 @@ CREATE TABLE IF NOT EXISTS enterprise_metric_snapshots (
   )
 );
 
+CREATE TABLE IF NOT EXISTS github_pull_requests (
+  id BIGSERIAL PRIMARY KEY,
+  project_key TEXT NOT NULL,
+  repo_name TEXT NOT NULL,
+  pr_number INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  author_member_id TEXT,
+  state TEXT NOT NULL,
+  ai_touched BOOLEAN NOT NULL DEFAULT FALSE,
+  review_decision TEXT,
+  created_at TIMESTAMPTZ NOT NULL,
+  merged_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL,
+  UNIQUE (project_key, repo_name, pr_number)
+);
+
 CREATE TABLE IF NOT EXISTS governance_organizations (
   id BIGSERIAL PRIMARY KEY,
   organization_key TEXT NOT NULL UNIQUE,

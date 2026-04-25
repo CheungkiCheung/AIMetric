@@ -11,6 +11,8 @@ import {
   type McpAuditMetrics,
   type OutputAnalysisRow,
   type PersonalSnapshot,
+  type PullRequestRecord,
+  type PullRequestSummary,
   type RuleRollout,
   type RuleRolloutEvaluation,
   type RuleVersionCatalog,
@@ -24,6 +26,7 @@ import { GovernanceDirectoryDashboard } from './pages/governance-directory-dashb
 import { McpAuditDashboard } from './pages/mcp-audit-dashboard.js';
 import { OutputAnalysisTable } from './pages/output-analysis-table.js';
 import { PersonalDashboard } from './pages/personal-dashboard.js';
+import { PullRequestDashboard } from './pages/pull-request-dashboard.js';
 import { RuleCenterDashboard } from './pages/rule-center-dashboard.js';
 import { SessionAnalysisTable } from './pages/session-analysis-table.js';
 import { TeamDashboard } from './pages/team-dashboard.js';
@@ -107,6 +110,9 @@ export const App = ({
     useState<CollectorIngestionHealth | null>(null);
   const [governanceDirectory, setGovernanceDirectory] =
     useState<GovernanceDirectory | null>(null);
+  const [pullRequestSummary, setPullRequestSummary] =
+    useState<PullRequestSummary | null>(null);
+  const [pullRequests, setPullRequests] = useState<PullRequestRecord[]>([]);
   const [ruleVersions, setRuleVersions] = useState<RuleVersionCatalog | null>(null);
   const [ruleRollout, setRuleRollout] = useState<RuleRollout | null>(null);
   const [ruleRolloutEvaluation, setRuleRolloutEvaluation] =
@@ -129,6 +135,8 @@ export const App = ({
       metricValues,
       collectorIngestionHealth,
       directory,
+      prSummary,
+      prRows,
     ] = await Promise.all([
       client.getPersonalSnapshot(nextFilters),
       client.getTeamSnapshot(nextFilters),
@@ -142,6 +150,8 @@ export const App = ({
       client.getEnterpriseMetricValues(nextFilters),
       client.getCollectorIngestionHealth(),
       client.getGovernanceDirectory(),
+      client.getPullRequestSummary(nextFilters),
+      client.getPullRequests(nextFilters),
     ]);
 
     return {
@@ -157,6 +167,8 @@ export const App = ({
       metricValues,
       collectorIngestionHealth,
       directory,
+      prSummary,
+      prRows,
     };
   };
 
@@ -177,6 +189,8 @@ export const App = ({
         metricValues,
         collectorIngestionHealth,
         directory,
+        prSummary,
+        prRows,
       } = await loadDashboard(filters);
 
       if (!active) {
@@ -195,6 +209,8 @@ export const App = ({
       setEnterpriseMetricValues(metricValues);
       setCollectorHealth(collectorIngestionHealth);
       setGovernanceDirectory(directory);
+      setPullRequestSummary(prSummary);
+      setPullRequests(prRows);
     };
 
     void load();
@@ -258,6 +274,8 @@ export const App = ({
         metricValues,
         collectorIngestionHealth,
         directory,
+        prSummary,
+        prRows,
       } = await loadDashboard(filters);
 
       setPersonalSnapshot(personal);
@@ -272,6 +290,8 @@ export const App = ({
       setEnterpriseMetricValues(metricValues);
       setCollectorHealth(collectorIngestionHealth);
       setGovernanceDirectory(directory);
+      setPullRequestSummary(prSummary);
+      setPullRequests(prRows);
     } finally {
       setSavingRuleRollout(false);
     }
@@ -350,6 +370,7 @@ export const App = ({
     !mcpAuditMetrics ||
     !collectorHealth ||
     !governanceDirectory ||
+    !pullRequestSummary ||
     !enterpriseMetricCatalog ||
     !ruleVersions ||
     !ruleRollout ||
@@ -408,6 +429,7 @@ export const App = ({
         />
         <AnalysisSummarySection summary={analysisSummary} />
         <CollectorHealthDashboard health={collectorHealth} />
+        <PullRequestDashboard summary={pullRequestSummary} rows={pullRequests} />
         <SessionAnalysisTable rows={sessionAnalysisRows} />
         <OutputAnalysisTable rows={outputAnalysisRows} />
         <PersonalDashboard snapshot={personalSnapshot} />

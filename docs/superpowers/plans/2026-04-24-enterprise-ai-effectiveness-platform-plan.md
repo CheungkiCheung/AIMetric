@@ -885,7 +885,8 @@ Agent 能力：
 
 交付：
 
-- GitHub / GitLab PR 集成。
+- GitHub PR 集成：第一版已完成，已支持 `POST /integrations/github/pull-requests/import` 导入、`GET /integrations/github/pull-requests` 查询、`GET /integrations/github/pull-requests/summary` 汇总，以及 Dashboard“GitHub PR 交付概览”展示。
+- GitLab PR 集成。
 - CI/CD 集成。
 - 需求系统集成。
 - 缺陷系统集成。
@@ -894,9 +895,9 @@ Agent 能力：
 
 验收标准：
 
-- 能计算 AI 参与 PR 占比。
+- 能计算 AI 参与 PR 占比：第一版已完成。
 - 能计算 AI 参与需求 Lead Time 对比。
-- 能计算 AI 参与 PR 的质量风险指标。
+- 能计算 AI 参与 PR 的质量风险指标：当前已具备 PR 基础数据承载能力，待补 Review / CI / 缺陷联动后完善。
 
 ### Phase E8：管理者多维分析工作台
 

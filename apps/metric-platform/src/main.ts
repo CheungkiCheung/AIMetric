@@ -9,6 +9,7 @@ import type {
   EditEvidenceFilters,
   MetricEventRepository,
   MetricSnapshotFilters,
+  PullRequestRecord,
 } from './database/postgres-event.repository.js';
 import type {
   GovernanceViewerScope,
@@ -255,6 +256,63 @@ const getViewerScopeAssignmentInputFromBody = (
     teamKeys: [...new Set(teamKeys)],
     projectKeys: [...new Set(projectKeys)],
   };
+};
+
+const getPullRequestsFromBody = (body: unknown): PullRequestRecord[] | undefined => {
+  if (!body || typeof body !== 'object') {
+    return undefined;
+  }
+
+  const pullRequests = (body as Record<string, unknown>).pullRequests;
+
+  if (!Array.isArray(pullRequests)) {
+    return undefined;
+  }
+
+  const normalized = pullRequests.flatMap((item) => {
+    if (!item || typeof item !== 'object') {
+      return [];
+    }
+
+    const payload = item as Record<string, unknown>;
+
+    if (
+      payload.provider !== 'github' ||
+      typeof payload.projectKey !== 'string' ||
+      typeof payload.repoName !== 'string' ||
+      typeof payload.prNumber !== 'number' ||
+      typeof payload.title !== 'string' ||
+      typeof payload.state !== 'string' ||
+      typeof payload.aiTouched !== 'boolean' ||
+      typeof payload.createdAt !== 'string' ||
+      typeof payload.updatedAt !== 'string'
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        provider: 'github' as const,
+        projectKey: payload.projectKey,
+        repoName: payload.repoName,
+        prNumber: payload.prNumber,
+        title: payload.title,
+        ...(typeof payload.authorMemberId === 'string'
+          ? { authorMemberId: payload.authorMemberId }
+          : {}),
+        state: payload.state as PullRequestRecord['state'],
+        aiTouched: payload.aiTouched,
+        ...(typeof payload.reviewDecision === 'string'
+          ? { reviewDecision: payload.reviewDecision as PullRequestRecord['reviewDecision'] }
+          : {}),
+        createdAt: payload.createdAt,
+        ...(typeof payload.mergedAt === 'string' ? { mergedAt: payload.mergedAt } : {}),
+        updatedAt: payload.updatedAt,
+      },
+    ];
+  });
+
+  return normalized.length === pullRequests.length ? normalized : undefined;
 };
 
 const applyViewerScopeToFilters = <T extends MetricSnapshotFilters>(
@@ -510,6 +568,36 @@ const handleRequest = async (
       200,
       await appModule.listEnterpriseMetricSnapshots(scoped.filters),
     );
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/integrations/github/pull-requests') {
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
+    writeJson(response, 200, await appModule.listPullRequests(scoped.filters));
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/integrations/github/pull-requests/summary') {
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
+    writeJson(response, 200, await appModule.buildPullRequestSummary(scoped.filters));
     return;
   }
 
@@ -880,6 +968,27 @@ const handleRequest = async (
 
     writeJson(response, 200, await appModule.replaceViewerScopeAssignment(assignmentInput));
     recordAdminAudit(runtime, request, 'governance.viewer-scopes.update');
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/integrations/github/pull-requests/import') {
+    if (!isAuthorizedAdminRequest(request, runtime.adminToken)) {
+      writeJson(response, 401, { message: 'Unauthorized admin request' });
+      return;
+    }
+
+    const body = await readJsonBody(request);
+    const pullRequests = getPullRequestsFromBody(body);
+
+    if (!pullRequests) {
+      writeJson(response, 400, {
+        message: 'pullRequests is required and must contain valid GitHub PR records',
+      });
+      return;
+    }
+
+    writeJson(response, 200, await appModule.importPullRequests(pullRequests));
+    recordAdminAudit(runtime, request, 'github.pull-requests.import');
     return;
   }
 

@@ -4,11 +4,41 @@ import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App.js';
-import type { DashboardClient, DashboardFilters, RuleRollout } from './api/client.js';
+import type {
+  DashboardClient,
+  DashboardFilters,
+  PullRequestRecord,
+  PullRequestSummary,
+  RuleRollout,
+} from './api/client.js';
 
 const createClient = (
   overrides: Partial<DashboardClient> = {},
 ): DashboardClient => ({
+  getPullRequestSummary: async (): Promise<PullRequestSummary> => ({
+    totalPrCount: 4,
+    aiTouchedPrCount: 3,
+    aiTouchedPrRatio: 0.75,
+    mergedPrCount: 2,
+    averageCycleTimeHours: 18,
+  }),
+  getPullRequests: async (): Promise<PullRequestRecord[]> => [
+    {
+      provider: 'github',
+      projectKey: 'aimetric',
+      repoName: 'AIMetric',
+      prNumber: 101,
+      title: 'Add collector health dashboard',
+      authorMemberId: 'alice',
+      state: 'merged',
+      aiTouched: true,
+      reviewDecision: 'approved',
+      createdAt: '2026-04-24T00:00:00.000Z',
+      mergedAt: '2026-04-24T12:00:00.000Z',
+      cycleTimeHours: 12,
+      updatedAt: '2026-04-24T12:00:00.000Z',
+    },
+  ],
   getPersonalSnapshot: async () => ({
     acceptedAiLines: 35,
     commitTotalLines: 50,
@@ -293,7 +323,12 @@ describe('App', () => {
     expect(screen.getByText('平台工程团队')).toBeInTheDocument();
     expect(screen.getByText('MCP 采集质量')).toBeInTheDocument();
     expect(screen.getByText('采集健康运营')).toBeInTheDocument();
+    expect(screen.getByText('GitHub PR 交付概览')).toBeInTheDocument();
     expect(screen.getByText('队列模式')).toBeInTheDocument();
+    expect(screen.getByText('AI 触达 PR 占比')).toBeInTheDocument();
+    expect(screen.getByText('75.0%')).toBeInTheDocument();
+    expect(screen.getByText('18.0 小时')).toBeInTheDocument();
+    expect(screen.getByText('AIMetric #101 Add collector health dashboard')).toBeInTheDocument();
     expect(screen.getByText('文件持久队列')).toBeInTheDocument();
     expect(screen.getByText('待投递批次')).toBeInTheDocument();
     expect(screen.getByText('DLQ 批次')).toBeInTheDocument();
@@ -380,6 +415,8 @@ describe('App', () => {
     const getEnterpriseMetricValues = vi.fn(
       createClient().getEnterpriseMetricValues,
     );
+    const getPullRequestSummary = vi.fn(createClient().getPullRequestSummary);
+    const getPullRequests = vi.fn(createClient().getPullRequests);
     const getCollectorIngestionHealth = vi.fn(
       createClient().getCollectorIngestionHealth,
     );
@@ -404,6 +441,8 @@ describe('App', () => {
           getOutputAnalysisRows,
           getEnterpriseMetricCatalog,
           getEnterpriseMetricValues,
+          getPullRequestSummary,
+          getPullRequests,
           getCollectorIngestionHealth,
           getGovernanceDirectory,
           getViewerScopeAssignment,
@@ -440,6 +479,12 @@ describe('App', () => {
       );
       expect(getEnterpriseMetricCatalog).toHaveBeenCalledTimes(1);
       expect(getEnterpriseMetricValues).toHaveBeenLastCalledWith(
+        expect.objectContaining({ projectKey: 'navigation' }),
+      );
+      expect(getPullRequestSummary).toHaveBeenLastCalledWith(
+        expect.objectContaining({ projectKey: 'navigation' }),
+      );
+      expect(getPullRequests).toHaveBeenLastCalledWith(
         expect.objectContaining({ projectKey: 'navigation' }),
       );
       expect(getCollectorIngestionHealth).toHaveBeenCalledTimes(2);
@@ -510,6 +555,8 @@ describe('App', () => {
     const getEnterpriseMetricValues = vi.fn(
       createClient().getEnterpriseMetricValues,
     );
+    const getPullRequestSummary = vi.fn(createClient().getPullRequestSummary);
+    const getPullRequests = vi.fn(createClient().getPullRequests);
     const getCollectorIngestionHealth = vi.fn(
       createClient().getCollectorIngestionHealth,
     );
@@ -536,6 +583,8 @@ describe('App', () => {
             getOutputAnalysisRows,
             getEnterpriseMetricCatalog,
             getEnterpriseMetricValues,
+            getPullRequestSummary,
+            getPullRequests,
             getCollectorIngestionHealth,
             getGovernanceDirectory,
             getViewerScopeAssignment,
@@ -564,6 +613,8 @@ describe('App', () => {
       expect(getOutputAnalysisRows).toHaveBeenCalledTimes(2);
       expect(getEnterpriseMetricCatalog).toHaveBeenCalledTimes(1);
       expect(getEnterpriseMetricValues).toHaveBeenCalledTimes(2);
+      expect(getPullRequestSummary).toHaveBeenCalledTimes(2);
+      expect(getPullRequests).toHaveBeenCalledTimes(2);
       expect(getCollectorIngestionHealth).toHaveBeenCalledTimes(2);
       expect(getGovernanceDirectory).toHaveBeenCalledTimes(2);
       expect(getViewerScopeAssignment).toHaveBeenCalledTimes(0);
