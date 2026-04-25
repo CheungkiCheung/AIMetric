@@ -888,7 +888,7 @@ Agent 能力：
 - GitHub PR 集成：第一版已完成，已支持 `POST /integrations/github/pull-requests/import` 导入、`GET /integrations/github/pull-requests` 查询、`GET /integrations/github/pull-requests/summary` 汇总，以及 Dashboard“GitHub PR 交付概览”展示。
 - GitLab PR 集成。
 - CI/CD 集成。
-- 需求系统集成：第一版已完成，已支持 `POST /integrations/requirements/import` 导入、`GET /integrations/requirements` 查询、`GET /integrations/requirements/summary` 汇总，以及 Dashboard“需求交付概览”展示，当前兼容 `jira / tapd` 两类 provider。
+- 需求系统集成：第一版已完成，已支持 `POST /integrations/requirements/import` 导入、`GET /integrations/requirements` 查询、`GET /integrations/requirements/summary` 汇总，以及 Dashboard“需求交付概览”展示，当前兼容 `jira / tapd` 两类 provider；第二版已支持根据 PR 标题或显式字段自动识别需求号并回填“需求到首个 PR”关联。
 - 缺陷系统集成。
 - 发布系统集成。
 - AI 参与需求 / PR / 发布链路归因。

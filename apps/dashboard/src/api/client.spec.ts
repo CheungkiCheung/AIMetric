@@ -225,6 +225,7 @@ describe('createDashboardClient', () => {
               state: 'merged',
               aiTouched: true,
               reviewDecision: 'approved',
+              linkedRequirementKeys: ['AIM-101'],
               createdAt: '2026-04-24T00:00:00.000Z',
               mergedAt: '2026-04-24T12:00:00.000Z',
               cycleTimeHours: 12,
@@ -261,6 +262,8 @@ describe('createDashboardClient', () => {
               status: 'done',
               aiTouched: true,
               firstPrCreatedAt: '2026-04-24T08:00:00.000Z',
+              linkedPullRequestCount: 2,
+              linkedPullRequestNumbers: [101, 103],
               completedAt: '2026-04-25T12:00:00.000Z',
               leadTimeHours: 36,
               leadTimeToFirstPrHours: 8,
@@ -376,6 +379,7 @@ describe('createDashboardClient', () => {
         prNumber: 101,
         aiTouched: true,
         cycleTimeHours: 12,
+        linkedRequirementKeys: ['AIM-101'],
       }),
     ]);
     await expect(client.getRequirementSummary()).resolves.toMatchObject({
@@ -392,6 +396,7 @@ describe('createDashboardClient', () => {
         requirementKey: 'AIM-101',
         aiTouched: true,
         leadTimeHours: 36,
+        linkedPullRequestCount: 2,
       }),
     ]);
     await expect(client.getViewerScopeAssignment('manager-1')).resolves.toMatchObject({

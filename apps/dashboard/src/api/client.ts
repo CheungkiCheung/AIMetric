@@ -173,6 +173,7 @@ export interface PullRequestRecord {
   state: 'open' | 'closed' | 'merged';
   aiTouched: boolean;
   reviewDecision?: 'approved' | 'changes-requested' | 'commented';
+  linkedRequirementKeys?: string[];
   createdAt: string;
   mergedAt?: string;
   cycleTimeHours?: number;
@@ -197,6 +198,8 @@ export interface RequirementRecord {
   aiTouched: boolean;
   firstPrCreatedAt?: string;
   completedAt?: string;
+  linkedPullRequestCount?: number;
+  linkedPullRequestNumbers?: number[];
   leadTimeHours?: number;
   leadTimeToFirstPrHours?: number;
   createdAt: string;

@@ -126,6 +126,7 @@ export interface PullRequestRecord {
   state: 'open' | 'closed' | 'merged';
   aiTouched: boolean;
   reviewDecision?: 'approved' | 'changes-requested' | 'commented';
+  linkedRequirementKeys?: string[];
   createdAt: string;
   mergedAt?: string;
   cycleTimeHours?: number;
@@ -150,6 +151,8 @@ export interface RequirementRecord {
   aiTouched: boolean;
   firstPrCreatedAt?: string;
   completedAt?: string;
+  linkedPullRequestCount?: number;
+  linkedPullRequestNumbers?: number[];
   leadTimeHours?: number;
   leadTimeToFirstPrHours?: number;
   createdAt: string;
@@ -367,6 +370,7 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
             state TEXT NOT NULL,
             ai_touched BOOLEAN NOT NULL DEFAULT FALSE,
             review_decision TEXT,
+            requirement_keys TEXT[] NOT NULL DEFAULT '{}',
             created_at TIMESTAMPTZ NOT NULL,
             merged_at TIMESTAMPTZ,
             updated_at TIMESTAMPTZ NOT NULL,
@@ -952,11 +956,12 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
               state,
               ai_touched,
               review_decision,
+              requirement_keys,
               created_at,
               merged_at,
               updated_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             ON CONFLICT (project_key, repo_name, pr_number)
             DO UPDATE SET
               title = EXCLUDED.title,
@@ -964,6 +969,7 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
               state = EXCLUDED.state,
               ai_touched = EXCLUDED.ai_touched,
               review_decision = EXCLUDED.review_decision,
+              requirement_keys = EXCLUDED.requirement_keys,
               created_at = EXCLUDED.created_at,
               merged_at = EXCLUDED.merged_at,
               updated_at = EXCLUDED.updated_at
@@ -977,6 +983,7 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
             pullRequest.state,
             pullRequest.aiTouched,
             pullRequest.reviewDecision ?? null,
+            pullRequest.linkedRequirementKeys ?? extractRequirementKeys(pullRequest.title),
             pullRequest.createdAt,
             pullRequest.mergedAt ?? null,
             pullRequest.updatedAt,
@@ -1020,6 +1027,7 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
       state: PullRequestRecord['state'];
       ai_touched: boolean;
       review_decision: PullRequestRecord['reviewDecision'] | null;
+      requirement_keys: string[];
       created_at: Date | string;
       merged_at: Date | string | null;
       updated_at: Date | string;
@@ -1034,6 +1042,7 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
           state,
           ai_touched,
           review_decision,
+          requirement_keys,
           created_at,
           merged_at,
           updated_at
@@ -1054,6 +1063,9 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
       state: row.state,
       aiTouched: row.ai_touched,
       ...(row.review_decision ? { reviewDecision: row.review_decision } : {}),
+      ...(row.requirement_keys.length > 0
+        ? { linkedRequirementKeys: row.requirement_keys }
+        : {}),
       createdAt: toIsoString(row.created_at),
       ...(row.merged_at ? { mergedAt: toIsoString(row.merged_at) } : {}),
       ...(row.merged_at
@@ -1180,61 +1192,88 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
       status: RequirementRecord['status'];
       ai_touched: boolean;
       first_pr_created_at: Date | string | null;
+      derived_first_pr_created_at: Date | string | null;
       completed_at: Date | string | null;
+      linked_pull_request_count: number | string;
+      linked_pull_request_numbers: number[] | null;
       created_at: Date | string;
       updated_at: Date | string;
     }>(
       `
         SELECT
-          provider,
-          project_key,
-          requirement_key,
-          title,
-          owner_member_id,
-          status,
-          ai_touched,
-          first_pr_created_at,
-          completed_at,
-          created_at,
-          updated_at
-        FROM delivery_requirements
+          requirements.provider,
+          requirements.project_key,
+          requirements.requirement_key,
+          requirements.title,
+          requirements.owner_member_id,
+          requirements.status,
+          requirements.ai_touched,
+          requirements.first_pr_created_at,
+          linked_prs.first_pr_created_at AS derived_first_pr_created_at,
+          requirements.completed_at,
+          COALESCE(linked_prs.linked_pull_request_count, 0) AS linked_pull_request_count,
+          linked_prs.linked_pull_request_numbers,
+          requirements.created_at,
+          requirements.updated_at
+        FROM delivery_requirements requirements
+        LEFT JOIN LATERAL (
+          SELECT
+            MIN(pull_requests.created_at) AS first_pr_created_at,
+            COUNT(*)::INTEGER AS linked_pull_request_count,
+            ARRAY_AGG(pull_requests.pr_number ORDER BY pull_requests.created_at ASC) AS linked_pull_request_numbers
+          FROM github_pull_requests pull_requests
+          WHERE pull_requests.project_key = requirements.project_key
+            AND requirements.requirement_key = ANY(pull_requests.requirement_keys)
+        ) linked_prs
+          ON TRUE
         ${whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : ''}
-        ORDER BY updated_at DESC, requirement_key ASC
+        ORDER BY requirements.updated_at DESC, requirements.requirement_key ASC
       `,
       values,
     );
 
-    return result.rows.map((row) => ({
-      provider: row.provider,
-      projectKey: row.project_key,
-      requirementKey: row.requirement_key,
-      title: row.title,
-      ...(row.owner_member_id ? { ownerMemberId: row.owner_member_id } : {}),
-      status: row.status,
-      aiTouched: row.ai_touched,
-      ...(row.first_pr_created_at
-        ? { firstPrCreatedAt: toIsoString(row.first_pr_created_at) }
-        : {}),
-      ...(row.completed_at ? { completedAt: toIsoString(row.completed_at) } : {}),
-      ...(row.completed_at
-        ? {
-            leadTimeHours: calculateCycleTimeHours(
-              toIsoString(row.created_at),
-              toIsoString(row.completed_at),
-            ),
-          }
-        : {}),
-      ...(row.first_pr_created_at
-        ? {
-            leadTimeToFirstPrHours: calculateCycleTimeHours(
-              toIsoString(row.created_at),
-              toIsoString(row.first_pr_created_at),
-            ),
-          }
-        : {}),
-      createdAt: toIsoString(row.created_at),
-      updatedAt: toIsoString(row.updated_at),
-    }));
+    return result.rows.map((row) => {
+      const effectiveFirstPrCreatedAt =
+        row.first_pr_created_at ?? row.derived_first_pr_created_at;
+
+      return {
+        provider: row.provider,
+        projectKey: row.project_key,
+        requirementKey: row.requirement_key,
+        title: row.title,
+        ...(row.owner_member_id ? { ownerMemberId: row.owner_member_id } : {}),
+        status: row.status,
+        aiTouched: row.ai_touched,
+        ...(effectiveFirstPrCreatedAt
+          ? { firstPrCreatedAt: toIsoString(effectiveFirstPrCreatedAt) }
+          : {}),
+        ...(row.completed_at ? { completedAt: toIsoString(row.completed_at) } : {}),
+        ...(Number(row.linked_pull_request_count) > 0
+          ? {
+              linkedPullRequestCount: Number(row.linked_pull_request_count),
+              linkedPullRequestNumbers: row.linked_pull_request_numbers ?? [],
+            }
+          : {}),
+        ...(row.completed_at
+          ? {
+              leadTimeHours: calculateCycleTimeHours(
+                toIsoString(row.created_at),
+                toIsoString(row.completed_at),
+              ),
+            }
+          : {}),
+        ...(effectiveFirstPrCreatedAt
+          ? {
+              leadTimeToFirstPrHours: calculateCycleTimeHours(
+                toIsoString(row.created_at),
+                toIsoString(effectiveFirstPrCreatedAt),
+              ),
+            }
+          : {}),
+        createdAt: toIsoString(row.created_at),
+        updatedAt: toIsoString(row.updated_at),
+      };
+    });
   }
 
   async buildRequirementSummary(
@@ -2113,6 +2152,14 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
 
 const toIsoString = (value: Date | string): string =>
   value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+
+const extractRequirementKeys = (text: string): string[] => [
+  ...new Set(
+    Array.from(text.matchAll(/\b([A-Z][A-Z0-9]+-\d+)\b/g)).map(
+      (match) => match[1],
+    ),
+  ),
+];
 
 const calculateCycleTimeHours = (
   createdAt: string,

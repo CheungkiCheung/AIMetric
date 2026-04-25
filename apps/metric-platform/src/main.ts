@@ -306,6 +306,14 @@ const getPullRequestsFromBody = (body: unknown): PullRequestRecord[] | undefined
         ...(typeof payload.reviewDecision === 'string'
           ? { reviewDecision: payload.reviewDecision as PullRequestRecord['reviewDecision'] }
           : {}),
+        ...(Array.isArray(payload.linkedRequirementKeys) &&
+        payload.linkedRequirementKeys.every((value) => typeof value === 'string')
+          ? {
+              linkedRequirementKeys: [
+                ...new Set(payload.linkedRequirementKeys as string[]),
+              ],
+            }
+          : {}),
         createdAt: payload.createdAt,
         ...(typeof payload.mergedAt === 'string' ? { mergedAt: payload.mergedAt } : {}),
         updatedAt: payload.updatedAt,

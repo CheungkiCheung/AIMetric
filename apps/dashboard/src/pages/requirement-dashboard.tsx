@@ -146,6 +146,9 @@ export const RequirementDashboard = ({
           <p style={{ margin: '8px 0 0', color: '#4d6848' }}>
             项目：{row.projectKey}
             {row.ownerMemberId ? ` / 负责人：${row.ownerMemberId}` : ''}
+            {typeof row.linkedPullRequestCount === 'number'
+              ? ` / 关联 PR：${row.linkedPullRequestCount}`
+              : ''}
           </p>
           <p style={{ margin: '6px 0 0', color: '#4d6848' }}>
             创建：{new Date(row.createdAt).toLocaleString('zh-CN')}
@@ -157,6 +160,9 @@ export const RequirementDashboard = ({
               : ''}
             {typeof row.leadTimeHours === 'number'
               ? ` / Lead Time：${row.leadTimeHours.toFixed(1)} 小时`
+              : ''}
+            {row.linkedPullRequestNumbers && row.linkedPullRequestNumbers.length > 0
+              ? ` / PR 编号：${row.linkedPullRequestNumbers.join(', ')}`
               : ''}
           </p>
         </li>

@@ -594,6 +594,7 @@ describe('bootstrap', () => {
             state: 'merged' as const,
             aiTouched: true,
             reviewDecision: 'approved' as const,
+            linkedRequirementKeys: ['AIM-101'],
             createdAt: '2026-04-25T00:00:00.000Z',
             mergedAt: '2026-04-25T12:00:00.000Z',
             cycleTimeHours: 12,
@@ -650,6 +651,7 @@ describe('bootstrap', () => {
               authorMemberId: 'alice',
               state: 'merged',
               aiTouched: true,
+              linkedRequirementKeys: ['AIM-101'],
               createdAt: '2026-04-25T00:00:00.000Z',
               mergedAt: '2026-04-25T12:00:00.000Z',
               updatedAt: '2026-04-25T12:00:00.000Z',
@@ -680,6 +682,7 @@ describe('bootstrap', () => {
       expect.objectContaining({
         prNumber: 101,
         aiTouched: true,
+        linkedRequirementKeys: ['AIM-101'],
       }),
       expect.objectContaining({
         prNumber: 102,
@@ -722,6 +725,8 @@ describe('bootstrap', () => {
             status: 'done' as const,
             aiTouched: true,
             firstPrCreatedAt: '2026-04-25T06:00:00.000Z',
+            linkedPullRequestCount: 2,
+            linkedPullRequestNumbers: [101, 103],
             completedAt: '2026-04-26T00:00:00.000Z',
             leadTimeHours: 24,
             leadTimeToFirstPrHours: 6,
@@ -811,6 +816,7 @@ describe('bootstrap', () => {
       expect.objectContaining({
         requirementKey: 'AIM-101',
         aiTouched: true,
+        linkedPullRequestCount: 2,
       }),
       expect.objectContaining({
         requirementKey: 'TAPD-7',

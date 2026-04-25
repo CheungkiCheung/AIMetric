@@ -143,6 +143,9 @@ export const PullRequestDashboard = ({
             项目：{row.projectKey}
             {row.authorMemberId ? ` / 提交人：${row.authorMemberId}` : ''}
             {row.reviewDecision ? ` / Review：${reviewLabelMap[row.reviewDecision]}` : ''}
+            {row.linkedRequirementKeys && row.linkedRequirementKeys.length > 0
+              ? ` / 关联需求：${row.linkedRequirementKeys.join(', ')}`
+              : ''}
           </p>
           <p style={{ margin: '6px 0 0', color: '#7b4c26' }}>
             创建时间：{new Date(row.createdAt).toLocaleString('zh-CN')}

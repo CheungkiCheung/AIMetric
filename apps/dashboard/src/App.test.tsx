@@ -35,6 +35,7 @@ const createClient = (
       state: 'merged',
       aiTouched: true,
       reviewDecision: 'approved',
+      linkedRequirementKeys: ['AIM-101'],
       createdAt: '2026-04-24T00:00:00.000Z',
       mergedAt: '2026-04-24T12:00:00.000Z',
       cycleTimeHours: 12,
@@ -59,6 +60,8 @@ const createClient = (
       status: 'done',
       aiTouched: true,
       firstPrCreatedAt: '2026-04-24T08:00:00.000Z',
+      linkedPullRequestCount: 2,
+      linkedPullRequestNumbers: [101, 103],
       completedAt: '2026-04-25T12:00:00.000Z',
       leadTimeHours: 36,
       leadTimeToFirstPrHours: 8,
@@ -357,10 +360,13 @@ describe('App', () => {
     expect(screen.getByText('60.0%')).toBeInTheDocument();
     expect(screen.getByText('36.0 小时')).toBeInTheDocument();
     expect(screen.getByText('Jira AIM-101 Build management dashboard')).toBeInTheDocument();
+    expect(screen.getByText(/关联 PR：2/)).toBeInTheDocument();
+    expect(screen.getByText(/PR 编号：101, 103/)).toBeInTheDocument();
     expect(screen.getByText('AI 触达 PR 占比')).toBeInTheDocument();
     expect(screen.getByText('75.0%')).toBeInTheDocument();
     expect(screen.getByText('18.0 小时')).toBeInTheDocument();
     expect(screen.getByText('AIMetric #101 Add collector health dashboard')).toBeInTheDocument();
+    expect(screen.getByText(/关联需求：AIM-101/)).toBeInTheDocument();
     expect(screen.getByText('文件持久队列')).toBeInTheDocument();
     expect(screen.getByText('待投递批次')).toBeInTheDocument();
     expect(screen.getByText('DLQ 批次')).toBeInTheDocument();

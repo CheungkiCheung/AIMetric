@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS github_pull_requests (
   state TEXT NOT NULL,
   ai_touched BOOLEAN NOT NULL DEFAULT FALSE,
   review_decision TEXT,
+  requirement_keys TEXT[] NOT NULL DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL,
   merged_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ NOT NULL,
