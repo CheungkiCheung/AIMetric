@@ -3,6 +3,7 @@
 import {
   buildEmployeeOnboardingStatus,
   flushEmployeeOutbox,
+  registerEmployeeCollectorIdentity,
   runEmployeeOnboardingDoctor,
   writeEmployeeOnboardingFiles,
   type EmployeeToolProfile,
@@ -46,9 +47,18 @@ if (command === 'flush') {
   process.exit(result.failed > 0 ? 1 : 0);
 }
 
+if (command === 'register') {
+  const result = await registerEmployeeCollectorIdentity({
+    workspaceDir: args.get('workspaceDir') ?? process.cwd(),
+  });
+
+  console.log(JSON.stringify(result, null, 2));
+  process.exit(0);
+}
+
 if (command !== 'onboard') {
   console.error(`Unknown command: ${command}`);
-  console.error('Usage: aimetric onboard|status|doctor|flush [--workspaceDir=...]');
+  console.error('Usage: aimetric onboard|status|doctor|flush|register [--workspaceDir=...]');
   process.exit(1);
 }
 

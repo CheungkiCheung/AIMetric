@@ -457,6 +457,114 @@ describe('PostgresMetricEventRepository query mapping', () => {
     expect(queries.at(-1)?.values).toEqual(['aimetric-enterprise']);
   });
 
+  it('registers and resolves collector identities through query mapping', async () => {
+    const queries: Array<{ text: string; values?: unknown[] }> = [];
+    const repository = new PostgresMetricEventRepository({
+      async query<T extends QueryResultRow = QueryResultRow>(
+        text: string,
+        values?: unknown[],
+      ) {
+        queries.push({ text, values });
+
+        if (text.includes('CREATE TABLE') || text.includes('CREATE UNIQUE INDEX')) {
+          return {
+            command: '',
+            rowCount: 0,
+            oid: 0,
+            fields: [],
+            rows: [] as T[],
+          };
+        }
+
+        if (text.includes('SELECT COUNT(*) AS organization_count')) {
+          return {
+            command: '',
+            rowCount: 1,
+            oid: 0,
+            fields: [],
+            rows: ([{ organization_count: '1' }] as unknown) as T[],
+          };
+        }
+
+        if (text.includes('FROM governance_team_memberships memberships')) {
+          return {
+            command: '',
+            rowCount: 1,
+            oid: 0,
+            fields: [],
+            rows: ([{ member_id: 'alice' }] as unknown) as T[],
+          };
+        }
+
+        if (text.includes('INSERT INTO governance_collector_identities')) {
+          return {
+            command: '',
+            rowCount: 1,
+            oid: 0,
+            fields: [],
+            rows: ([
+              {
+                identity_key: 'aimetric:alice:cursor:aimetric',
+                member_id: 'alice',
+                project_key: 'aimetric',
+                repo_name: 'AIMetric',
+                tool_profile: 'cursor',
+                status: 'active',
+                registered_at: new Date('2026-04-25T00:00:00.000Z'),
+                updated_at: new Date('2026-04-25T00:00:00.000Z'),
+              },
+            ] as unknown) as T[],
+          };
+        }
+
+        return {
+          command: '',
+          rowCount: 1,
+          oid: 0,
+          fields: [],
+          rows: ([
+            {
+              identity_key: 'aimetric:alice:cursor:aimetric',
+              member_id: 'alice',
+              project_key: 'aimetric',
+              repo_name: 'AIMetric',
+              tool_profile: 'cursor',
+              status: 'active',
+              registered_at: new Date('2026-04-25T00:00:00.000Z'),
+              updated_at: new Date('2026-04-25T00:00:00.000Z'),
+            },
+          ] as unknown) as T[],
+        };
+      },
+    });
+
+    const registered = await repository.registerCollectorIdentity({
+      identityKey: 'aimetric:alice:cursor:aimetric',
+      memberId: 'alice',
+      projectKey: 'aimetric',
+      repoName: 'AIMetric',
+      toolProfile: 'cursor',
+    });
+    const resolved = await repository.getCollectorIdentity(
+      'aimetric:alice:cursor:aimetric',
+    );
+
+    expect(registered).toMatchObject({
+      identityKey: 'aimetric:alice:cursor:aimetric',
+      memberId: 'alice',
+      status: 'active',
+    });
+    expect(resolved).toMatchObject({
+      projectKey: 'aimetric',
+      toolProfile: 'cursor',
+    });
+    expect(
+      queries.some((query) =>
+        query.text.includes('INSERT INTO governance_collector_identities'),
+      ),
+    ).toBe(true);
+  });
+
   it('includes ingestion_key in insert statements for deduplicated session events', async () => {
     const queries: Array<{ text: string; values?: unknown[] }> = [];
     const repository = new PostgresMetricEventRepository({

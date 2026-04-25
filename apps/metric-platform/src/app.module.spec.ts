@@ -192,6 +192,57 @@ describe('AppModule', () => {
     expect(directory.members).toHaveLength(1);
   });
 
+  it('registers and resolves collector identities through the repository abstraction', async () => {
+    const repository = {
+      ...createEmptyRepository(),
+      registerCollectorIdentity: vi.fn(async () => ({
+        identityKey: 'aimetric:alice:cursor:aimetric',
+        memberId: 'alice',
+        projectKey: 'aimetric',
+        repoName: 'AIMetric',
+        toolProfile: 'cursor',
+        status: 'active' as const,
+        registeredAt: '2026-04-25T00:00:00.000Z',
+        updatedAt: '2026-04-25T00:00:00.000Z',
+      })),
+      getCollectorIdentity: vi.fn(async () => ({
+        identityKey: 'aimetric:alice:cursor:aimetric',
+        memberId: 'alice',
+        projectKey: 'aimetric',
+        repoName: 'AIMetric',
+        toolProfile: 'cursor',
+        status: 'active' as const,
+        registeredAt: '2026-04-25T00:00:00.000Z',
+        updatedAt: '2026-04-25T00:00:00.000Z',
+      })),
+    };
+    const appModule = new AppModule(repository);
+
+    const registered = await appModule.registerCollectorIdentity({
+      identityKey: 'aimetric:alice:cursor:aimetric',
+      memberId: 'alice',
+      projectKey: 'aimetric',
+      repoName: 'AIMetric',
+      toolProfile: 'cursor',
+    });
+    const resolved = await appModule.getCollectorIdentity(
+      'aimetric:alice:cursor:aimetric',
+    );
+
+    expect(repository.registerCollectorIdentity).toHaveBeenCalledWith({
+      identityKey: 'aimetric:alice:cursor:aimetric',
+      memberId: 'alice',
+      projectKey: 'aimetric',
+      repoName: 'AIMetric',
+      toolProfile: 'cursor',
+    });
+    expect(repository.getCollectorIdentity).toHaveBeenCalledWith(
+      'aimetric:alice:cursor:aimetric',
+    );
+    expect(registered.status).toBe('active');
+    expect(resolved?.memberId).toBe('alice');
+  });
+
   it('filters enterprise metrics by dimension', () => {
     const appModule = new AppModule(createEmptyRepository());
     const metrics = appModule.listEnterpriseMetricsByDimension('quality-risk');

@@ -9,6 +9,7 @@ import {
 } from '@aimetric/metric-core';
 import {
   PostgresMetricEventRepository,
+  type CollectorIdentityRecord,
   type EditEvidenceFilters,
   type MetricEventRepository,
   type MetricSnapshotRecord,
@@ -206,6 +207,24 @@ export class AppModule {
     ]);
 
     return filterGovernanceDirectoryByViewerScope(directory, viewerScope);
+  }
+
+  async registerCollectorIdentity(
+    input: Omit<CollectorIdentityRecord, 'status' | 'registeredAt' | 'updatedAt'>,
+  ) {
+    if (!this.metricEventRepository.registerCollectorIdentity) {
+      throw new Error('Collector identity registration is not configured');
+    }
+
+    return this.metricEventRepository.registerCollectorIdentity(input);
+  }
+
+  async getCollectorIdentity(identityKey: string) {
+    if (!this.metricEventRepository.getCollectorIdentity) {
+      return undefined;
+    }
+
+    return this.metricEventRepository.getCollectorIdentity(identityKey);
   }
 
   listEnterpriseMetricsByDimension(dimension: EnterpriseMetricDimensionKey) {

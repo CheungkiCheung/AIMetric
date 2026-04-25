@@ -6,6 +6,7 @@ import {
   buildEmployeeOnboardingStatus,
   buildEmployeeOnboardingConfig,
   flushEmployeeOutbox,
+  registerEmployeeCollectorIdentity,
   runEmployeeOnboardingDoctor,
   writeEmployeeOnboardingFiles,
 } from './onboarding.js';
@@ -29,6 +30,7 @@ describe('buildEmployeeOnboardingConfig', () => {
 
     expect(config.projectKey).toBe('aimetric');
     expect(config.memberId).toBe('alice');
+    expect(config.identity.identityKey).toBe('aimetric:alice:cursor:aimetric');
     expect(config.rules.version).toBe('v2');
     expect(config.rules.must).toContain('rule.template-versioning');
     expect(config.mcp.tools).toContain('getProjectRules');
@@ -249,6 +251,8 @@ describe('employee onboarding status and doctor', () => {
 
     await expect(buildEmployeeOnboardingStatus({ workspaceDir })).resolves.toEqual({
       onboarded: true,
+      identityKey: 'aimetric:alice:cursor:aimetric',
+      collectorIdentityRegistered: false,
       projectKey: 'aimetric',
       memberId: 'alice',
       repoName: 'AIMetric',
@@ -305,6 +309,45 @@ describe('employee onboarding status and doctor', () => {
       message: 'MCP config exists',
     });
     expect(report.nextActions).toContain('Run aimetric status before your first AI session');
+    expect(report.nextActions).toContain(
+      'Run aimetric register to bind this workspace identity to the governance directory',
+    );
+  });
+
+  it('doctor validates collector identity registration when platform lookup is provided', async () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), 'aimetric-onboarding-doctor-identity-'));
+    temporaryWorkspaces.push(workspaceDir);
+    await writeEmployeeOnboardingFiles({
+      workspaceDir,
+      projectKey: 'aimetric',
+      memberId: 'alice',
+      repoName: 'AIMetric',
+      toolProfile: 'cursor',
+    });
+
+    const report = await runEmployeeOnboardingDoctor({
+      workspaceDir,
+      fetchImplementation: async () =>
+        new Response(
+          JSON.stringify({
+            identityKey: 'aimetric:alice:cursor:aimetric',
+            memberId: 'alice',
+            projectKey: 'aimetric',
+            repoName: 'AIMetric',
+            toolProfile: 'cursor',
+            status: 'active',
+            registeredAt: '2026-04-25T00:00:00.000Z',
+            updatedAt: '2026-04-25T00:00:00.000Z',
+          }),
+          { status: 200 },
+        ),
+    });
+
+    expect(report.checks).toContainEqual({
+      key: 'collector-identity',
+      status: 'pass',
+      message: 'Collector identity aimetric:alice:cursor:aimetric is registered',
+    });
   });
 
   it('doctor warns when local outbox contains pending batches', async () => {
@@ -372,6 +415,59 @@ describe('flushEmployeeOutbox', () => {
       published: 1,
       failed: 0,
       remainingDepth: 0,
+    });
+  });
+});
+
+describe('registerEmployeeCollectorIdentity', () => {
+  it('registers the local workspace identity in metric-platform', async () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), 'aimetric-onboarding-register-'));
+    temporaryWorkspaces.push(workspaceDir);
+    await writeEmployeeOnboardingFiles({
+      workspaceDir,
+      projectKey: 'aimetric',
+      memberId: 'alice',
+      repoName: 'AIMetric',
+      toolProfile: 'cursor',
+    });
+
+    const result = await registerEmployeeCollectorIdentity({
+      workspaceDir,
+      fetchImplementation: async (_input, init) => {
+        expect(String(_input)).toBe(
+          'http://127.0.0.1:3001/governance/collector-identities/register',
+        );
+        expect(init?.method).toBe('POST');
+        expect(init?.body).toBe(
+          JSON.stringify({
+            identityKey: 'aimetric:alice:cursor:aimetric',
+            memberId: 'alice',
+            projectKey: 'aimetric',
+            repoName: 'AIMetric',
+            toolProfile: 'cursor',
+          }),
+        );
+
+        return new Response(
+          JSON.stringify({
+            identityKey: 'aimetric:alice:cursor:aimetric',
+            memberId: 'alice',
+            projectKey: 'aimetric',
+            repoName: 'AIMetric',
+            toolProfile: 'cursor',
+            status: 'active',
+            registeredAt: '2026-04-25T00:00:00.000Z',
+            updatedAt: '2026-04-25T00:00:00.000Z',
+          }),
+          { status: 200 },
+        );
+      },
+    });
+
+    expect(result).toMatchObject({
+      identityKey: 'aimetric:alice:cursor:aimetric',
+      memberId: 'alice',
+      status: 'active',
     });
   });
 });

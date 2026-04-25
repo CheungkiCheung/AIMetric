@@ -110,3 +110,15 @@ CREATE TABLE IF NOT EXISTS governance_team_memberships (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (member_id, team_key)
 );
+
+CREATE TABLE IF NOT EXISTS governance_collector_identities (
+  id BIGSERIAL PRIMARY KEY,
+  identity_key TEXT NOT NULL UNIQUE,
+  member_id TEXT NOT NULL REFERENCES governance_members (member_id),
+  project_key TEXT NOT NULL REFERENCES governance_projects (project_key),
+  repo_name TEXT NOT NULL,
+  tool_profile TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  registered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

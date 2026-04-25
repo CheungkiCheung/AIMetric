@@ -31,6 +31,9 @@ export interface EmployeeOnboardingConfig {
   memberId: string;
   repoName: string;
   toolProfile: EmployeeToolProfile;
+  identity: {
+    identityKey: string;
+  };
   collector: {
     endpoint: string;
     source: string;
@@ -63,6 +66,8 @@ export interface EmployeeOnboardingStatus {
   onboarded: boolean;
   configPath: string;
   mcpConfigPath: string;
+  identityKey?: string;
+  collectorIdentityRegistered?: boolean;
   projectKey?: string;
   memberId?: string;
   repoName?: string;
@@ -84,11 +89,27 @@ export interface EmployeeOnboardingDoctorReport {
   nextActions: string[];
 }
 
+export interface CollectorIdentityRegistration {
+  identityKey: string;
+  memberId: string;
+  projectKey: string;
+  repoName: string;
+  toolProfile: string;
+  status: 'active';
+  registeredAt: string;
+  updatedAt: string;
+}
+
 export interface FlushEmployeeOutboxInput {
   workspaceDir: string;
   fetchImplementation?: typeof fetch;
   environment?: Record<string, string | undefined>;
   limit?: number;
+}
+
+export interface RegisterCollectorIdentityInput {
+  workspaceDir: string;
+  fetchImplementation?: typeof fetch;
 }
 
 const defaultCollectorEndpoint = 'http://127.0.0.1:3000/ingestion';
@@ -173,6 +194,14 @@ export function buildEmployeeOnboardingConfig(
     memberId: input.memberId,
     repoName: input.repoName,
     toolProfile,
+    identity: {
+      identityKey: buildCollectorIdentityKey({
+        projectKey: input.projectKey,
+        memberId: input.memberId,
+        repoName: input.repoName,
+        toolProfile,
+      }),
+    },
     collector: {
       endpoint: collectorEndpoint,
       source: toolProfile,
@@ -252,17 +281,23 @@ export async function writeEmployeeOnboardingFiles(
 
 export async function buildEmployeeOnboardingStatus(input: {
   workspaceDir: string;
+  fetchImplementation?: typeof fetch;
 }): Promise<EmployeeOnboardingStatus> {
   const configPath = join(input.workspaceDir, '.aimetric', 'config.json');
   const mcpConfigPath = join(input.workspaceDir, '.aimetric', 'mcp.json');
 
   try {
-    const config = JSON.parse(
-      await readFile(configPath, 'utf8'),
-    ) as EmployeeOnboardingConfig;
+    const config = await loadEmployeeOnboardingConfig(input.workspaceDir);
+
+    const collectorIdentity =
+      input.fetchImplementation
+        ? await resolveCollectorIdentity(config, input.fetchImplementation)
+        : undefined;
 
     return {
       onboarded: true,
+      identityKey: config.identity.identityKey,
+      collectorIdentityRegistered: Boolean(collectorIdentity),
       projectKey: config.projectKey,
       memberId: config.memberId,
       repoName: config.repoName,
@@ -285,6 +320,7 @@ export async function buildEmployeeOnboardingStatus(input: {
 
 export async function runEmployeeOnboardingDoctor(input: {
   workspaceDir: string;
+  fetchImplementation?: typeof fetch;
 }): Promise<EmployeeOnboardingDoctorReport> {
   const configPath = join(input.workspaceDir, '.aimetric', 'config.json');
   const mcpConfigPath = join(input.workspaceDir, '.aimetric', 'mcp.json');
@@ -292,7 +328,7 @@ export async function runEmployeeOnboardingDoctor(input: {
   let config: EmployeeOnboardingConfig | undefined;
 
   try {
-    config = JSON.parse(await readFile(configPath, 'utf8')) as EmployeeOnboardingConfig;
+    config = await loadEmployeeOnboardingConfig(input.workspaceDir);
     checks.push({
       key: 'config',
       status: 'pass',
@@ -326,6 +362,26 @@ export async function runEmployeeOnboardingDoctor(input: {
       status: 'pass',
       message: `Ensure ${config.collector.authTokenEnv} is exported before publishing events`,
     });
+
+    if (input.fetchImplementation) {
+      const collectorIdentity = await resolveCollectorIdentity(
+        config,
+        input.fetchImplementation,
+      );
+      checks.push(
+        collectorIdentity
+          ? {
+              key: 'collector-identity',
+              status: 'pass',
+              message: `Collector identity ${config.identity.identityKey} is registered`,
+            }
+          : {
+              key: 'collector-identity',
+              status: 'warn',
+              message: `Collector identity ${config.identity.identityKey} is not registered yet`,
+            },
+      );
+    }
   }
 
   const outboxDepth = await readOutboxDepth(input.workspaceDir);
@@ -355,6 +411,9 @@ export async function runEmployeeOnboardingDoctor(input: {
         ]
       : [
           'Run aimetric status before your first AI session',
+          ...(config
+            ? ['Run aimetric register to bind this workspace identity to the governance directory']
+            : []),
           ...(outboxDepth > 0
             ? ['Run aimetric flush to publish buffered events']
             : []),
@@ -381,6 +440,43 @@ export async function flushEmployeeOutbox(
     environment: input.environment,
     limit: input.limit,
   });
+}
+
+export async function registerEmployeeCollectorIdentity(
+  input: RegisterCollectorIdentityInput,
+): Promise<CollectorIdentityRegistration> {
+  const config = await loadEmployeeOnboardingConfig(input.workspaceDir);
+  const fetchImplementation = input.fetchImplementation ?? globalThis.fetch;
+
+  if (typeof fetchImplementation !== 'function') {
+    throw new Error('Fetch implementation is required to register collector identity');
+  }
+
+  const response = await fetchImplementation(
+    new URL(
+      '/governance/collector-identities/register',
+      config.metricPlatform.endpoint,
+    ).toString(),
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        identityKey: config.identity.identityKey,
+        memberId: config.memberId,
+        projectKey: config.projectKey,
+        repoName: config.repoName,
+        toolProfile: config.toolProfile,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to register collector identity: ${response.status}`);
+  }
+
+  return (await response.json()) as CollectorIdentityRegistration;
 }
 
 const writeToolProfileArtifacts = async (input: {
@@ -481,6 +577,13 @@ const writeToolProfileArtifacts = async (input: {
   return [cliEnvPath];
 };
 
+const loadEmployeeOnboardingConfig = async (
+  workspaceDir: string,
+): Promise<EmployeeOnboardingConfig> =>
+  JSON.parse(
+    await readFile(join(workspaceDir, '.aimetric', 'config.json'), 'utf8'),
+  ) as EmployeeOnboardingConfig;
+
 const buildEnvContent = (environment: Record<string, string>): string =>
   Object.entries(environment)
     .map(([key, value]) => `export ${key}="${value}"`)
@@ -502,5 +605,44 @@ const readOutboxDepth = async (workspaceDir: string): Promise<number> => {
     return files.filter((file) => file.endsWith('.json')).length;
   } catch {
     return 0;
+  }
+};
+
+const buildCollectorIdentityKey = (input: {
+  projectKey: string;
+  memberId: string;
+  repoName: string;
+  toolProfile: EmployeeToolProfile;
+}): string =>
+  `${input.projectKey}:${input.memberId}:${input.toolProfile}:${normalizeIdentitySegment(input.repoName)}`;
+
+const normalizeIdentitySegment = (value: string): string =>
+  value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+const resolveCollectorIdentity = async (
+  config: EmployeeOnboardingConfig,
+  fetchImplementation?: typeof fetch,
+): Promise<CollectorIdentityRegistration | undefined> => {
+  const fetchFn = fetchImplementation ?? globalThis.fetch;
+
+  if (typeof fetchFn !== 'function') {
+    return undefined;
+  }
+
+  try {
+    const url = new URL(
+      '/governance/collector-identities/resolve',
+      config.metricPlatform.endpoint,
+    );
+    url.searchParams.set('identityKey', config.identity.identityKey);
+    const response = await fetchFn(url.toString());
+
+    if (!response.ok) {
+      return undefined;
+    }
+
+    return (await response.json()) as CollectorIdentityRegistration;
+  } catch {
+    return undefined;
   }
 };

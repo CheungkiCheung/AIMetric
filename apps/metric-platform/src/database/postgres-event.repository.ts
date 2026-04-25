@@ -114,6 +114,17 @@ export interface OutputAnalysisRow {
   latestDiffSummary: string;
 }
 
+export interface CollectorIdentityRecord {
+  identityKey: string;
+  memberId: string;
+  projectKey: string;
+  repoName: string;
+  toolProfile: string;
+  status: 'active';
+  registeredAt: string;
+  updatedAt: string;
+}
+
 export interface MetricEventRepository {
   saveIngestionBatch(batch: IngestionBatch): Promise<void>;
   listRecordedMetricEvents(
@@ -149,6 +160,12 @@ export interface MetricEventRepository {
   getGovernanceViewerScope?(
     viewerId: string,
   ): Promise<GovernanceViewerScope | undefined>;
+  registerCollectorIdentity?(
+    input: Omit<CollectorIdentityRecord, 'status' | 'registeredAt' | 'updatedAt'>,
+  ): Promise<CollectorIdentityRecord>;
+  getCollectorIdentity?(
+    identityKey: string,
+  ): Promise<CollectorIdentityRecord | undefined>;
   disconnect(): Promise<void>;
 }
 
@@ -312,6 +329,19 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             UNIQUE (member_id, team_key)
+          )
+        `);
+        await this.database.query(`
+          CREATE TABLE IF NOT EXISTS governance_collector_identities (
+            id BIGSERIAL PRIMARY KEY,
+            identity_key TEXT NOT NULL UNIQUE,
+            member_id TEXT NOT NULL REFERENCES governance_members (member_id),
+            project_key TEXT NOT NULL REFERENCES governance_projects (project_key),
+            repo_name TEXT NOT NULL,
+            tool_profile TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            registered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
           )
         `);
         await this.seedDefaultGovernanceDirectory();
@@ -1336,6 +1366,141 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
     const directory = await this.getGovernanceDirectory();
 
     return buildGovernanceViewerScope(directory, viewerId);
+  }
+
+  async registerCollectorIdentity(
+    input: Omit<CollectorIdentityRecord, 'status' | 'registeredAt' | 'updatedAt'>,
+  ): Promise<CollectorIdentityRecord> {
+    await this.ensureSchema();
+
+    const membership = await this.database.query<{
+      member_id: string;
+    }>(
+      `
+        SELECT memberships.member_id
+        FROM governance_team_memberships memberships
+        INNER JOIN governance_projects projects
+          ON projects.team_key = memberships.team_key
+        WHERE memberships.member_id = $1
+          AND projects.project_key = $2
+          AND memberships.is_primary = TRUE
+        LIMIT 1
+      `,
+      [input.memberId, input.projectKey],
+    );
+
+    if (membership.rows.length === 0) {
+      throw new Error('Collector identity member/project mapping is not allowed');
+    }
+
+    const result = await this.database.query<{
+      identity_key: string;
+      member_id: string;
+      project_key: string;
+      repo_name: string;
+      tool_profile: string;
+      status: 'active';
+      registered_at: Date | string;
+      updated_at: Date | string;
+    }>(
+      `
+        INSERT INTO governance_collector_identities (
+          identity_key,
+          member_id,
+          project_key,
+          repo_name,
+          tool_profile
+        )
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (identity_key)
+        DO UPDATE SET
+          member_id = EXCLUDED.member_id,
+          project_key = EXCLUDED.project_key,
+          repo_name = EXCLUDED.repo_name,
+          tool_profile = EXCLUDED.tool_profile,
+          status = 'active',
+          updated_at = NOW()
+        RETURNING
+          identity_key,
+          member_id,
+          project_key,
+          repo_name,
+          tool_profile,
+          status,
+          registered_at,
+          updated_at
+      `,
+      [
+        input.identityKey,
+        input.memberId,
+        input.projectKey,
+        input.repoName,
+        input.toolProfile,
+      ],
+    );
+
+    const row = result.rows[0];
+
+    return {
+      identityKey: row.identity_key,
+      memberId: row.member_id,
+      projectKey: row.project_key,
+      repoName: row.repo_name,
+      toolProfile: row.tool_profile,
+      status: row.status,
+      registeredAt: toIsoString(row.registered_at),
+      updatedAt: toIsoString(row.updated_at),
+    };
+  }
+
+  async getCollectorIdentity(
+    identityKey: string,
+  ): Promise<CollectorIdentityRecord | undefined> {
+    await this.ensureSchema();
+
+    const result = await this.database.query<{
+      identity_key: string;
+      member_id: string;
+      project_key: string;
+      repo_name: string;
+      tool_profile: string;
+      status: 'active';
+      registered_at: Date | string;
+      updated_at: Date | string;
+    }>(
+      `
+        SELECT
+          identity_key,
+          member_id,
+          project_key,
+          repo_name,
+          tool_profile,
+          status,
+          registered_at,
+          updated_at
+        FROM governance_collector_identities
+        WHERE identity_key = $1
+        LIMIT 1
+      `,
+      [identityKey],
+    );
+
+    const row = result.rows[0];
+
+    if (!row) {
+      return undefined;
+    }
+
+    return {
+      identityKey: row.identity_key,
+      memberId: row.member_id,
+      projectKey: row.project_key,
+      repoName: row.repo_name,
+      toolProfile: row.tool_profile,
+      status: row.status,
+      registeredAt: toIsoString(row.registered_at),
+      updatedAt: toIsoString(row.updated_at),
+    };
   }
 
   async disconnect(): Promise<void> {

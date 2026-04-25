@@ -864,7 +864,7 @@ Agent 能力：
 交付：
 
 - PostgreSQL 组织模型：第一版已完成，已落地 `organization / team / project / member / team_membership` 五类核心表，并支持默认种子初始化与 `GET /governance/directory` 查询。
-- `collector_identity`。
+- `collector_identity`：第一版已完成，已落地持久化表、注册接口、解析接口，以及员工端 `aimetric register` 自助绑定链路。
 - RBAC 基础权限：第一版已完成只读 viewer scope 过滤，支持基于 `x-aimetric-viewer-id` 按治理目录限制治理页、指标与分析数据可见范围。
 - 管理端 API 鉴权升级。
 - Dashboard 按角色展示不同视图：第一版已新增“组织治理概览”目录视图。

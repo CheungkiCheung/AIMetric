@@ -5,6 +5,7 @@ import { IngestionBatchSchema } from '@aimetric/event-schema';
 import type { EnterpriseMetricDimensionKey } from '@aimetric/metric-core';
 import { AppModule } from './app.module.js';
 import type {
+  CollectorIdentityRecord,
   EditEvidenceFilters,
   MetricEventRepository,
   MetricSnapshotFilters,
@@ -191,6 +192,39 @@ const readViewerId = (request: IncomingMessage): string | undefined => {
   return typeof viewerId === 'string' && viewerId.length > 0 ? viewerId : undefined;
 };
 
+const getCollectorIdentityInputFromBody = (
+  body: unknown,
+): Omit<CollectorIdentityRecord, 'status' | 'registeredAt' | 'updatedAt'> | undefined => {
+  if (!body || typeof body !== 'object') {
+    return undefined;
+  }
+
+  const payload = body as Record<string, unknown>;
+  const identityKey = payload.identityKey;
+  const memberId = payload.memberId;
+  const projectKey = payload.projectKey;
+  const repoName = payload.repoName;
+  const toolProfile = payload.toolProfile;
+
+  if (
+    typeof identityKey !== 'string' ||
+    typeof memberId !== 'string' ||
+    typeof projectKey !== 'string' ||
+    typeof repoName !== 'string' ||
+    typeof toolProfile !== 'string'
+  ) {
+    return undefined;
+  }
+
+  return {
+    identityKey,
+    memberId,
+    projectKey,
+    repoName,
+    toolProfile,
+  };
+};
+
 const applyViewerScopeToFilters = <T extends MetricSnapshotFilters>(
   filters: T,
   viewerScope?: GovernanceViewerScope,
@@ -365,6 +399,25 @@ const handleRequest = async (
       200,
       await appModule.getScopedOrganizationDirectory(viewerId),
     );
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/governance/collector-identities/resolve') {
+    const identityKey = url.searchParams.get('identityKey');
+
+    if (!identityKey) {
+      writeJson(response, 400, { message: 'identityKey is required' });
+      return;
+    }
+
+    const collectorIdentity = await appModule.getCollectorIdentity(identityKey);
+
+    if (!collectorIdentity) {
+      writeJson(response, 404, { message: 'Collector identity not found' });
+      return;
+    }
+
+    writeJson(response, 200, collectorIdentity);
     return;
   }
 
@@ -729,6 +782,33 @@ const handleRequest = async (
       writeJson(response, 200, await appModule.importEvents(batch));
     } catch {
       writeJson(response, 400, { message: 'Invalid ingestion batch' });
+    }
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/governance/collector-identities/register') {
+    const body = await readJsonBody(request);
+    const registrationInput = getCollectorIdentityInputFromBody(body);
+
+    if (!registrationInput) {
+      writeJson(response, 400, {
+        message:
+          'identityKey, memberId, projectKey, repoName, and toolProfile are required',
+      });
+      return;
+    }
+
+    try {
+      writeJson(
+        response,
+        200,
+        await appModule.registerCollectorIdentity(registrationInput),
+      );
+    } catch (error) {
+      writeJson(response, 400, {
+        message:
+          error instanceof Error ? error.message : 'Failed to register collector identity',
+      });
     }
     return;
   }

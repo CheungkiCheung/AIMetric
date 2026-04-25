@@ -432,6 +432,72 @@ describe('bootstrap', () => {
     });
   });
 
+  it('registers and resolves collector identities over HTTP', async () => {
+    const metricEventRepository: MetricEventRepository = {
+      ...createEmptyRepository(),
+      async registerCollectorIdentity(input) {
+        return {
+          ...input,
+          status: 'active',
+          registeredAt: '2026-04-25T00:00:00.000Z',
+          updatedAt: '2026-04-25T00:00:00.000Z',
+        };
+      },
+      async getCollectorIdentity(identityKey) {
+        if (identityKey !== 'aimetric:alice:cursor:aimetric') {
+          return undefined;
+        }
+
+        return {
+          identityKey,
+          memberId: 'alice',
+          projectKey: 'aimetric',
+          repoName: 'AIMetric',
+          toolProfile: 'cursor',
+          status: 'active',
+          registeredAt: '2026-04-25T00:00:00.000Z',
+          updatedAt: '2026-04-25T00:00:00.000Z',
+        };
+      },
+    };
+    const app = await bootstrap({
+      port: 0,
+      metricEventRepository,
+    });
+    servers.push(app);
+
+    const registerResponse = await fetch(
+      `${app.baseUrl}/governance/collector-identities/register`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          identityKey: 'aimetric:alice:cursor:aimetric',
+          memberId: 'alice',
+          projectKey: 'aimetric',
+          repoName: 'AIMetric',
+          toolProfile: 'cursor',
+        }),
+      },
+    );
+    const resolveResponse = await fetch(
+      `${app.baseUrl}/governance/collector-identities/resolve?identityKey=aimetric%3Aalice%3Acursor%3Aaimetric`,
+    );
+
+    expect(registerResponse.status).toBe(200);
+    await expect(registerResponse.json()).resolves.toMatchObject({
+      identityKey: 'aimetric:alice:cursor:aimetric',
+      status: 'active',
+    });
+    expect(resolveResponse.status).toBe(200);
+    await expect(resolveResponse.json()).resolves.toMatchObject({
+      memberId: 'alice',
+      projectKey: 'aimetric',
+    });
+  });
+
   it('serves enterprise metrics filtered by dimension over HTTP', async () => {
     const app = await bootstrap({
       port: 0,
