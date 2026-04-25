@@ -368,6 +368,9 @@ const getRequirementsFromBody = (body: unknown): RequirementRecord[] | undefined
         ...(typeof payload.ownerMemberId === 'string'
           ? { ownerMemberId: payload.ownerMemberId }
           : {}),
+        ...(typeof payload.priority === 'string'
+          ? { priority: payload.priority as RequirementRecord['priority'] }
+          : {}),
         status: payload.status as RequirementRecord['status'],
         aiTouched: payload.aiTouched,
         ...(typeof payload.firstPrCreatedAt === 'string'
@@ -375,6 +378,9 @@ const getRequirementsFromBody = (body: unknown): RequirementRecord[] | undefined
           : {}),
         ...(typeof payload.completedAt === 'string'
           ? { completedAt: payload.completedAt }
+          : {}),
+        ...(typeof payload.releasedAt === 'string'
+          ? { releasedAt: payload.releasedAt }
           : {}),
         createdAt: payload.createdAt,
         updatedAt: payload.updatedAt,
@@ -586,6 +592,12 @@ const getDefectsFromBody = (body: unknown): DefectRecord[] | undefined => {
       payload.linkedRequirementKeys.some((value) => typeof value !== 'string') ||
       !Array.isArray(payload.linkedPullRequestNumbers) ||
       payload.linkedPullRequestNumbers.some((value) => typeof value !== 'number') ||
+      (payload.linkedDeploymentIds !== undefined &&
+        (!Array.isArray(payload.linkedDeploymentIds) ||
+          payload.linkedDeploymentIds.some((value) => typeof value !== 'string'))) ||
+      (payload.linkedIncidentKeys !== undefined &&
+        (!Array.isArray(payload.linkedIncidentKeys) ||
+          payload.linkedIncidentKeys.some((value) => typeof value !== 'string'))) ||
       typeof payload.createdAt !== 'string' ||
       typeof payload.updatedAt !== 'string'
     ) {
@@ -605,6 +617,20 @@ const getDefectsFromBody = (body: unknown): DefectRecord[] | undefined => {
         linkedPullRequestNumbers: [
           ...new Set(payload.linkedPullRequestNumbers as number[]),
         ],
+        ...(Array.isArray(payload.linkedDeploymentIds)
+          ? {
+              linkedDeploymentIds: [
+                ...new Set(payload.linkedDeploymentIds as string[]),
+              ],
+            }
+          : {}),
+        ...(Array.isArray(payload.linkedIncidentKeys)
+          ? {
+              linkedIncidentKeys: [
+                ...new Set(payload.linkedIncidentKeys as string[]),
+              ],
+            }
+          : {}),
         createdAt: payload.createdAt,
         ...(typeof payload.resolvedAt === 'string'
           ? { resolvedAt: payload.resolvedAt }

@@ -14,6 +14,7 @@ describe('enterprise metric calculation pipeline', () => {
       'tab_accepted_lines',
       'mcp_tool_success_rate',
       'lead_time_ai_vs_non_ai',
+      'critical_requirement_cycle_time',
       'pr_cycle_time',
       'deployment_frequency',
       'review_rejection_rate',
@@ -84,6 +85,8 @@ describe('enterprise metric calculation pipeline', () => {
           nonAiRequirementCount: 2,
           averageAiLeadTimeHours: 24,
           averageNonAiLeadTimeHours: 36,
+          criticalRequirementCount: 2,
+          averageCriticalCycleTimeHours: 48,
         },
         pullRequestSummary: {
           totalPullRequestCount: 4,
@@ -159,6 +162,13 @@ describe('enterprise metric calculation pipeline', () => {
       expect.objectContaining({
         metricKey: 'lead_time_ai_vs_non_ai',
         value: -12,
+        unit: 'hours',
+        confidence: 'medium',
+        dataRequirements: ['requirement-summary'],
+      }),
+      expect.objectContaining({
+        metricKey: 'critical_requirement_cycle_time',
+        value: 48,
         unit: 'hours',
         confidence: 'medium',
         dataRequirements: ['requirement-summary'],

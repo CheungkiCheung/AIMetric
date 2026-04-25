@@ -194,14 +194,17 @@ export interface RequirementRecord {
   requirementKey: string;
   title: string;
   ownerMemberId?: string;
+  priority?: 'critical' | 'high' | 'medium' | 'low';
   status: 'open' | 'in-progress' | 'done' | 'closed';
   aiTouched: boolean;
   firstPrCreatedAt?: string;
   completedAt?: string;
+  releasedAt?: string;
   linkedPullRequestCount?: number;
   linkedPullRequestNumbers?: number[];
   leadTimeHours?: number;
   leadTimeToFirstPrHours?: number;
+  cycleTimeHours?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -296,6 +299,8 @@ export interface DefectRecord {
   foundInPhase: 'development' | 'testing' | 'production';
   linkedRequirementKeys: string[];
   linkedPullRequestNumbers: number[];
+  linkedDeploymentIds?: string[];
+  linkedIncidentKeys?: string[];
   createdAt: string;
   resolvedAt?: string;
   updatedAt: string;
@@ -318,6 +323,8 @@ export interface DefectAttributionRow {
   foundInPhase: DefectRecord['foundInPhase'];
   linkedRequirementKeys: string[];
   linkedPullRequestNumbers: number[];
+  linkedDeploymentIds?: string[];
+  linkedIncidentKeys?: string[];
   aiTouchedRequirement: boolean;
   aiTouchedPullRequest: boolean;
   createdAt: string;
@@ -327,9 +334,13 @@ export interface DefectAttributionRow {
 export interface DefectAttributionSummary {
   totalDefectCount: number;
   aiTouchedRequirementDefectCount: number;
+  aiTouchedRequirementDefectRate: number;
   aiTouchedPullRequestDefectCount: number;
   escapedAiTouchedPullRequestDefectCount: number;
+  escapedAiTouchedPullRequestDefectRate: number;
   productionDefectCount: number;
+  failedDeploymentLinkedDefectCount: number;
+  incidentLinkedDefectCount: number;
 }
 
 export interface DashboardClient {
@@ -526,9 +537,13 @@ const fallbackDefectSummary: DefectSummary = {
 const fallbackDefectAttributionSummary: DefectAttributionSummary = {
   totalDefectCount: 0,
   aiTouchedRequirementDefectCount: 0,
+  aiTouchedRequirementDefectRate: 0,
   aiTouchedPullRequestDefectCount: 0,
   escapedAiTouchedPullRequestDefectCount: 0,
+  escapedAiTouchedPullRequestDefectRate: 0,
   productionDefectCount: 0,
+  failedDeploymentLinkedDefectCount: 0,
+  incidentLinkedDefectCount: 0,
 };
 
 const buildViewerHeaders = (viewerId?: string): HeadersInit | undefined =>

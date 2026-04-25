@@ -8,6 +8,8 @@ export interface DefectAttributionDashboardProps {
   rows: DefectAttributionRow[];
 }
 
+const formatRatio = (value: number) => `${(value * 100).toFixed(1)}%`;
+
 const panelStyle = {
   padding: '24px',
   borderRadius: '28px',
@@ -79,20 +81,30 @@ export const DefectAttributionDashboard = ({
         <p style={statValueStyle}>{summary.totalDefectCount}</p>
       </article>
       <article style={statCardStyle}>
-        <p style={statLabelStyle}>AI 需求关联缺陷</p>
-        <p style={statValueStyle}>{summary.aiTouchedRequirementDefectCount}</p>
+        <p style={statLabelStyle}>AI 参与需求缺陷率</p>
+        <p style={statValueStyle}>{formatRatio(summary.aiTouchedRequirementDefectRate)}</p>
       </article>
       <article style={statCardStyle}>
         <p style={statLabelStyle}>AI PR 关联缺陷</p>
         <p style={statValueStyle}>{summary.aiTouchedPullRequestDefectCount}</p>
       </article>
       <article style={statCardStyle}>
-        <p style={statLabelStyle}>AI PR 生产逃逸缺陷</p>
-        <p style={statValueStyle}>{summary.escapedAiTouchedPullRequestDefectCount}</p>
+        <p style={statLabelStyle}>AI 触达 PR 逃逸缺陷率</p>
+        <p style={statValueStyle}>
+          {formatRatio(summary.escapedAiTouchedPullRequestDefectRate)}
+        </p>
       </article>
       <article style={statCardStyle}>
         <p style={statLabelStyle}>生产缺陷总数</p>
         <p style={statValueStyle}>{summary.productionDefectCount}</p>
+      </article>
+      <article style={statCardStyle}>
+        <p style={statLabelStyle}>发布失败关联缺陷</p>
+        <p style={statValueStyle}>{summary.failedDeploymentLinkedDefectCount}</p>
+      </article>
+      <article style={statCardStyle}>
+        <p style={statLabelStyle}>事故关联缺陷</p>
+        <p style={statValueStyle}>{summary.incidentLinkedDefectCount}</p>
       </article>
     </div>
     <ul style={listStyle}>
@@ -135,6 +147,15 @@ export const DefectAttributionDashboard = ({
             {row.linkedPullRequestNumbers.length > 0
               ? `PR：${row.linkedPullRequestNumbers.join(', ')}`
               : 'PR：无'}
+          </p>
+          <p style={{ margin: '6px 0 0', color: '#5b4d86' }}>
+            {(row.linkedDeploymentIds?.length ?? 0) > 0
+              ? `发布：${row.linkedDeploymentIds?.join(', ')}`
+              : '发布：无'}
+            {' / '}
+            {(row.linkedIncidentKeys?.length ?? 0) > 0
+              ? `事故：${row.linkedIncidentKeys?.join(', ')}`
+              : '事故：无'}
           </p>
         </li>
       ))}

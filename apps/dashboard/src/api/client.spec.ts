@@ -420,9 +420,13 @@ describe('createDashboardClient', () => {
           JSON.stringify({
             totalDefectCount: 3,
             aiTouchedRequirementDefectCount: 2,
+            aiTouchedRequirementDefectRate: 1,
             aiTouchedPullRequestDefectCount: 2,
             escapedAiTouchedPullRequestDefectCount: 1,
+            escapedAiTouchedPullRequestDefectRate: 0.5,
             productionDefectCount: 1,
+            failedDeploymentLinkedDefectCount: 1,
+            incidentLinkedDefectCount: 1,
           }),
           { status: 200 },
         );
@@ -440,6 +444,8 @@ describe('createDashboardClient', () => {
               foundInPhase: 'production',
               linkedRequirementKeys: ['AIM-101'],
               linkedPullRequestNumbers: [101],
+              linkedDeploymentIds: ['deploy-2'],
+              linkedIncidentKeys: ['INC-9'],
               aiTouchedRequirement: true,
               aiTouchedPullRequest: true,
               createdAt: '2026-04-24T04:00:00.000Z',

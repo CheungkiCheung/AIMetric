@@ -90,10 +90,12 @@ CREATE TABLE IF NOT EXISTS delivery_requirements (
   requirement_key TEXT NOT NULL,
   title TEXT NOT NULL,
   owner_member_id TEXT,
+  priority TEXT,
   status TEXT NOT NULL,
   ai_touched BOOLEAN NOT NULL DEFAULT FALSE,
   first_pr_created_at TIMESTAMPTZ,
   completed_at TIMESTAMPTZ,
+  released_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL,
   UNIQUE (provider, project_key, requirement_key)
@@ -144,6 +146,25 @@ CREATE TABLE IF NOT EXISTS incident_records (
   resolved_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ NOT NULL,
   UNIQUE (provider, project_key, incident_key)
+);
+
+CREATE TABLE IF NOT EXISTS defect_records (
+  id BIGSERIAL PRIMARY KEY,
+  provider TEXT NOT NULL,
+  project_key TEXT NOT NULL,
+  defect_key TEXT NOT NULL,
+  title TEXT NOT NULL,
+  severity TEXT NOT NULL,
+  status TEXT NOT NULL,
+  found_in_phase TEXT NOT NULL,
+  linked_requirement_keys TEXT[] NOT NULL DEFAULT '{}',
+  linked_pull_request_numbers BIGINT[] NOT NULL DEFAULT '{}',
+  linked_deployment_ids TEXT[] NOT NULL DEFAULT '{}',
+  linked_incident_keys TEXT[] NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL,
+  resolved_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL,
+  UNIQUE (provider, project_key, defect_key)
 );
 
 CREATE TABLE IF NOT EXISTS governance_organizations (

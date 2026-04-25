@@ -1328,6 +1328,8 @@ describe('bootstrap', () => {
             foundInPhase: 'production' as const,
             linkedRequirementKeys: ['AIM-101'],
             linkedPullRequestNumbers: [101],
+            linkedDeploymentIds: ['deploy-2'],
+            linkedIncidentKeys: ['INC-9'],
             createdAt: '2026-04-26T05:00:00.000Z',
             resolvedAt: '2026-04-26T08:00:00.000Z',
             updatedAt: '2026-04-26T08:00:00.000Z',
@@ -1429,6 +1431,8 @@ describe('bootstrap', () => {
             foundInPhase: 'production' as const,
             linkedRequirementKeys: ['AIM-101'],
             linkedPullRequestNumbers: [101],
+            linkedDeploymentIds: ['deploy-2'],
+            linkedIncidentKeys: ['INC-9'],
             createdAt: '2026-04-26T05:00:00.000Z',
             resolvedAt: '2026-04-26T08:00:00.000Z',
             updatedAt: '2026-04-26T08:00:00.000Z',
@@ -1442,9 +1446,11 @@ describe('bootstrap', () => {
             projectKey: 'aimetric',
             requirementKey: 'AIM-101',
             title: 'Build dashboard',
+            priority: 'critical' as const,
             status: 'done' as const,
             aiTouched: true,
             createdAt: '2026-04-26T00:00:00.000Z',
+            releasedAt: '2026-04-27T00:00:00.000Z',
             updatedAt: '2026-04-26T00:00:00.000Z',
           },
         ];
@@ -1482,14 +1488,20 @@ describe('bootstrap', () => {
         defectKey: 'BUG-7',
         aiTouchedRequirement: true,
         aiTouchedPullRequest: true,
+        linkedDeploymentIds: ['deploy-2'],
+        linkedIncidentKeys: ['INC-9'],
       }),
     ]);
     await expect(summaryResponse.json()).resolves.toEqual({
       totalDefectCount: 1,
       aiTouchedRequirementDefectCount: 1,
+      aiTouchedRequirementDefectRate: 1,
       aiTouchedPullRequestDefectCount: 1,
       escapedAiTouchedPullRequestDefectCount: 1,
+      escapedAiTouchedPullRequestDefectRate: 1,
       productionDefectCount: 1,
+      failedDeploymentLinkedDefectCount: 1,
+      incidentLinkedDefectCount: 1,
     });
   });
 
@@ -1561,10 +1573,13 @@ describe('bootstrap', () => {
             projectKey: 'navigation',
             requirementKey: 'AIM-101',
             title: 'AI delivery',
+            priority: 'critical' as const,
             status: 'done' as const,
             aiTouched: true,
             leadTimeHours: 24,
+            cycleTimeHours: 48,
             createdAt: '2026-04-23T00:00:00.000Z',
+            releasedAt: '2026-04-25T00:00:00.000Z',
             updatedAt: '2026-04-24T00:00:00.000Z',
           },
           {
@@ -1753,6 +1768,11 @@ describe('bootstrap', () => {
       expect.objectContaining({
         metricKey: 'lead_time_ai_vs_non_ai',
         value: -12,
+        unit: 'hours',
+      }),
+      expect.objectContaining({
+        metricKey: 'critical_requirement_cycle_time',
+        value: 48,
         unit: 'hours',
       }),
       expect.objectContaining({

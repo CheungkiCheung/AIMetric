@@ -387,6 +387,8 @@ export class AppModule {
         .filter((pullRequest) => pullRequest.aiTouched)
         .map((pullRequest) => pullRequest.prNumber),
     );
+    const aiTouchedRequirementCount = aiTouchedRequirementKeys.size;
+    const aiTouchedPullRequestCount = aiTouchedPullRequestNumbers.size;
 
     const rows = defects.map((defect) => {
       const aiTouchedRequirement = defect.linkedRequirementKeys.some((requirementKey) =>
@@ -405,22 +407,49 @@ export class AppModule {
         foundInPhase: defect.foundInPhase,
         linkedRequirementKeys: defect.linkedRequirementKeys,
         linkedPullRequestNumbers: defect.linkedPullRequestNumbers,
+        ...(defect.linkedDeploymentIds
+          ? { linkedDeploymentIds: defect.linkedDeploymentIds }
+          : {}),
+        ...(defect.linkedIncidentKeys
+          ? { linkedIncidentKeys: defect.linkedIncidentKeys }
+          : {}),
         aiTouchedRequirement,
         aiTouchedPullRequest,
         createdAt: defect.createdAt,
         ...(defect.resolvedAt ? { resolvedAt: defect.resolvedAt } : {}),
       };
     });
+    const aiTouchedRequirementDefectCount = rows.filter(
+      (row) => row.aiTouchedRequirement,
+    ).length;
+    const aiTouchedPullRequestDefectCount = rows.filter(
+      (row) => row.aiTouchedPullRequest,
+    ).length;
+    const escapedAiTouchedPullRequestDefectCount = rows.filter(
+      (row) => row.aiTouchedPullRequest && row.foundInPhase === 'production',
+    ).length;
 
     return {
       summary: {
         totalDefectCount: rows.length,
-        aiTouchedRequirementDefectCount: rows.filter((row) => row.aiTouchedRequirement).length,
-        aiTouchedPullRequestDefectCount: rows.filter((row) => row.aiTouchedPullRequest).length,
-        escapedAiTouchedPullRequestDefectCount: rows.filter(
-          (row) => row.aiTouchedPullRequest && row.foundInPhase === 'production',
-        ).length,
+        aiTouchedRequirementDefectCount,
+        aiTouchedRequirementDefectRate:
+          aiTouchedRequirementCount === 0
+            ? 0
+            : aiTouchedRequirementDefectCount / aiTouchedRequirementCount,
+        aiTouchedPullRequestDefectCount,
+        escapedAiTouchedPullRequestDefectCount,
+        escapedAiTouchedPullRequestDefectRate:
+          aiTouchedPullRequestCount === 0
+            ? 0
+            : escapedAiTouchedPullRequestDefectCount / aiTouchedPullRequestCount,
         productionDefectCount: rows.filter((row) => row.foundInPhase === 'production').length,
+        failedDeploymentLinkedDefectCount: rows.filter(
+          (row) => (row.linkedDeploymentIds?.length ?? 0) > 0,
+        ).length,
+        incidentLinkedDefectCount: rows.filter(
+          (row) => (row.linkedIncidentKeys?.length ?? 0) > 0,
+        ).length,
       },
       rows,
     };
@@ -687,6 +716,13 @@ const buildRequirementCalculationSummary = (
         !requirement.aiTouched && typeof requirement.leadTimeHours === 'number',
     )
     .map((requirement) => requirement.leadTimeHours as number);
+  const criticalCycleTimes = requirements
+    .filter(
+      (requirement) =>
+        requirement.priority === 'critical' &&
+        typeof requirement.cycleTimeHours === 'number',
+    )
+    .map((requirement) => requirement.cycleTimeHours as number);
 
   return {
     totalRequirementCount: requirements.length,
@@ -702,6 +738,14 @@ const buildRequirementCalculationSummary = (
       nonAiLeadTimes.length === 0
         ? 0
         : nonAiLeadTimes.reduce((sum, value) => sum + value, 0) / nonAiLeadTimes.length,
+    criticalRequirementCount: requirements.filter(
+      (requirement) => requirement.priority === 'critical',
+    ).length,
+    averageCriticalCycleTimeHours:
+      criticalCycleTimes.length === 0
+        ? 0
+        : criticalCycleTimes.reduce((sum, value) => sum + value, 0) /
+          criticalCycleTimes.length,
   };
 };
 

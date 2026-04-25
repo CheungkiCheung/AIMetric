@@ -175,9 +175,13 @@ const createClient = (
   getDefectAttributionSummary: async (): Promise<DefectAttributionSummary> => ({
     totalDefectCount: 3,
     aiTouchedRequirementDefectCount: 2,
+    aiTouchedRequirementDefectRate: 1,
     aiTouchedPullRequestDefectCount: 2,
     escapedAiTouchedPullRequestDefectCount: 1,
+    escapedAiTouchedPullRequestDefectRate: 0.5,
     productionDefectCount: 1,
+    failedDeploymentLinkedDefectCount: 1,
+    incidentLinkedDefectCount: 1,
   }),
   getDefectAttributionRows: async (): Promise<DefectAttributionRow[]> => [
     {
@@ -189,6 +193,8 @@ const createClient = (
       foundInPhase: 'production',
       linkedRequirementKeys: ['AIM-101'],
       linkedPullRequestNumbers: [101],
+      linkedDeploymentIds: ['deploy-2'],
+      linkedIncidentKeys: ['INC-9'],
       aiTouchedRequirement: true,
       aiTouchedPullRequest: true,
       createdAt: '2026-04-24T04:00:00.000Z',
@@ -529,8 +535,9 @@ describe('App', () => {
     expect(
       screen.getByText('[JIRA] BUG-7 PR merge flow breaks on production'),
     ).toBeInTheDocument();
-    expect(screen.getByText('AI 需求关联缺陷')).toBeInTheDocument();
-    expect(screen.getByText('AI PR 生产逃逸缺陷')).toBeInTheDocument();
+    expect(screen.getByText('AI 参与需求缺陷率')).toBeInTheDocument();
+    expect(screen.getByText('AI 触达 PR 逃逸缺陷率')).toBeInTheDocument();
+    expect(screen.getByText('发布失败关联缺陷')).toBeInTheDocument();
     expect(screen.getByText(/关联 PR：2/)).toBeInTheDocument();
     expect(screen.getByText(/PR 编号：101, 103/)).toBeInTheDocument();
     expect(screen.getByText('AI 触达 PR 占比')).toBeInTheDocument();

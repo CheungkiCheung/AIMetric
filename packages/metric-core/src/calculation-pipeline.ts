@@ -59,6 +59,8 @@ export interface CalculationRequirementSummary {
   nonAiRequirementCount: number;
   averageAiLeadTimeHours: number;
   averageNonAiLeadTimeHours: number;
+  criticalRequirementCount: number;
+  averageCriticalCycleTimeHours: number;
 }
 
 export interface CalculationPullRequestSummary {
@@ -304,6 +306,26 @@ const defaultCalculators: MetricCalculator[] = [
         value:
           requirementSummary.averageAiLeadTimeHours -
           requirementSummary.averageNonAiLeadTimeHours,
+        confidence: 'medium' as const,
+      };
+    },
+  ),
+  createCalculator(
+    'critical_requirement_cycle_time',
+    'hours',
+    ['requirement-summary'],
+    (input) => {
+      const requirementSummary = input.requirementSummary;
+
+      if (!requirementSummary || requirementSummary.criticalRequirementCount === 0) {
+        return {
+          value: 0,
+          confidence: 'low' as const,
+        };
+      }
+
+      return {
+        value: requirementSummary.averageCriticalCycleTimeHours,
         confidence: 'medium' as const,
       };
     },

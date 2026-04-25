@@ -147,14 +147,17 @@ export interface RequirementRecord {
   requirementKey: string;
   title: string;
   ownerMemberId?: string;
+  priority?: 'critical' | 'high' | 'medium' | 'low';
   status: 'open' | 'in-progress' | 'done' | 'closed';
   aiTouched: boolean;
   firstPrCreatedAt?: string;
   completedAt?: string;
+  releasedAt?: string;
   linkedPullRequestCount?: number;
   linkedPullRequestNumbers?: number[];
   leadTimeHours?: number;
   leadTimeToFirstPrHours?: number;
+  cycleTimeHours?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -249,6 +252,8 @@ export interface DefectRecord {
   foundInPhase: 'development' | 'testing' | 'production';
   linkedRequirementKeys: string[];
   linkedPullRequestNumbers: number[];
+  linkedDeploymentIds?: string[];
+  linkedIncidentKeys?: string[];
   createdAt: string;
   resolvedAt?: string;
   updatedAt: string;
@@ -508,14 +513,24 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
             requirement_key TEXT NOT NULL,
             title TEXT NOT NULL,
             owner_member_id TEXT,
+            priority TEXT,
             status TEXT NOT NULL,
             ai_touched BOOLEAN NOT NULL DEFAULT FALSE,
             first_pr_created_at TIMESTAMPTZ,
             completed_at TIMESTAMPTZ,
+            released_at TIMESTAMPTZ,
             created_at TIMESTAMPTZ NOT NULL,
             updated_at TIMESTAMPTZ NOT NULL,
             UNIQUE (provider, project_key, requirement_key)
           )
+        `);
+        await this.database.query(`
+          ALTER TABLE delivery_requirements
+          ADD COLUMN IF NOT EXISTS priority TEXT
+        `);
+        await this.database.query(`
+          ALTER TABLE delivery_requirements
+          ADD COLUMN IF NOT EXISTS released_at TIMESTAMPTZ
         `);
         await this.database.query(`
           CREATE TABLE IF NOT EXISTS ci_runs (
@@ -579,11 +594,21 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
             found_in_phase TEXT NOT NULL,
             linked_requirement_keys TEXT[] NOT NULL DEFAULT '{}',
             linked_pull_request_numbers BIGINT[] NOT NULL DEFAULT '{}',
+            linked_deployment_ids TEXT[] NOT NULL DEFAULT '{}',
+            linked_incident_keys TEXT[] NOT NULL DEFAULT '{}',
             created_at TIMESTAMPTZ NOT NULL,
             resolved_at TIMESTAMPTZ,
             updated_at TIMESTAMPTZ NOT NULL,
             UNIQUE (provider, project_key, defect_key)
           )
+        `);
+        await this.database.query(`
+          ALTER TABLE defect_records
+          ADD COLUMN IF NOT EXISTS linked_deployment_ids TEXT[] NOT NULL DEFAULT '{}'
+        `);
+        await this.database.query(`
+          ALTER TABLE defect_records
+          ADD COLUMN IF NOT EXISTS linked_incident_keys TEXT[] NOT NULL DEFAULT '{}'
         `);
         await this.database.query(`
           CREATE TABLE IF NOT EXISTS governance_organizations (
@@ -1320,22 +1345,26 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
               requirement_key,
               title,
               owner_member_id,
+              priority,
               status,
               ai_touched,
               first_pr_created_at,
               completed_at,
+              released_at,
               created_at,
               updated_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             ON CONFLICT (provider, project_key, requirement_key)
             DO UPDATE SET
               title = EXCLUDED.title,
               owner_member_id = EXCLUDED.owner_member_id,
+              priority = EXCLUDED.priority,
               status = EXCLUDED.status,
               ai_touched = EXCLUDED.ai_touched,
               first_pr_created_at = EXCLUDED.first_pr_created_at,
               completed_at = EXCLUDED.completed_at,
+              released_at = EXCLUDED.released_at,
               created_at = EXCLUDED.created_at,
               updated_at = EXCLUDED.updated_at
           `,
@@ -1345,10 +1374,12 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
             requirement.requirementKey,
             requirement.title,
             requirement.ownerMemberId ?? null,
+            requirement.priority ?? null,
             requirement.status,
             requirement.aiTouched,
             requirement.firstPrCreatedAt ?? null,
             requirement.completedAt ?? null,
+            requirement.releasedAt ?? null,
             requirement.createdAt,
             requirement.updatedAt,
           ],
@@ -1388,11 +1419,13 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
       requirement_key: string;
       title: string;
       owner_member_id: string | null;
+      priority: RequirementRecord['priority'] | null;
       status: RequirementRecord['status'];
       ai_touched: boolean;
       first_pr_created_at: Date | string | null;
       derived_first_pr_created_at: Date | string | null;
       completed_at: Date | string | null;
+      released_at: Date | string | null;
       linked_pull_request_count: number | string;
       linked_pull_request_numbers: number[] | null;
       created_at: Date | string;
@@ -1405,11 +1438,13 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
           requirements.requirement_key,
           requirements.title,
           requirements.owner_member_id,
+          requirements.priority,
           requirements.status,
           requirements.ai_touched,
           requirements.first_pr_created_at,
           linked_prs.first_pr_created_at AS derived_first_pr_created_at,
           requirements.completed_at,
+          requirements.released_at,
           COALESCE(linked_prs.linked_pull_request_count, 0) AS linked_pull_request_count,
           linked_prs.linked_pull_request_numbers,
           requirements.created_at,
@@ -1441,12 +1476,14 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
         requirementKey: row.requirement_key,
         title: row.title,
         ...(row.owner_member_id ? { ownerMemberId: row.owner_member_id } : {}),
+        ...(row.priority ? { priority: row.priority } : {}),
         status: row.status,
         aiTouched: row.ai_touched,
         ...(effectiveFirstPrCreatedAt
           ? { firstPrCreatedAt: toIsoString(effectiveFirstPrCreatedAt) }
           : {}),
         ...(row.completed_at ? { completedAt: toIsoString(row.completed_at) } : {}),
+        ...(row.released_at ? { releasedAt: toIsoString(row.released_at) } : {}),
         ...(Number(row.linked_pull_request_count) > 0
           ? {
               linkedPullRequestCount: Number(row.linked_pull_request_count),
@@ -1458,6 +1495,14 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
               leadTimeHours: calculateCycleTimeHours(
                 toIsoString(row.created_at),
                 toIsoString(row.completed_at),
+              ),
+            }
+          : {}),
+        ...(row.released_at
+          ? {
+              cycleTimeHours: calculateCycleTimeHours(
+                toIsoString(row.created_at),
+                toIsoString(row.released_at),
               ),
             }
           : {}),
@@ -2016,11 +2061,13 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
               found_in_phase,
               linked_requirement_keys,
               linked_pull_request_numbers,
+              linked_deployment_ids,
+              linked_incident_keys,
               created_at,
               resolved_at,
               updated_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
             ON CONFLICT (provider, project_key, defect_key)
             DO UPDATE SET
               title = EXCLUDED.title,
@@ -2029,6 +2076,8 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
               found_in_phase = EXCLUDED.found_in_phase,
               linked_requirement_keys = EXCLUDED.linked_requirement_keys,
               linked_pull_request_numbers = EXCLUDED.linked_pull_request_numbers,
+              linked_deployment_ids = EXCLUDED.linked_deployment_ids,
+              linked_incident_keys = EXCLUDED.linked_incident_keys,
               created_at = EXCLUDED.created_at,
               resolved_at = EXCLUDED.resolved_at,
               updated_at = EXCLUDED.updated_at
@@ -2043,6 +2092,8 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
             defect.foundInPhase,
             defect.linkedRequirementKeys,
             defect.linkedPullRequestNumbers,
+            defect.linkedDeploymentIds ?? [],
+            defect.linkedIncidentKeys ?? [],
             defect.createdAt,
             defect.resolvedAt ?? null,
             defect.updatedAt,
@@ -2080,6 +2131,8 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
       found_in_phase: DefectRecord['foundInPhase'];
       linked_requirement_keys: string[] | null;
       linked_pull_request_numbers: number[] | null;
+      linked_deployment_ids: string[] | null;
+      linked_incident_keys: string[] | null;
       created_at: Date | string;
       resolved_at: Date | string | null;
       updated_at: Date | string;
@@ -2095,6 +2148,8 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
           found_in_phase,
           linked_requirement_keys,
           linked_pull_request_numbers,
+          linked_deployment_ids,
+          linked_incident_keys,
           created_at,
           resolved_at,
           updated_at
@@ -2115,6 +2170,8 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
       foundInPhase: row.found_in_phase,
       linkedRequirementKeys: row.linked_requirement_keys ?? [],
       linkedPullRequestNumbers: row.linked_pull_request_numbers ?? [],
+      linkedDeploymentIds: row.linked_deployment_ids ?? [],
+      linkedIncidentKeys: row.linked_incident_keys ?? [],
       createdAt: toIsoString(row.created_at),
       ...(row.resolved_at ? { resolvedAt: toIsoString(row.resolved_at) } : {}),
       updatedAt: toIsoString(row.updated_at),
