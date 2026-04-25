@@ -7,6 +7,7 @@ import { AppModule } from './app.module.js';
 import type {
   CiRunRecord,
   CollectorIdentityRecord,
+  DefectRecord,
   DeploymentRecord,
   EditEvidenceFilters,
   IncidentRecord,
@@ -281,7 +282,7 @@ const getPullRequestsFromBody = (body: unknown): PullRequestRecord[] | undefined
     const payload = item as Record<string, unknown>;
 
     if (
-      payload.provider !== 'github' ||
+      (payload.provider !== 'github' && payload.provider !== 'gitlab') ||
       typeof payload.projectKey !== 'string' ||
       typeof payload.repoName !== 'string' ||
       typeof payload.prNumber !== 'number' ||
@@ -296,7 +297,7 @@ const getPullRequestsFromBody = (body: unknown): PullRequestRecord[] | undefined
 
     return [
       {
-        provider: 'github' as const,
+        provider: payload.provider as PullRequestRecord['provider'],
         projectKey: payload.projectKey,
         repoName: payload.repoName,
         prNumber: payload.prNumber,
@@ -550,6 +551,70 @@ const getIncidentsFromBody = (body: unknown): IncidentRecord[] | undefined => {
   });
 
   return normalized.length === incidents.length ? normalized : undefined;
+};
+
+const getDefectsFromBody = (body: unknown): DefectRecord[] | undefined => {
+  if (!body || typeof body !== 'object') {
+    return undefined;
+  }
+
+  const defects = (body as Record<string, unknown>).defects;
+
+  if (!Array.isArray(defects)) {
+    return undefined;
+  }
+
+  const normalized = defects.flatMap((item) => {
+    if (!item || typeof item !== 'object') {
+      return [];
+    }
+
+    const payload = item as Record<string, unknown>;
+
+    if (
+      (payload.provider !== 'jira' &&
+        payload.provider !== 'tapd' &&
+        payload.provider !== 'bugzilla' &&
+        payload.provider !== 'manual') ||
+      typeof payload.projectKey !== 'string' ||
+      typeof payload.defectKey !== 'string' ||
+      typeof payload.title !== 'string' ||
+      typeof payload.severity !== 'string' ||
+      typeof payload.status !== 'string' ||
+      typeof payload.foundInPhase !== 'string' ||
+      !Array.isArray(payload.linkedRequirementKeys) ||
+      payload.linkedRequirementKeys.some((value) => typeof value !== 'string') ||
+      !Array.isArray(payload.linkedPullRequestNumbers) ||
+      payload.linkedPullRequestNumbers.some((value) => typeof value !== 'number') ||
+      typeof payload.createdAt !== 'string' ||
+      typeof payload.updatedAt !== 'string'
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        provider: payload.provider as DefectRecord['provider'],
+        projectKey: payload.projectKey,
+        defectKey: payload.defectKey,
+        title: payload.title,
+        severity: payload.severity as DefectRecord['severity'],
+        status: payload.status as DefectRecord['status'],
+        foundInPhase: payload.foundInPhase as DefectRecord['foundInPhase'],
+        linkedRequirementKeys: [...new Set(payload.linkedRequirementKeys as string[])],
+        linkedPullRequestNumbers: [
+          ...new Set(payload.linkedPullRequestNumbers as number[]),
+        ],
+        createdAt: payload.createdAt,
+        ...(typeof payload.resolvedAt === 'string'
+          ? { resolvedAt: payload.resolvedAt }
+          : {}),
+        updatedAt: payload.updatedAt,
+      },
+    ];
+  });
+
+  return normalized.length === defects.length ? normalized : undefined;
 };
 
 const applyViewerScopeToFilters = <T extends MetricSnapshotFilters>(
@@ -808,7 +873,11 @@ const handleRequest = async (
     return;
   }
 
-  if (method === 'GET' && url.pathname === '/integrations/github/pull-requests') {
+  if (
+    method === 'GET' &&
+    (url.pathname === '/integrations/pull-requests' ||
+      url.pathname === '/integrations/github/pull-requests')
+  ) {
     const scoped = applyViewerScopeToFilters(
       getMetricSnapshotFilters(url),
       viewerScope,
@@ -823,7 +892,11 @@ const handleRequest = async (
     return;
   }
 
-  if (method === 'GET' && url.pathname === '/integrations/github/pull-requests/summary') {
+  if (
+    method === 'GET' &&
+    (url.pathname === '/integrations/pull-requests/summary' ||
+      url.pathname === '/integrations/github/pull-requests/summary')
+  ) {
     const scoped = applyViewerScopeToFilters(
       getMetricSnapshotFilters(url),
       viewerScope,
@@ -959,6 +1032,36 @@ const handleRequest = async (
     }
 
     writeJson(response, 200, await appModule.buildIncidentSummary(scoped.filters));
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/integrations/defects') {
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
+    writeJson(response, 200, await appModule.listDefects(scoped.filters));
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/integrations/defects/summary') {
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
+    writeJson(response, 200, await appModule.buildDefectSummary(scoped.filters));
     return;
   }
 
@@ -1332,7 +1435,11 @@ const handleRequest = async (
     return;
   }
 
-  if (method === 'POST' && url.pathname === '/integrations/github/pull-requests/import') {
+  if (
+    method === 'POST' &&
+    (url.pathname === '/integrations/pull-requests/import' ||
+      url.pathname === '/integrations/github/pull-requests/import')
+  ) {
     if (!isAuthorizedAdminRequest(request, runtime.adminToken)) {
       writeJson(response, 401, { message: 'Unauthorized admin request' });
       return;
@@ -1343,13 +1450,13 @@ const handleRequest = async (
 
     if (!pullRequests) {
       writeJson(response, 400, {
-        message: 'pullRequests is required and must contain valid GitHub PR records',
+        message: 'pullRequests is required and must contain valid pull request records',
       });
       return;
     }
 
     writeJson(response, 200, await appModule.importPullRequests(pullRequests));
-    recordAdminAudit(runtime, request, 'github.pull-requests.import');
+    recordAdminAudit(runtime, request, 'pull-requests.import');
     return;
   }
 
@@ -1434,6 +1541,27 @@ const handleRequest = async (
 
     writeJson(response, 200, await appModule.importIncidents(incidents));
     recordAdminAudit(runtime, request, 'incidents.import');
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/integrations/defects/import') {
+    if (!isAuthorizedAdminRequest(request, runtime.adminToken)) {
+      writeJson(response, 401, { message: 'Unauthorized admin request' });
+      return;
+    }
+
+    const body = await readJsonBody(request);
+    const defects = getDefectsFromBody(body);
+
+    if (!defects) {
+      writeJson(response, 400, {
+        message: 'defects is required and must contain valid defect records',
+      });
+      return;
+    }
+
+    writeJson(response, 200, await appModule.importDefects(defects));
+    recordAdminAudit(runtime, request, 'defects.import');
     return;
   }
 

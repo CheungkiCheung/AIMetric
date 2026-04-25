@@ -164,7 +164,7 @@ export interface ViewerScopeAssignment {
 }
 
 export interface PullRequestRecord {
-  provider: 'github';
+  provider: 'github' | 'gitlab';
   projectKey: string;
   repoName: string;
   prNumber: number;
@@ -286,6 +286,29 @@ export interface IncidentSummary {
   averageResolutionHours: number;
 }
 
+export interface DefectRecord {
+  provider: 'jira' | 'tapd' | 'bugzilla' | 'manual';
+  projectKey: string;
+  defectKey: string;
+  title: string;
+  severity: 'sev1' | 'sev2' | 'sev3' | 'sev4';
+  status: 'open' | 'resolved';
+  foundInPhase: 'development' | 'testing' | 'production';
+  linkedRequirementKeys: string[];
+  linkedPullRequestNumbers: number[];
+  createdAt: string;
+  resolvedAt?: string;
+  updatedAt: string;
+}
+
+export interface DefectSummary {
+  totalDefectCount: number;
+  openDefectCount: number;
+  resolvedDefectCount: number;
+  productionDefectCount: number;
+  averageResolutionHours: number;
+}
+
 export interface DashboardClient {
   getPersonalSnapshot(filters?: DashboardFilters): Promise<PersonalSnapshot>;
   getTeamSnapshot(filters?: DashboardFilters): Promise<TeamSnapshot>;
@@ -320,6 +343,8 @@ export interface DashboardClient {
   getDeployments(filters?: DashboardFilters): Promise<DeploymentRecord[]>;
   getIncidentSummary(filters?: DashboardFilters): Promise<IncidentSummary>;
   getIncidents(filters?: DashboardFilters): Promise<IncidentRecord[]>;
+  getDefectSummary(filters?: DashboardFilters): Promise<DefectSummary>;
+  getDefects(filters?: DashboardFilters): Promise<DefectRecord[]>;
   updateRuleRollout(input: RuleRollout): Promise<RuleRollout>;
 }
 
@@ -460,6 +485,14 @@ const fallbackIncidentSummary: IncidentSummary = {
   openIncidentCount: 0,
   resolvedIncidentCount: 0,
   linkedDeploymentCount: 0,
+  averageResolutionHours: 0,
+};
+
+const fallbackDefectSummary: DefectSummary = {
+  totalDefectCount: 0,
+  openDefectCount: 0,
+  resolvedDefectCount: 0,
+  productionDefectCount: 0,
   averageResolutionHours: 0,
 };
 
@@ -689,14 +722,14 @@ export const createDashboardClient = (
     ),
   getPullRequestSummary: (filters) =>
     fetchJson<PullRequestSummary>(
-      buildMetricUrl(baseUrl, '/integrations/github/pull-requests/summary', filters),
+      buildMetricUrl(baseUrl, '/integrations/pull-requests/summary', filters),
       fallbackPullRequestSummary,
       viewerId,
       adminToken,
     ),
   getPullRequests: (filters) =>
     fetchJson<PullRequestRecord[]>(
-      buildMetricUrl(baseUrl, '/integrations/github/pull-requests', filters),
+      buildMetricUrl(baseUrl, '/integrations/pull-requests', filters),
       [],
       viewerId,
       adminToken,
@@ -753,6 +786,20 @@ export const createDashboardClient = (
   getIncidents: (filters) =>
     fetchJson<IncidentRecord[]>(
       buildMetricUrl(baseUrl, '/integrations/incidents', filters),
+      [],
+      viewerId,
+      adminToken,
+    ),
+  getDefectSummary: (filters) =>
+    fetchJson<DefectSummary>(
+      buildMetricUrl(baseUrl, '/integrations/defects/summary', filters),
+      fallbackDefectSummary,
+      viewerId,
+      adminToken,
+    ),
+  getDefects: (filters) =>
+    fetchJson<DefectRecord[]>(
+      buildMetricUrl(baseUrl, '/integrations/defects', filters),
       [],
       viewerId,
       adminToken,

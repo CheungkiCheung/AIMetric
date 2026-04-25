@@ -573,7 +573,7 @@ describe('bootstrap', () => {
     ]);
   });
 
-  it('imports and serves GitHub pull request data over HTTP', async () => {
+  it('imports and serves pull request data over HTTP', async () => {
     const importedPullRequests: unknown[] = [];
     const metricEventRepository: MetricEventRepository = {
       ...createEmptyRepository(),
@@ -585,7 +585,7 @@ describe('bootstrap', () => {
 
         return [
           {
-            provider: 'github' as const,
+            provider: 'gitlab' as const,
             projectKey: 'aimetric',
             repoName: 'AIMetric',
             prNumber: 101,
@@ -601,7 +601,7 @@ describe('bootstrap', () => {
             updatedAt: '2026-04-25T12:00:00.000Z',
           },
           {
-            provider: 'github' as const,
+            provider: 'gitlab' as const,
             projectKey: 'aimetric',
             repoName: 'AIMetric',
             prNumber: 102,
@@ -643,7 +643,7 @@ describe('bootstrap', () => {
         body: JSON.stringify({
           pullRequests: [
             {
-              provider: 'github',
+              provider: 'gitlab',
               projectKey: 'aimetric',
               repoName: 'AIMetric',
               prNumber: 101,
@@ -661,10 +661,10 @@ describe('bootstrap', () => {
       },
     );
     const listResponse = await fetch(
-      `${app.baseUrl}/integrations/github/pull-requests?projectKey=aimetric`,
+      `${app.baseUrl}/integrations/pull-requests?projectKey=aimetric`,
     );
     const summaryResponse = await fetch(
-      `${app.baseUrl}/integrations/github/pull-requests/summary?projectKey=aimetric`,
+      `${app.baseUrl}/integrations/pull-requests/summary?projectKey=aimetric`,
     );
     const auditResponse = await fetch(`${app.baseUrl}/admin/audit`, {
       headers: {
@@ -699,7 +699,7 @@ describe('bootstrap', () => {
     });
     await expect(auditResponse.json()).resolves.toEqual([
       expect.objectContaining({
-        action: 'github.pull-requests.import',
+        action: 'pull-requests.import',
         actor: 'platform-admin',
       }),
     ]);
@@ -1211,6 +1211,113 @@ describe('bootstrap', () => {
     await expect(auditResponse.json()).resolves.toEqual([
       expect.objectContaining({
         action: 'incidents.import',
+        actor: 'platform-admin',
+      }),
+    ]);
+  });
+
+  it('imports and serves defect data over HTTP', async () => {
+    const importedDefects: unknown[] = [];
+    const metricEventRepository: MetricEventRepository = {
+      ...createEmptyRepository(),
+      async importDefects(defects) {
+        importedDefects.push(...defects);
+      },
+      async listDefects(filters) {
+        expect(filters).toEqual({ projectKey: 'aimetric' });
+
+        return [
+          {
+            provider: 'jira' as const,
+            projectKey: 'aimetric',
+            defectKey: 'BUG-7',
+            title: 'PR merge flow breaks on production',
+            severity: 'sev2' as const,
+            status: 'resolved' as const,
+            foundInPhase: 'production' as const,
+            linkedRequirementKeys: ['AIM-101'],
+            linkedPullRequestNumbers: [101],
+            createdAt: '2026-04-26T05:00:00.000Z',
+            resolvedAt: '2026-04-26T08:00:00.000Z',
+            updatedAt: '2026-04-26T08:00:00.000Z',
+          },
+        ];
+      },
+      async buildDefectSummary() {
+        return {
+          totalDefectCount: 1,
+          openDefectCount: 0,
+          resolvedDefectCount: 1,
+          productionDefectCount: 1,
+          averageResolutionHours: 3,
+        };
+      },
+    };
+    const app = await bootstrap({
+      port: 0,
+      adminToken: 'admin-secret',
+      metricEventRepository,
+    });
+    servers.push(app);
+
+    const importResponse = await fetch(`${app.baseUrl}/integrations/defects/import`, {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer admin-secret',
+        'content-type': 'application/json',
+        'x-aimetric-actor': 'platform-admin',
+      },
+      body: JSON.stringify({
+        defects: [
+          {
+            provider: 'jira',
+            projectKey: 'aimetric',
+            defectKey: 'BUG-7',
+            title: 'PR merge flow breaks on production',
+            severity: 'sev2',
+            status: 'resolved',
+            foundInPhase: 'production',
+            linkedRequirementKeys: ['AIM-101'],
+            linkedPullRequestNumbers: [101],
+            createdAt: '2026-04-26T05:00:00.000Z',
+            resolvedAt: '2026-04-26T08:00:00.000Z',
+            updatedAt: '2026-04-26T08:00:00.000Z',
+          },
+        ],
+      }),
+    });
+    const listResponse = await fetch(`${app.baseUrl}/integrations/defects?projectKey=aimetric`);
+    const summaryResponse = await fetch(
+      `${app.baseUrl}/integrations/defects/summary?projectKey=aimetric`,
+    );
+    const auditResponse = await fetch(`${app.baseUrl}/admin/audit`, {
+      headers: {
+        authorization: 'Bearer admin-secret',
+      },
+    });
+
+    expect(importResponse.status).toBe(200);
+    await expect(importResponse.json()).resolves.toEqual({
+      importedDefects: 1,
+    });
+    expect(importedDefects).toHaveLength(1);
+    await expect(listResponse.json()).resolves.toEqual([
+      expect.objectContaining({
+        defectKey: 'BUG-7',
+        foundInPhase: 'production',
+        linkedPullRequestNumbers: [101],
+      }),
+    ]);
+    await expect(summaryResponse.json()).resolves.toEqual({
+      totalDefectCount: 1,
+      openDefectCount: 0,
+      resolvedDefectCount: 1,
+      productionDefectCount: 1,
+      averageResolutionHours: 3,
+    });
+    await expect(auditResponse.json()).resolves.toEqual([
+      expect.objectContaining({
+        action: 'defects.import',
         actor: 'platform-admin',
       }),
     ]);

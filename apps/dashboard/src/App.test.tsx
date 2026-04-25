@@ -11,6 +11,8 @@ import type {
   DashboardFilters,
   DeploymentRecord,
   DeploymentSummary,
+  DefectRecord,
+  DefectSummary,
   IncidentRecord,
   IncidentSummary,
   PullRequestRecord,
@@ -143,6 +145,29 @@ const createClient = (
       createdAt: '2026-04-24T03:05:00.000Z',
       resolvedAt: '2026-04-24T05:35:00.000Z',
       updatedAt: '2026-04-24T05:35:00.000Z',
+    },
+  ],
+  getDefectSummary: async (): Promise<DefectSummary> => ({
+    totalDefectCount: 3,
+    openDefectCount: 1,
+    resolvedDefectCount: 2,
+    productionDefectCount: 1,
+    averageResolutionHours: 6,
+  }),
+  getDefects: async (): Promise<DefectRecord[]> => [
+    {
+      provider: 'jira',
+      projectKey: 'aimetric',
+      defectKey: 'BUG-7',
+      title: 'PR merge flow breaks on production',
+      severity: 'sev2',
+      status: 'resolved',
+      foundInPhase: 'production',
+      linkedRequirementKeys: ['AIM-101'],
+      linkedPullRequestNumbers: [101],
+      createdAt: '2026-04-24T04:00:00.000Z',
+      resolvedAt: '2026-04-24T10:00:00.000Z',
+      updatedAt: '2026-04-24T10:00:00.000Z',
     },
   ],
   getPersonalSnapshot: async () => ({
@@ -458,8 +483,9 @@ describe('App', () => {
     expect(screen.getByText('CI 质量概览')).toBeInTheDocument();
     expect(screen.getByText('发布质量概览')).toBeInTheDocument();
     expect(screen.getByText('事故风险概览')).toBeInTheDocument();
+    expect(screen.getByText('缺陷风险概览')).toBeInTheDocument();
     expect(screen.getByText('需求交付概览')).toBeInTheDocument();
-    expect(screen.getByText('GitHub PR 交付概览')).toBeInTheDocument();
+    expect(screen.getByText('PR 交付概览')).toBeInTheDocument();
     expect(screen.getByText('队列模式')).toBeInTheDocument();
     expect(screen.getByText('AI 触达需求占比')).toBeInTheDocument();
     expect(screen.getByText('60.0%')).toBeInTheDocument();
@@ -473,13 +499,17 @@ describe('App', () => {
     expect(screen.getByText('AIMetric deploy-1')).toBeInTheDocument();
     expect(screen.getByText('2.5 小时')).toBeInTheDocument();
     expect(screen.getByText('INC-7 Production deployment issue')).toBeInTheDocument();
+    expect(screen.getByText('6.0 小时')).toBeInTheDocument();
+    expect(
+      screen.getByText('[JIRA] BUG-7 PR merge flow breaks on production'),
+    ).toBeInTheDocument();
     expect(screen.getByText(/关联 PR：2/)).toBeInTheDocument();
     expect(screen.getByText(/PR 编号：101, 103/)).toBeInTheDocument();
     expect(screen.getByText('AI 触达 PR 占比')).toBeInTheDocument();
     expect(screen.getAllByText('75.0%').length).toBeGreaterThan(0);
     expect(screen.getByText('18.0 小时')).toBeInTheDocument();
-    expect(screen.getByText('AIMetric #101 Add collector health dashboard')).toBeInTheDocument();
-    expect(screen.getByText(/关联需求：AIM-101/)).toBeInTheDocument();
+    expect(screen.getByText('[GITHUB] AIMetric #101 Add collector health dashboard')).toBeInTheDocument();
+    expect(screen.getAllByText(/关联需求：AIM-101/).length).toBeGreaterThan(0);
     expect(screen.getByText('文件持久队列')).toBeInTheDocument();
     expect(screen.getByText('待投递批次')).toBeInTheDocument();
     expect(screen.getByText('DLQ 批次')).toBeInTheDocument();

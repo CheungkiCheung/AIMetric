@@ -10,6 +10,8 @@ import {
 import {
   PostgresMetricEventRepository,
   type CollectorIdentityRecord,
+  type DefectRecord,
+  type DefectSummary,
   type EditEvidenceFilters,
   type MetricEventRepository,
   type MetricSnapshotRecord,
@@ -333,6 +335,36 @@ export class AppModule {
         openIncidentCount: 0,
         resolvedIncidentCount: 0,
         linkedDeploymentCount: 0,
+        averageResolutionHours: 0,
+      }
+    );
+  }
+
+  async importDefects(defects: DefectRecord[]) {
+    if (!this.metricEventRepository.importDefects) {
+      throw new Error('Defect import is not configured');
+    }
+
+    await this.metricEventRepository.importDefects(defects);
+
+    return {
+      importedDefects: defects.length,
+    };
+  }
+
+  async listDefects(filters: MetricSnapshotFilters = {}) {
+    return (await this.metricEventRepository.listDefects?.(filters)) ?? [];
+  }
+
+  async buildDefectSummary(
+    filters: MetricSnapshotFilters = {},
+  ): Promise<DefectSummary> {
+    return (
+      (await this.metricEventRepository.buildDefectSummary?.(filters)) ?? {
+        totalDefectCount: 0,
+        openDefectCount: 0,
+        resolvedDefectCount: 0,
+        productionDefectCount: 0,
         averageResolutionHours: 0,
       }
     );

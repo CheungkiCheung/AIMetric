@@ -83,9 +83,9 @@ export const PullRequestDashboard = ({
     >
       Delivery Signals
     </p>
-    <h2 style={{ margin: '10px 0 6px', fontSize: '28px' }}>GitHub PR 交付概览</h2>
+    <h2 style={{ margin: '10px 0 6px', fontSize: '28px' }}>PR 交付概览</h2>
     <p style={{ margin: 0, color: '#7b4c26' }}>
-      把 AI 使用链路和真实交付动作连起来，先落地 AI 触达 PR 占比、合并量和 PR 周转时长，为后续接 Jira、CI/CD、缺陷系统做准备。
+      把 AI 使用链路和真实交付动作连起来，统一承接 GitHub、GitLab 等代码平台的 PR 数据，持续观察 AI 触达占比、合并量和 PR 周转时长。
     </p>
     <div style={statGridStyle}>
       <article style={statCardStyle}>
@@ -133,7 +133,7 @@ export const PullRequestDashboard = ({
             }}
           >
             <strong style={{ color: '#3d2411' }}>
-              {row.repoName} #{row.prNumber} {row.title}
+              [{row.provider.toUpperCase()}] {row.repoName} #{row.prNumber} {row.title}
             </strong>
             <span style={{ color: '#955d32' }}>
               {stateLabelMap[row.state]} / {row.aiTouched ? 'AI 触达' : '非 AI 触达'}

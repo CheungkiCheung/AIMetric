@@ -703,7 +703,7 @@ describe('PostgresMetricEventRepository query mapping', () => {
     ).toBe(true);
   });
 
-  it('imports and summarizes github pull requests through query mapping', async () => {
+  it('imports and summarizes scm pull requests through query mapping', async () => {
     const queries: Array<{ text: string; values?: unknown[] }> = [];
     const repository = new PostgresMetricEventRepository({
       async query<T extends QueryResultRow = QueryResultRow>(
@@ -732,7 +732,7 @@ describe('PostgresMetricEventRepository query mapping', () => {
           };
         }
 
-        if (text.includes('INSERT INTO github_pull_requests')) {
+        if (text.includes('INSERT INTO scm_pull_requests')) {
           return {
             command: '',
             rowCount: 1,
@@ -749,6 +749,7 @@ describe('PostgresMetricEventRepository query mapping', () => {
           fields: [],
           rows: ([
             {
+              provider: 'gitlab',
               project_key: 'aimetric',
               repo_name: 'AIMetric',
               pr_number: 101,
@@ -763,6 +764,7 @@ describe('PostgresMetricEventRepository query mapping', () => {
               updated_at: new Date('2026-04-25T12:00:00.000Z'),
             },
             {
+              provider: 'github',
               project_key: 'aimetric',
               repo_name: 'AIMetric',
               pr_number: 102,
@@ -783,7 +785,7 @@ describe('PostgresMetricEventRepository query mapping', () => {
 
     await repository.importPullRequests([
       {
-        provider: 'github',
+        provider: 'gitlab',
         projectKey: 'aimetric',
         repoName: 'AIMetric',
         prNumber: 101,
@@ -806,6 +808,7 @@ describe('PostgresMetricEventRepository query mapping', () => {
 
     expect(pullRequests).toEqual([
       expect.objectContaining({
+        provider: 'gitlab',
         prNumber: 101,
         cycleTimeHours: 12,
         linkedRequirementKeys: ['AIM-101'],
@@ -823,7 +826,7 @@ describe('PostgresMetricEventRepository query mapping', () => {
       averageCycleTimeHours: 12,
     });
     expect(
-      queries.some((query) => query.text.includes('INSERT INTO github_pull_requests')),
+      queries.some((query) => query.text.includes('INSERT INTO scm_pull_requests')),
     ).toBe(true);
   });
 

@@ -199,7 +199,7 @@ describe('createDashboardClient', () => {
         );
       }
 
-      if (url.endsWith('/integrations/github/pull-requests/summary')) {
+      if (url.endsWith('/integrations/pull-requests/summary')) {
         return new Response(
           JSON.stringify({
             totalPrCount: 4,
@@ -212,7 +212,7 @@ describe('createDashboardClient', () => {
         );
       }
 
-      if (url.endsWith('/integrations/github/pull-requests')) {
+      if (url.endsWith('/integrations/pull-requests')) {
         return new Response(
           JSON.stringify([
             {
@@ -374,6 +374,41 @@ describe('createDashboardClient', () => {
               createdAt: '2026-04-24T03:05:00.000Z',
               resolvedAt: '2026-04-24T05:35:00.000Z',
               updatedAt: '2026-04-24T05:35:00.000Z',
+            },
+          ]),
+          { status: 200 },
+        );
+      }
+
+      if (url.endsWith('/integrations/defects/summary')) {
+        return new Response(
+          JSON.stringify({
+            totalDefectCount: 3,
+            openDefectCount: 1,
+            resolvedDefectCount: 2,
+            productionDefectCount: 1,
+            averageResolutionHours: 6,
+          }),
+          { status: 200 },
+        );
+      }
+
+      if (url.endsWith('/integrations/defects')) {
+        return new Response(
+          JSON.stringify([
+            {
+              provider: 'jira',
+              projectKey: 'aimetric',
+              defectKey: 'BUG-7',
+              title: 'PR merge flow breaks on production',
+              severity: 'sev2',
+              status: 'resolved',
+              foundInPhase: 'production',
+              linkedRequirementKeys: ['AIM-101'],
+              linkedPullRequestNumbers: [101],
+              createdAt: '2026-04-24T04:00:00.000Z',
+              resolvedAt: '2026-04-24T10:00:00.000Z',
+              updatedAt: '2026-04-24T10:00:00.000Z',
             },
           ]),
           { status: 200 },
@@ -603,6 +638,8 @@ describe('createDashboardClient', () => {
     await client.getDeployments(filters);
     await client.getIncidentSummary(filters);
     await client.getIncidents(filters);
+    await client.getDefectSummary(filters);
+    await client.getDefects(filters);
 
     expect(requestedUrls[0]).toBe(
       'http://127.0.0.1:3001/metrics/personal?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
@@ -626,10 +663,10 @@ describe('createDashboardClient', () => {
       'http://127.0.0.1:3001/enterprise-metrics/values?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z&metricKey=ai_session_count',
     );
     expect(requestedUrls[7]).toBe(
-      'http://127.0.0.1:3001/integrations/github/pull-requests/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+      'http://127.0.0.1:3001/integrations/pull-requests/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
     expect(requestedUrls[8]).toBe(
-      'http://127.0.0.1:3001/integrations/github/pull-requests?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+      'http://127.0.0.1:3001/integrations/pull-requests?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
     expect(requestedUrls[9]).toBe(
       'http://127.0.0.1:3001/integrations/requirements/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
@@ -654,6 +691,12 @@ describe('createDashboardClient', () => {
     );
     expect(requestedUrls[16]).toBe(
       'http://127.0.0.1:3001/integrations/incidents?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+    );
+    expect(requestedUrls[17]).toBe(
+      'http://127.0.0.1:3001/integrations/defects/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+    );
+    expect(requestedUrls[18]).toBe(
+      'http://127.0.0.1:3001/integrations/defects?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
   });
 

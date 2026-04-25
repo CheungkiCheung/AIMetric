@@ -284,7 +284,7 @@ describe('AppModule', () => {
       importPullRequests: vi.fn(async () => undefined),
       listPullRequests: vi.fn(async () => [
         {
-          provider: 'github' as const,
+          provider: 'gitlab' as const,
           projectKey: 'aimetric',
           repoName: 'AIMetric',
           prNumber: 101,
@@ -323,7 +323,7 @@ describe('AppModule', () => {
 
     const importResult = await appModule.importPullRequests([
       {
-        provider: 'github',
+        provider: 'gitlab',
         projectKey: 'aimetric',
         repoName: 'AIMetric',
         prNumber: 101,
@@ -348,6 +348,65 @@ describe('AppModule', () => {
       aiTouchedPrRatio: 0.5,
       mergedPrCount: 1,
       averageCycleTimeHours: 12,
+    });
+  });
+
+  it('imports defects and builds a defect summary through the repository', async () => {
+    const repository = {
+      ...createEmptyRepository(),
+      importDefects: vi.fn(async () => undefined),
+      listDefects: vi.fn(async () => [
+        {
+          provider: 'jira' as const,
+          projectKey: 'aimetric',
+          defectKey: 'BUG-7',
+          title: 'PR merge flow breaks on production',
+          severity: 'sev2' as const,
+          status: 'resolved' as const,
+          foundInPhase: 'production' as const,
+          linkedRequirementKeys: ['AIM-101'],
+          linkedPullRequestNumbers: [101],
+          createdAt: '2026-04-26T05:00:00.000Z',
+          resolvedAt: '2026-04-26T08:00:00.000Z',
+          updatedAt: '2026-04-26T08:00:00.000Z',
+        },
+      ]),
+      buildDefectSummary: vi.fn(async () => ({
+        totalDefectCount: 1,
+        openDefectCount: 0,
+        resolvedDefectCount: 1,
+        productionDefectCount: 1,
+        averageResolutionHours: 3,
+      })),
+    };
+    const appModule = new AppModule(repository);
+
+    const importResult = await appModule.importDefects([
+      {
+        provider: 'jira',
+        projectKey: 'aimetric',
+        defectKey: 'BUG-7',
+        title: 'PR merge flow breaks on production',
+        severity: 'sev2',
+        status: 'resolved',
+        foundInPhase: 'production',
+        linkedRequirementKeys: ['AIM-101'],
+        linkedPullRequestNumbers: [101],
+        createdAt: '2026-04-26T05:00:00.000Z',
+        resolvedAt: '2026-04-26T08:00:00.000Z',
+        updatedAt: '2026-04-26T08:00:00.000Z',
+      },
+    ]);
+    const summary = await appModule.buildDefectSummary({ projectKey: 'aimetric' });
+
+    expect(importResult).toEqual({ importedDefects: 1 });
+    expect(repository.importDefects).toHaveBeenCalledTimes(1);
+    expect(summary).toEqual({
+      totalDefectCount: 1,
+      openDefectCount: 0,
+      resolvedDefectCount: 1,
+      productionDefectCount: 1,
+      averageResolutionHours: 3,
     });
   });
 

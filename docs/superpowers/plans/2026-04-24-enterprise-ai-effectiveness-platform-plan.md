@@ -885,15 +885,15 @@ Agent 能力：
 
 交付：
 
-- GitHub PR 集成：第一版已完成，已支持 `POST /integrations/github/pull-requests/import` 导入、`GET /integrations/github/pull-requests` 查询、`GET /integrations/github/pull-requests/summary` 汇总，以及 Dashboard“GitHub PR 交付概览”展示。
-- GitHub PR 集成：第二版已补齐 `pr_cycle_time` 与 `review_rejection_rate` 的真实指标计算，已接入统一企业指标语义层。
+- PR 集成：第一版已升级为通用 SCM 事实模型，已支持 `POST /integrations/pull-requests/import` 导入、`GET /integrations/pull-requests` 查询、`GET /integrations/pull-requests/summary` 汇总，并兼容原 GitHub 路径；当前支持 `github / gitlab` 两类 provider，Dashboard 已升级为“PR 交付概览”。
+- PR 集成：第二版已补齐 `pr_cycle_time` 与 `review_rejection_rate` 的真实指标计算，已接入统一企业指标语义层。
 - CI/CD 集成：第一版已完成 CI 运行事实模型，已支持 `POST /integrations/ci/runs/import` 导入、`GET /integrations/ci/runs` 查询、`GET /integrations/ci/runs/summary` 汇总，以及 Dashboard“CI 质量概览”展示。
 - CI/CD 集成：第二版已补齐 `ci_pass_rate` 的真实指标计算，已接入统一企业指标语义层。
 - 发布系统集成：第一版已完成部署事实模型，已支持 `POST /integrations/deployments/import` 导入、`GET /integrations/deployments` 查询、`GET /integrations/deployments/summary` 汇总，以及 Dashboard“发布质量概览”展示。
 - 发布系统集成：第二版已补齐 `deployment_frequency`、`change_failure_rate` 与 `rollback_rate` 的真实指标计算，已接入统一企业指标语义层。
 - 缺陷/事故系统集成：第一版已完成事故事实模型，已支持 `POST /integrations/incidents/import` 导入、`GET /integrations/incidents` 查询、`GET /integrations/incidents/summary` 汇总，以及 Dashboard“事故风险概览”展示。
 - 缺陷/事故系统集成：第二版已把 `change_failure_rate` 升级为部署事实与事故关联联合口径，更贴近企业生产治理视角。
-- GitLab PR 集成。
+- 缺陷系统集成：第三版已完成缺陷事实模型，已支持 `POST /integrations/defects/import` 导入、`GET /integrations/defects` 查询、`GET /integrations/defects/summary` 汇总，以及 Dashboard“缺陷风险概览”展示。
 - 需求系统集成：第一版已完成，已支持 `POST /integrations/requirements/import` 导入、`GET /integrations/requirements` 查询、`GET /integrations/requirements/summary` 汇总，以及 Dashboard“需求交付概览”展示，当前兼容 `jira / tapd` 两类 provider；第二版已支持根据 PR 标题或显式字段自动识别需求号并回填“需求到首个 PR”关联。
 - AI 参与需求 / PR / 发布链路归因。
 

@@ -117,7 +117,7 @@ export interface OutputAnalysisRow {
 }
 
 export interface PullRequestRecord {
-  provider: 'github';
+  provider: 'github' | 'gitlab';
   projectKey: string;
   repoName: string;
   prNumber: number;
@@ -239,6 +239,29 @@ export interface IncidentSummary {
   averageResolutionHours: number;
 }
 
+export interface DefectRecord {
+  provider: 'jira' | 'tapd' | 'bugzilla' | 'manual';
+  projectKey: string;
+  defectKey: string;
+  title: string;
+  severity: 'sev1' | 'sev2' | 'sev3' | 'sev4';
+  status: 'open' | 'resolved';
+  foundInPhase: 'development' | 'testing' | 'production';
+  linkedRequirementKeys: string[];
+  linkedPullRequestNumbers: number[];
+  createdAt: string;
+  resolvedAt?: string;
+  updatedAt: string;
+}
+
+export interface DefectSummary {
+  totalDefectCount: number;
+  openDefectCount: number;
+  resolvedDefectCount: number;
+  productionDefectCount: number;
+  averageResolutionHours: number;
+}
+
 export interface CollectorIdentityRecord {
   identityKey: string;
   memberId: string;
@@ -314,6 +337,13 @@ export interface MetricEventRepository {
   buildIncidentSummary?(
     filters?: MetricSnapshotFilters,
   ): Promise<IncidentSummary>;
+  importDefects?(defects: DefectRecord[]): Promise<void>;
+  listDefects?(
+    filters?: MetricSnapshotFilters,
+  ): Promise<DefectRecord[]>;
+  buildDefectSummary?(
+    filters?: MetricSnapshotFilters,
+  ): Promise<DefectSummary>;
   listSessionAnalysisRows?(
     filters?: MetricSnapshotFilters,
   ): Promise<SessionAnalysisRow[]>;
@@ -452,8 +482,9 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
           )
         `);
         await this.database.query(`
-          CREATE TABLE IF NOT EXISTS github_pull_requests (
+          CREATE TABLE IF NOT EXISTS scm_pull_requests (
             id BIGSERIAL PRIMARY KEY,
+            provider TEXT NOT NULL,
             project_key TEXT NOT NULL,
             repo_name TEXT NOT NULL,
             pr_number INTEGER NOT NULL,
@@ -466,7 +497,7 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
             created_at TIMESTAMPTZ NOT NULL,
             merged_at TIMESTAMPTZ,
             updated_at TIMESTAMPTZ NOT NULL,
-            UNIQUE (project_key, repo_name, pr_number)
+            UNIQUE (provider, project_key, repo_name, pr_number)
           )
         `);
         await this.database.query(`
@@ -534,6 +565,24 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
             resolved_at TIMESTAMPTZ,
             updated_at TIMESTAMPTZ NOT NULL,
             UNIQUE (provider, project_key, incident_key)
+          )
+        `);
+        await this.database.query(`
+          CREATE TABLE IF NOT EXISTS defect_records (
+            id BIGSERIAL PRIMARY KEY,
+            provider TEXT NOT NULL,
+            project_key TEXT NOT NULL,
+            defect_key TEXT NOT NULL,
+            title TEXT NOT NULL,
+            severity TEXT NOT NULL,
+            status TEXT NOT NULL,
+            found_in_phase TEXT NOT NULL,
+            linked_requirement_keys TEXT[] NOT NULL DEFAULT '{}',
+            linked_pull_request_numbers BIGINT[] NOT NULL DEFAULT '{}',
+            created_at TIMESTAMPTZ NOT NULL,
+            resolved_at TIMESTAMPTZ,
+            updated_at TIMESTAMPTZ NOT NULL,
+            UNIQUE (provider, project_key, defect_key)
           )
         `);
         await this.database.query(`
@@ -1083,13 +1132,18 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
   }
 
   async importPullRequests(pullRequests: PullRequestRecord[]): Promise<void> {
+    if (pullRequests.length === 0) {
+      return;
+    }
+
     await this.ensureSchema();
 
     await Promise.all(
       pullRequests.map((pullRequest) =>
         this.database.query(
           `
-            INSERT INTO github_pull_requests (
+            INSERT INTO scm_pull_requests (
+              provider,
               project_key,
               repo_name,
               pr_number,
@@ -1103,8 +1157,8 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
               merged_at,
               updated_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-            ON CONFLICT (project_key, repo_name, pr_number)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            ON CONFLICT (provider, project_key, repo_name, pr_number)
             DO UPDATE SET
               title = EXCLUDED.title,
               author_member_id = EXCLUDED.author_member_id,
@@ -1117,6 +1171,7 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
               updated_at = EXCLUDED.updated_at
           `,
           [
+            pullRequest.provider,
             pullRequest.projectKey,
             pullRequest.repoName,
             pullRequest.prNumber,
@@ -1161,6 +1216,7 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
     }
 
     const result = await this.database.query<{
+      provider: PullRequestRecord['provider'];
       project_key: string;
       repo_name: string;
       pr_number: number;
@@ -1176,6 +1232,7 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
     }>(
       `
         SELECT
+          provider,
           project_key,
           repo_name,
           pr_number,
@@ -1188,7 +1245,7 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
           created_at,
           merged_at,
           updated_at
-        FROM github_pull_requests
+        FROM scm_pull_requests
         ${whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : ''}
         ORDER BY updated_at DESC, pr_number DESC
       `,
@@ -1196,7 +1253,7 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
     );
 
     return result.rows.map((row) => ({
-      provider: 'github',
+      provider: row.provider,
       projectKey: row.project_key,
       repoName: row.repo_name,
       prNumber: row.pr_number,
@@ -1930,6 +1987,160 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
       openIncidentCount: openIncidents.length,
       resolvedIncidentCount: resolvedIncidents.length,
       linkedDeploymentCount,
+      averageResolutionHours:
+        resolutionHours.length === 0
+          ? 0
+          : resolutionHours.reduce((sum, value) => sum + value, 0) /
+            resolutionHours.length,
+    };
+  }
+
+  async importDefects(defects: DefectRecord[]): Promise<void> {
+    if (defects.length === 0) {
+      return;
+    }
+
+    await this.ensureSchema();
+
+    await Promise.all(
+      defects.map((defect) =>
+        this.database.query(
+          `
+            INSERT INTO defect_records (
+              provider,
+              project_key,
+              defect_key,
+              title,
+              severity,
+              status,
+              found_in_phase,
+              linked_requirement_keys,
+              linked_pull_request_numbers,
+              created_at,
+              resolved_at,
+              updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            ON CONFLICT (provider, project_key, defect_key)
+            DO UPDATE SET
+              title = EXCLUDED.title,
+              severity = EXCLUDED.severity,
+              status = EXCLUDED.status,
+              found_in_phase = EXCLUDED.found_in_phase,
+              linked_requirement_keys = EXCLUDED.linked_requirement_keys,
+              linked_pull_request_numbers = EXCLUDED.linked_pull_request_numbers,
+              created_at = EXCLUDED.created_at,
+              resolved_at = EXCLUDED.resolved_at,
+              updated_at = EXCLUDED.updated_at
+          `,
+          [
+            defect.provider,
+            defect.projectKey,
+            defect.defectKey,
+            defect.title,
+            defect.severity,
+            defect.status,
+            defect.foundInPhase,
+            defect.linkedRequirementKeys,
+            defect.linkedPullRequestNumbers,
+            defect.createdAt,
+            defect.resolvedAt ?? null,
+            defect.updatedAt,
+          ],
+        ),
+      ),
+    );
+  }
+
+  async listDefects(filters: MetricSnapshotFilters = {}): Promise<DefectRecord[]> {
+    await this.ensureSchema();
+
+    const values: Array<string | string[]> = [];
+    const whereClauses: string[] = [];
+
+    appendProjectFilterClauses(values, whereClauses, filters, 'project_key');
+
+    if (filters.from) {
+      values.push(filters.from);
+      whereClauses.push(`created_at >= $${values.length}`);
+    }
+
+    if (filters.to) {
+      values.push(filters.to);
+      whereClauses.push(`created_at <= $${values.length}`);
+    }
+
+    const result = await this.database.query<{
+      provider: DefectRecord['provider'];
+      project_key: string;
+      defect_key: string;
+      title: string;
+      severity: DefectRecord['severity'];
+      status: DefectRecord['status'];
+      found_in_phase: DefectRecord['foundInPhase'];
+      linked_requirement_keys: string[] | null;
+      linked_pull_request_numbers: number[] | null;
+      created_at: Date | string;
+      resolved_at: Date | string | null;
+      updated_at: Date | string;
+    }>(
+      `
+        SELECT
+          provider,
+          project_key,
+          defect_key,
+          title,
+          severity,
+          status,
+          found_in_phase,
+          linked_requirement_keys,
+          linked_pull_request_numbers,
+          created_at,
+          resolved_at,
+          updated_at
+        FROM defect_records
+        ${whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : ''}
+        ORDER BY updated_at DESC, defect_key DESC
+      `,
+      values,
+    );
+
+    return result.rows.map((row) => ({
+      provider: row.provider,
+      projectKey: row.project_key,
+      defectKey: row.defect_key,
+      title: row.title,
+      severity: row.severity,
+      status: row.status,
+      foundInPhase: row.found_in_phase,
+      linkedRequirementKeys: row.linked_requirement_keys ?? [],
+      linkedPullRequestNumbers: row.linked_pull_request_numbers ?? [],
+      createdAt: toIsoString(row.created_at),
+      ...(row.resolved_at ? { resolvedAt: toIsoString(row.resolved_at) } : {}),
+      updatedAt: toIsoString(row.updated_at),
+    }));
+  }
+
+  async buildDefectSummary(
+    filters: MetricSnapshotFilters = {},
+  ): Promise<DefectSummary> {
+    const defects = await this.listDefects(filters);
+    const openDefects = defects.filter((defect) => defect.status === 'open');
+    const resolvedDefects = defects.filter((defect) => defect.status === 'resolved');
+    const productionDefects = defects.filter(
+      (defect) => defect.foundInPhase === 'production',
+    );
+    const resolutionHours = resolvedDefects
+      .filter((defect) => defect.resolvedAt)
+      .map((defect) =>
+        calculateCycleTimeHours(defect.createdAt, defect.resolvedAt as string),
+      );
+
+    return {
+      totalDefectCount: defects.length,
+      openDefectCount: openDefects.length,
+      resolvedDefectCount: resolvedDefects.length,
+      productionDefectCount: productionDefects.length,
       averageResolutionHours:
         resolutionHours.length === 0
           ? 0
