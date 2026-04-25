@@ -519,6 +519,8 @@ export const EffectivenessManagerCockpit = ({
   const readyToolCount = toolCards.filter((tool) => tool.status === 'ready').length;
   const enterpriseScopeLabel = `${governanceDirectory.teams.length} 团队 / ${governanceDirectory.projects.length} 项目`;
   const trendCards = buildTrendCards(metricSnapshots).slice(0, 4);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<'all' | ToolStatus>('all');
   const [selectedToolKey, setSelectedToolKey] = useState(
     toolCards.find((tool) => tool.status === 'active')?.key ?? toolCards[0]?.key ?? '',
   );
@@ -533,8 +535,20 @@ export const EffectivenessManagerCockpit = ({
     collectorHealth,
     toolCards,
   });
+  const categories = ['all', ...new Set(toolCards.map((tool) => tool.category))];
+  const filteredToolCards = toolCards.filter((tool) => {
+    const categoryMatched =
+      selectedCategory === 'all' ? true : tool.category === selectedCategory;
+    const statusMatched =
+      selectedStatusFilter === 'all' ? true : tool.status === selectedStatusFilter;
+
+    return categoryMatched && statusMatched;
+  });
   const selectedTool =
-    toolCards.find((tool) => tool.key === selectedToolKey) ?? toolCards[0];
+    filteredToolCards.find((tool) => tool.key === selectedToolKey) ??
+    filteredToolCards[0] ??
+    toolCards.find((tool) => tool.key === selectedToolKey) ??
+    toolCards[0];
   const selectedTrendCard =
     trendCards.find((card) => card.metricKey === selectedTrendMetricKey) ?? trendCards[0];
   const toolFocusDetail =
@@ -710,9 +724,86 @@ export const EffectivenessManagerCockpit = ({
           </p>
         </div>
 
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: '16px',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            marginTop: '18px',
+          }}
+        >
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            {categories.map((category) => {
+              const selected = category === selectedCategory;
+              const label = category === 'all' ? '全部工具' : category;
+
+              return (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => setSelectedCategory(category)}
+                  style={{
+                    borderRadius: '999px',
+                    border: selected
+                      ? '1px solid rgba(79, 70, 229, 0.38)'
+                      : '1px solid rgba(15, 23, 42, 0.08)',
+                    background: selected ? '#eef2ff' : 'rgba(255, 255, 255, 0.78)',
+                    color: selected ? '#4338ca' : '#334155',
+                    padding: '8px 14px',
+                    font: 'inherit',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+            {[
+              ['all', '全部状态'],
+              ['active', '仅已接入'],
+              ['ready', '仅接入就绪'],
+            ].map(([status, label]) => {
+              const selected = status === selectedStatusFilter;
+
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() =>
+                    setSelectedStatusFilter(status as 'all' | ToolStatus)
+                  }
+                  style={{
+                    borderRadius: '999px',
+                    border: selected
+                      ? '1px solid rgba(14, 116, 144, 0.32)'
+                      : '1px solid rgba(15, 23, 42, 0.08)',
+                    background: selected ? '#ecfeff' : 'rgba(255, 255, 255, 0.78)',
+                    color: selected ? '#0f766e' : '#334155',
+                    padding: '8px 14px',
+                    font: 'inherit',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+            <span style={{ color: '#475569', fontSize: '14px', fontWeight: 700 }}>
+              当前显示 {filteredToolCards.length} / {toolCards.length} 个工具
+            </span>
+          </div>
+        </div>
+
         <div style={{ ...splitGridStyle, marginTop: '20px' }}>
           <div style={toolGridStyle}>
-            {toolCards.map((tool) => {
+            {filteredToolCards.map((tool) => {
               const isSelected = tool.key === selectedTool?.key;
 
               return (

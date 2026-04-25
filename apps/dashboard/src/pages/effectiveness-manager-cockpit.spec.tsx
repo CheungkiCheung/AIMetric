@@ -185,13 +185,29 @@ const createProps = (): EffectivenessManagerCockpitProps => ({
 });
 
 describe('EffectivenessManagerCockpit', () => {
+  it('filters tool cards by category and integration status', () => {
+    render(<EffectivenessManagerCockpit {...createProps()} />);
+
+    expect(screen.getByText('当前显示 7 / 7 个工具')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Agent CLI' }));
+    expect(screen.getByText('当前显示 2 / 7 个工具')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '仅已接入' }));
+    expect(screen.getByText('当前显示 0 / 7 个工具')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '全部状态' }));
+    fireEvent.click(screen.getByRole('button', { name: '全部工具' }));
+    expect(screen.getByText('当前显示 7 / 7 个工具')).toBeInTheDocument();
+  });
+
   it('switches focused tool insights when a tool card is selected', () => {
     render(<EffectivenessManagerCockpit {...createProps()} />);
 
     expect(screen.getAllByText('当前焦点工具').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Cursor').length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole('button', { name: /MCP 工具链/i }));
+    fireEvent.click(screen.getAllByRole('button', { name: /MCP 工具链/i })[0]);
 
     expect(screen.getAllByText('MCP 工具链').length).toBeGreaterThan(0);
     expect(screen.getAllByText('平台能力').length).toBeGreaterThan(0);
