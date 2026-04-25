@@ -2,7 +2,12 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { parseCliRecordArgs, recordCliSession } from './cli-adapter.js';
+import {
+  cliAdapterManifest,
+  getCliAdapterHealthReport,
+  parseCliRecordArgs,
+  recordCliSession,
+} from './cli-adapter.js';
 
 const temporaryWorkspaces: string[] = [];
 const originalFetch = globalThis.fetch;
@@ -17,6 +22,54 @@ afterEach(() => {
 });
 
 describe('recordCliSession', () => {
+  it('declares the CLI adapter capability manifest', () => {
+    expect(cliAdapterManifest).toMatchObject({
+      toolKey: 'generic-cli',
+      displayName: 'Generic CLI Agent',
+      adapterKey: 'cli-standard',
+      supportedEventTypes: ['session.recorded'],
+      collectionMode: 'cli',
+      privacyLevel: 'metadata-only',
+      latencyProfile: 'async',
+      failurePolicy: {
+        onOffline: 'buffer',
+        onPermissionDenied: 'degrade',
+        onSchemaMismatch: 'skip-event',
+        maxRetryCount: 3,
+      },
+      privacyPolicy: {
+        collectsPromptText: true,
+        collectsCompletionText: true,
+        collectsDiff: false,
+        collectsFilePath: false,
+        collectsFileContent: false,
+        redaction: 'none',
+      },
+    });
+  });
+
+  it('reports CLI adapter health from workspace config availability', async () => {
+    const workspaceDir = createWorkspaceWithConfig();
+
+    await expect(
+      getCliAdapterHealthReport({
+        workspaceDir,
+        checkedAt: '2026-04-25T00:00:00.000Z',
+      }),
+    ).resolves.toMatchObject({
+      toolKey: 'generic-cli',
+      adapterKey: 'cli-standard',
+      status: 'healthy',
+      checks: [
+        {
+          key: 'config',
+          status: 'pass',
+          message: 'AIMetric config loaded',
+        },
+      ],
+    });
+  });
+
   it('builds a standard ingestion batch from CLI session input', async () => {
     const workspaceDir = createWorkspaceWithConfig();
 

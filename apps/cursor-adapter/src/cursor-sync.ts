@@ -1,7 +1,13 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { IngestionBatch } from '@aimetric/event-schema';
+import {
+  createAdapterHealthReport,
+  type AdapterHealthCheckResult,
+  type AdapterHealthReport,
+  type IngestionBatch,
+  type ToolAdapterManifest,
+} from '@aimetric/event-schema';
 import {
   CollectorClient,
   loadAimMetricConfig,
@@ -41,6 +47,119 @@ export interface CursorSyncResult {
   skippedSessions: number;
   source: 'cursor-db';
   batch?: IngestionBatch;
+}
+
+export interface GetCursorAdapterHealthReportInput {
+  workspaceDir?: string;
+  configPath?: string;
+  checkedAt?: string;
+  cursorProjectsDir?: string;
+  cursorWorkspaceStorageDir?: string;
+  cursorGlobalStorageDir?: string;
+  homeDir?: string;
+  appDataDir?: string;
+  platform?: NodeJS.Platform;
+}
+
+export const cursorAdapterManifest: ToolAdapterManifest = {
+  toolKey: 'cursor',
+  displayName: 'Cursor',
+  adapterKey: 'cursor-db',
+  adapterVersion: '1.0.0',
+  supportedPlatforms: ['darwin', 'linux', 'win32'],
+  supportedEventTypes: ['session.recorded', 'tab.accepted'],
+  collectionMode: 'hybrid',
+  privacyLevel: 'metadata-and-diff',
+  latencyProfile: 'scheduled',
+  requiredPermissions: [
+    'read-aimetric-config',
+    'read-cursor-transcripts',
+    'read-cursor-state-db',
+  ],
+  healthChecks: ['config', 'cursor-transcripts', 'cursor-state-db'],
+  versionCompatibility: {
+    testedToolVersions: ['0.50.x'],
+  },
+  failurePolicy: {
+    onOffline: 'buffer',
+    onPermissionDenied: 'degrade',
+    onSchemaMismatch: 'skip-event',
+    maxRetryCount: 3,
+  },
+  privacyPolicy: {
+    collectsPromptText: true,
+    collectsCompletionText: true,
+    collectsDiff: false,
+    collectsFilePath: true,
+    collectsFileContent: false,
+    redaction: 'hash-sensitive-paths',
+  },
+};
+
+export async function getCursorAdapterHealthReport({
+  workspaceDir,
+  configPath,
+  checkedAt = new Date().toISOString(),
+  cursorProjectsDir,
+  cursorWorkspaceStorageDir,
+  cursorGlobalStorageDir,
+  homeDir,
+  appDataDir,
+  platform,
+}: GetCursorAdapterHealthReportInput = {}): Promise<AdapterHealthReport> {
+  const checks: AdapterHealthCheckResult[] = [];
+
+  try {
+    await loadAimMetricConfig({
+      workspaceDir,
+      configPath,
+    });
+    checks.push({
+      key: 'config',
+      status: 'pass' as const,
+      message: 'AIMetric config loaded',
+    });
+  } catch (error) {
+    checks.push({
+      key: 'config',
+      status: 'fail' as const,
+      message:
+        error instanceof Error
+          ? error.message
+          : 'AIMetric config failed to load',
+    });
+  }
+
+  const roots = resolveCursorDataRoots({
+    platform: platform ?? process.platform,
+    homeDir: homeDir ?? homedir(),
+    appDataDir,
+    overrides: {
+      cursorProjectsDir,
+      cursorWorkspaceStorageDir,
+      cursorGlobalStorageDir,
+    },
+  });
+  checks.push(await checkReadableDirectory('cursor-transcripts', roots.cursorProjectsDir));
+  const stateDatabases = await discoverCursorStateDatabases({
+    workspaceStorageDir: roots.workspaceStorageDir,
+    globalStorageDir: roots.globalStorageDir,
+  });
+
+  checks.push({
+    key: 'cursor-state-db',
+    status: stateDatabases.length > 0 ? 'pass' : 'warn',
+    message:
+      stateDatabases.length > 0
+        ? 'Cursor state DB discovered'
+        : 'Cursor state DB not discovered; transcript-only sync can continue',
+  });
+
+  return createAdapterHealthReport({
+    manifest: cursorAdapterManifest,
+    checkedAt,
+    checks,
+  });
 }
 
 export function parseCursorSyncArgs(args: string[]): CursorSyncInput {
@@ -241,6 +360,31 @@ const applyLimit = (
 
 const buildIngestionKey = (session: CursorSessionRecord): string =>
   `cursor-db:${session.sessionId}:${session.lastMessageAt}:${session.transcriptPathHash}`;
+
+const checkReadableDirectory = async (
+  key: string,
+  directory: string,
+): Promise<{
+  key: string;
+  status: 'pass' | 'warn' | 'fail';
+  message: string;
+}> => {
+  try {
+    await readdir(directory);
+
+    return {
+      key,
+      status: 'pass',
+      message: 'Cursor transcript root is readable',
+    };
+  } catch {
+    return {
+      key,
+      status: 'warn',
+      message: `Directory is not readable: ${directory}`,
+    };
+  }
+};
 
 const collectTranscriptPaths = async (rootDirectory: string): Promise<string[]> => {
   try {

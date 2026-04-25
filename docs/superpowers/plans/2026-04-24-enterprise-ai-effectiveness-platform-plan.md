@@ -770,25 +770,35 @@ Agent 能力：
 
 ### Phase E3：多工具采集适配器协议
 
+状态：第一版已完成，真实 Codex CLI / Claude Code 采集实现待继续。
+
 目标：
 
 - 让后续扩展 Claude Code、Codex、VS Code、JetBrains、通用 CLI agent 时有统一标准。
 
 交付：
 
-- `ToolAdapterManifest`。
-- `EventMapper`。
-- `AdapterHealthCheck`。
-- `AdapterPrivacyPolicy`。
-- `AdapterFailurePolicy`。
-- Cursor adapter 按新协议改造。
-- Codex CLI / Claude Code adapter 示例。
+- `ToolAdapterManifest`：已完成第一版，放在 `@aimetric/event-schema`。
+- `EventMapper`：已完成第一版 `normalizeToolAdapterEvent`，把 adapter 事件归一为 AIMetric ingestion event。
+- `AdapterHealthCheck`：已完成第一版 `createAdapterHealthReport`。
+- `AdapterPrivacyPolicy`：已完成第一版，manifest 可声明 prompt、completion、diff、filePath、fileContent 和 redaction 策略。
+- `AdapterFailurePolicy`：已完成第一版，manifest 可声明 offline、permission denied、schema mismatch 和 retry 策略。
+- Cursor adapter 按新协议改造：已完成第一版 manifest 和 health report。
+- CLI adapter 按新协议改造：已完成第一版 manifest 和 health report。
+- Codex CLI / Claude Code adapter 示例：已完成第一版 manifest preset。
+
+后续增强：
+
+- Codex CLI 真实会话日志采集实现。
+- Claude Code 真实会话日志和 MCP 调用采集实现。
+- VS Code / JetBrains adapter 预研。
+- 平台运营 Dashboard 展示 adapter 健康状态。
 
 验收标准：
 
-- 新增一种 AI 工具时不改指标核心模型。
-- 每个 adapter 都能声明采集能力、隐私等级、性能影响和健康状态。
-- 平台运营 Dashboard 能看到各 adapter 的接入状态和失败原因。
+- 新增一种 AI 工具时不改指标核心模型：第一版已满足，adapter 通过 manifest 和标准事件接入。
+- 每个 adapter 都能声明采集能力、隐私等级、性能影响和健康状态：第一版已满足。
+- 平台运营 Dashboard 能看到各 adapter 的接入状态和失败原因：待后续增强。
 
 ### Phase E4：员工端轻量化安装与自检
 

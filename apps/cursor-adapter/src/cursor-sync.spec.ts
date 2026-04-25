@@ -9,7 +9,12 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { parseCursorSyncArgs, syncCursorSessions } from './cursor-sync.js';
+import {
+  cursorAdapterManifest,
+  getCursorAdapterHealthReport,
+  parseCursorSyncArgs,
+  syncCursorSessions,
+} from './cursor-sync.js';
 
 const temporaryDirectories: string[] = [];
 const originalFetch = globalThis.fetch;
@@ -24,6 +29,66 @@ afterEach(() => {
 });
 
 describe('syncCursorSessions', () => {
+  it('declares the Cursor adapter capability manifest', () => {
+    expect(cursorAdapterManifest).toMatchObject({
+      toolKey: 'cursor',
+      displayName: 'Cursor',
+      adapterKey: 'cursor-db',
+      supportedEventTypes: ['session.recorded', 'tab.accepted'],
+      collectionMode: 'hybrid',
+      privacyLevel: 'metadata-and-diff',
+      latencyProfile: 'scheduled',
+      requiredPermissions: [
+        'read-aimetric-config',
+        'read-cursor-transcripts',
+        'read-cursor-state-db',
+      ],
+      privacyPolicy: {
+        collectsPromptText: true,
+        collectsCompletionText: true,
+        collectsDiff: false,
+        collectsFilePath: true,
+        collectsFileContent: false,
+        redaction: 'hash-sensitive-paths',
+      },
+    });
+  });
+
+  it('reports Cursor adapter health from config and data root availability', async () => {
+    const { workspaceDir, cursorProjectsDir } = createWorkspaceWithCursorTranscript();
+
+    await expect(
+      getCursorAdapterHealthReport({
+        workspaceDir,
+        checkedAt: '2026-04-25T00:00:00.000Z',
+        cursorProjectsDir,
+        homeDir: workspaceDir,
+        platform: 'darwin',
+      }),
+    ).resolves.toMatchObject({
+      toolKey: 'cursor',
+      adapterKey: 'cursor-db',
+      status: 'healthy',
+      checks: [
+        {
+          key: 'config',
+          status: 'pass',
+          message: 'AIMetric config loaded',
+        },
+        {
+          key: 'cursor-transcripts',
+          status: 'pass',
+          message: 'Cursor transcript root is readable',
+        },
+        {
+          key: 'cursor-state-db',
+          status: 'pass',
+          message: 'Cursor state DB discovered',
+        },
+      ],
+    });
+  });
+
   it('builds a dry-run cursor-db batch from exportable sessions', async () => {
     const { workspaceDir, cursorProjectsDir } = createWorkspaceWithCursorTranscript();
 

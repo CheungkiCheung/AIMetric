@@ -1,4 +1,9 @@
-import type { IngestionBatch } from '@aimetric/event-schema';
+import {
+  createAdapterHealthReport,
+  type AdapterHealthReport,
+  type IngestionBatch,
+  type ToolAdapterManifest,
+} from '@aimetric/event-schema';
 import {
   CollectorClient,
   loadAimMetricConfig,
@@ -18,6 +23,83 @@ export interface RecordCliSessionInput
 export interface RecordCliSessionResult {
   batch: IngestionBatch;
   published: boolean;
+}
+
+export interface GetCliAdapterHealthReportInput {
+  workspaceDir?: string;
+  configPath?: string;
+  checkedAt?: string;
+}
+
+export const cliAdapterManifest: ToolAdapterManifest = {
+  toolKey: 'generic-cli',
+  displayName: 'Generic CLI Agent',
+  adapterKey: 'cli-standard',
+  adapterVersion: '1.0.0',
+  supportedPlatforms: ['darwin', 'linux', 'win32'],
+  supportedEventTypes: ['session.recorded'],
+  collectionMode: 'cli',
+  privacyLevel: 'metadata-only',
+  latencyProfile: 'async',
+  requiredPermissions: ['read-aimetric-config'],
+  healthChecks: ['config'],
+  versionCompatibility: {
+    testedToolVersions: ['generic-cli'],
+  },
+  failurePolicy: {
+    onOffline: 'buffer',
+    onPermissionDenied: 'degrade',
+    onSchemaMismatch: 'skip-event',
+    maxRetryCount: 3,
+  },
+  privacyPolicy: {
+    collectsPromptText: true,
+    collectsCompletionText: true,
+    collectsDiff: false,
+    collectsFilePath: false,
+    collectsFileContent: false,
+    redaction: 'none',
+  },
+};
+
+export async function getCliAdapterHealthReport({
+  workspaceDir,
+  configPath,
+  checkedAt = new Date().toISOString(),
+}: GetCliAdapterHealthReportInput = {}): Promise<AdapterHealthReport> {
+  try {
+    await loadAimMetricConfig({
+      workspaceDir,
+      configPath,
+    });
+
+    return createAdapterHealthReport({
+      manifest: cliAdapterManifest,
+      checkedAt,
+      checks: [
+        {
+          key: 'config',
+          status: 'pass',
+          message: 'AIMetric config loaded',
+        },
+      ],
+    });
+  } catch (error) {
+    return createAdapterHealthReport({
+      manifest: cliAdapterManifest,
+      checkedAt,
+      checks: [
+        {
+          key: 'config',
+          status: 'fail',
+          message:
+            error instanceof Error
+              ? error.message
+              : 'AIMetric config failed to load',
+        },
+      ],
+    });
+  }
 }
 
 export function parseCliRecordArgs(args: string[]): RecordCliSessionInput {
