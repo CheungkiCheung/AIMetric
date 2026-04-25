@@ -274,7 +274,7 @@ const handleRequest = async (
   }
 
   if (method === 'GET' && url.pathname === '/governance/directory') {
-    writeJson(response, 200, appModule.getOrganizationDirectory());
+    writeJson(response, 200, await appModule.getOrganizationDirectory());
     return;
   }
 

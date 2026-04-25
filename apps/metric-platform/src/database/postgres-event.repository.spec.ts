@@ -316,6 +316,147 @@ describe('PostgresMetricEventRepository query mapping', () => {
     ]);
   });
 
+  it('seeds and maps the governance directory from PostgreSQL tables', async () => {
+    const queries: Array<{ text: string; values?: unknown[] }> = [];
+    const repository = new PostgresMetricEventRepository({
+      async query<T extends QueryResultRow = QueryResultRow>(
+        text: string,
+        values?: unknown[],
+      ) {
+        queries.push({ text, values });
+
+        if (text.includes('CREATE TABLE') || text.includes('CREATE UNIQUE INDEX')) {
+          return {
+            command: '',
+            rowCount: 0,
+            oid: 0,
+            fields: [],
+            rows: [] as T[],
+          };
+        }
+
+        if (text.includes('SELECT COUNT(*) AS organization_count')) {
+          return {
+            command: '',
+            rowCount: 1,
+            oid: 0,
+            fields: [],
+            rows: ([{ organization_count: '0' }] as unknown) as T[],
+          };
+        }
+
+        if (text.includes('INSERT INTO governance_')) {
+          return {
+            command: '',
+            rowCount: 1,
+            oid: 0,
+            fields: [],
+            rows: [] as T[],
+          };
+        }
+
+        if (text.includes('FROM governance_organizations')) {
+          return {
+            command: '',
+            rowCount: 1,
+            oid: 0,
+            fields: [],
+            rows: ([
+              {
+                organization_key: 'aimetric-enterprise',
+                name: 'AIMetric Enterprise',
+              },
+            ] as unknown) as T[],
+          };
+        }
+
+        if (text.includes('FROM governance_teams')) {
+          return {
+            command: '',
+            rowCount: 1,
+            oid: 0,
+            fields: [],
+            rows: ([
+              {
+                team_key: 'platform-engineering',
+                organization_key: 'aimetric-enterprise',
+                name: '平台工程团队',
+              },
+            ] as unknown) as T[],
+          };
+        }
+
+        if (text.includes('FROM governance_projects')) {
+          return {
+            command: '',
+            rowCount: 1,
+            oid: 0,
+            fields: [],
+            rows: ([
+              {
+                project_key: 'aimetric',
+                team_key: 'platform-engineering',
+                name: 'AIMetric',
+              },
+            ] as unknown) as T[],
+          };
+        }
+
+        return {
+          command: '',
+          rowCount: 1,
+          oid: 0,
+          fields: [],
+          rows: ([
+            {
+              member_id: 'alice',
+              display_name: 'Alice',
+              team_key: 'platform-engineering',
+              role: 'developer',
+            },
+          ] as unknown) as T[],
+        };
+      },
+    });
+
+    const directory = await repository.getGovernanceDirectory();
+
+    expect(directory).toEqual({
+      organization: {
+        key: 'aimetric-enterprise',
+        name: 'AIMetric Enterprise',
+      },
+      teams: [
+        {
+          key: 'platform-engineering',
+          name: '平台工程团队',
+          organizationKey: 'aimetric-enterprise',
+        },
+      ],
+      projects: [
+        {
+          key: 'aimetric',
+          name: 'AIMetric',
+          teamKey: 'platform-engineering',
+        },
+      ],
+      members: [
+        {
+          memberId: 'alice',
+          displayName: 'Alice',
+          teamKey: 'platform-engineering',
+          role: 'developer',
+        },
+      ],
+    });
+    expect(
+      queries.some((query) =>
+        query.text.includes('INSERT INTO governance_team_memberships'),
+      ),
+    ).toBe(true);
+    expect(queries.at(-1)?.values).toEqual(['aimetric-enterprise']);
+  });
+
   it('includes ingestion_key in insert statements for deduplicated session events', async () => {
     const queries: Array<{ text: string; values?: unknown[] }> = [];
     const repository = new PostgresMetricEventRepository({

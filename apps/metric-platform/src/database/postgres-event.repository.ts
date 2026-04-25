@@ -1,6 +1,12 @@
 import { Pool, type QueryResult, type QueryResultRow } from 'pg';
 import type { IngestionBatch } from '@aimetric/event-schema';
 import type { MetricCalculationResult } from '@aimetric/metric-core';
+import {
+  cloneGovernanceDirectory,
+  defaultGovernanceDirectory,
+  type GovernanceDirectory,
+  type GovernanceMember,
+} from '../governance/governance-directory.service.js';
 
 export interface RecordedMetricEvent {
   memberId: string;
@@ -136,6 +142,7 @@ export interface MetricEventRepository {
   listOutputAnalysisRows?(
     filters?: MetricSnapshotFilters,
   ): Promise<OutputAnalysisRow[]>;
+  getGovernanceDirectory?(): Promise<GovernanceDirectory>;
   disconnect(): Promise<void>;
 }
 
@@ -233,10 +240,153 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
             )
           )
         `);
+        await this.database.query(`
+          CREATE TABLE IF NOT EXISTS governance_organizations (
+            id BIGSERIAL PRIMARY KEY,
+            organization_key TEXT NOT NULL UNIQUE,
+            name TEXT NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `);
+        await this.database.query(`
+          CREATE TABLE IF NOT EXISTS governance_teams (
+            id BIGSERIAL PRIMARY KEY,
+            team_key TEXT NOT NULL UNIQUE,
+            organization_key TEXT NOT NULL REFERENCES governance_organizations (organization_key),
+            name TEXT NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `);
+        await this.database.query(`
+          CREATE TABLE IF NOT EXISTS governance_projects (
+            id BIGSERIAL PRIMARY KEY,
+            project_key TEXT NOT NULL UNIQUE,
+            team_key TEXT NOT NULL REFERENCES governance_teams (team_key),
+            name TEXT NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `);
+        await this.database.query(`
+          CREATE TABLE IF NOT EXISTS governance_members (
+            id BIGSERIAL PRIMARY KEY,
+            member_id TEXT NOT NULL UNIQUE,
+            display_name TEXT NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `);
+        await this.database.query(`
+          CREATE TABLE IF NOT EXISTS governance_team_memberships (
+            id BIGSERIAL PRIMARY KEY,
+            member_id TEXT NOT NULL REFERENCES governance_members (member_id),
+            team_key TEXT NOT NULL REFERENCES governance_teams (team_key),
+            role TEXT NOT NULL,
+            is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (member_id, team_key)
+          )
+        `);
+        await this.seedDefaultGovernanceDirectory();
       });
     }
 
     await this.schemaReady;
+  }
+
+  private async seedDefaultGovernanceDirectory() {
+    const organizationCountResult = await this.database.query<{
+      organization_count: string | number;
+    }>(`
+      SELECT COUNT(*) AS organization_count
+      FROM governance_organizations
+    `);
+    const organizationCount = Number(
+      organizationCountResult.rows[0]?.organization_count ?? 0,
+    );
+
+    if (organizationCount > 0) {
+      return;
+    }
+
+    await this.database.query(
+      `
+        INSERT INTO governance_organizations (organization_key, name)
+        VALUES ($1, $2)
+        ON CONFLICT (organization_key) DO NOTHING
+      `,
+      [
+        defaultGovernanceDirectory.organization.key,
+        defaultGovernanceDirectory.organization.name,
+      ],
+    );
+
+    await Promise.all(
+      defaultGovernanceDirectory.teams.map((team) =>
+        this.database.query(
+          `
+            INSERT INTO governance_teams (team_key, organization_key, name)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (team_key) DO NOTHING
+          `,
+          [team.key, team.organizationKey, team.name],
+        ),
+      ),
+    );
+
+    await Promise.all(
+      defaultGovernanceDirectory.projects.map((project) =>
+        this.database.query(
+          `
+            INSERT INTO governance_projects (project_key, team_key, name)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (project_key) DO NOTHING
+          `,
+          [project.key, project.teamKey, project.name],
+        ),
+      ),
+    );
+
+    await Promise.all(
+      defaultGovernanceDirectory.members.map((member) =>
+        this.database.query(
+          `
+            INSERT INTO governance_members (member_id, display_name)
+            VALUES ($1, $2)
+            ON CONFLICT (member_id)
+            DO UPDATE SET
+              display_name = EXCLUDED.display_name,
+              updated_at = NOW()
+          `,
+          [member.memberId, member.displayName],
+        ),
+      ),
+    );
+
+    await Promise.all(
+      defaultGovernanceDirectory.members.map((member) =>
+        this.database.query(
+          `
+            INSERT INTO governance_team_memberships (
+              member_id,
+              team_key,
+              role,
+              is_primary
+            )
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (member_id, team_key)
+            DO UPDATE SET
+              role = EXCLUDED.role,
+              is_primary = EXCLUDED.is_primary,
+              updated_at = NOW()
+          `,
+          [member.memberId, member.teamKey, member.role, true],
+        ),
+      ),
+    );
   }
 
   async saveIngestionBatch(batch: IngestionBatch) {
@@ -1093,6 +1243,102 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
       dataRequirements: snapshot.data_requirements,
       definition: snapshot.definition,
     }));
+  }
+
+  async getGovernanceDirectory(): Promise<GovernanceDirectory> {
+    await this.ensureSchema();
+
+    const organizationResult = await this.database.query<{
+      organization_key: string;
+      name: string;
+    }>(`
+      SELECT organization_key, name
+      FROM governance_organizations
+      ORDER BY organization_key ASC
+      LIMIT 1
+    `);
+    const organization = organizationResult.rows[0];
+
+    if (!organization) {
+      return cloneGovernanceDirectory(defaultGovernanceDirectory);
+    }
+
+    const teamsResult = await this.database.query<{
+      team_key: string;
+      organization_key: string;
+      name: string;
+    }>(
+      `
+        SELECT team_key, organization_key, name
+        FROM governance_teams
+        WHERE organization_key = $1
+        ORDER BY team_key ASC
+      `,
+      [organization.organization_key],
+    );
+
+    const projectsResult = await this.database.query<{
+      project_key: string;
+      team_key: string;
+      name: string;
+    }>(
+      `
+        SELECT projects.project_key, projects.team_key, projects.name
+        FROM governance_projects projects
+        INNER JOIN governance_teams teams
+          ON teams.team_key = projects.team_key
+        WHERE teams.organization_key = $1
+        ORDER BY projects.project_key ASC
+      `,
+      [organization.organization_key],
+    );
+
+    const membersResult = await this.database.query<{
+      member_id: string;
+      display_name: string;
+      team_key: string;
+      role: GovernanceMember['role'];
+    }>(
+      `
+        SELECT
+          members.member_id,
+          members.display_name,
+          memberships.team_key,
+          memberships.role
+        FROM governance_members members
+        INNER JOIN governance_team_memberships memberships
+          ON memberships.member_id = members.member_id
+        INNER JOIN governance_teams teams
+          ON teams.team_key = memberships.team_key
+        WHERE teams.organization_key = $1
+          AND memberships.is_primary = TRUE
+        ORDER BY members.member_id ASC
+      `,
+      [organization.organization_key],
+    );
+
+    return {
+      organization: {
+        key: organization.organization_key,
+        name: organization.name,
+      },
+      teams: teamsResult.rows.map((team) => ({
+        key: team.team_key,
+        name: team.name,
+        organizationKey: team.organization_key,
+      })),
+      projects: projectsResult.rows.map((project) => ({
+        key: project.project_key,
+        name: project.name,
+        teamKey: project.team_key,
+      })),
+      members: membersResult.rows.map((member) => ({
+        memberId: member.member_id,
+        displayName: member.display_name,
+        teamKey: member.team_key,
+        role: member.role,
+      })),
+    };
   }
 
   async disconnect(): Promise<void> {

@@ -863,7 +863,7 @@ Agent 能力：
 
 交付：
 
-- PostgreSQL 组织模型：待落地；第一版已完成内存组织治理目录与 HTTP API。
+- PostgreSQL 组织模型：第一版已完成，已落地 `organization / team / project / member / team_membership` 五类核心表，并支持默认种子初始化与 `GET /governance/directory` 查询。
 - `collector_identity`。
 - RBAC 基础权限。
 - 管理端 API 鉴权升级。
@@ -873,7 +873,7 @@ Agent 能力：
 
 验收标准：
 
-- 技术管理者只能看授权组织和团队。
+- 技术管理者只能看授权组织和团队：组织模型已具备持久化基础，RBAC 授权过滤待下一步补齐。
 - 平台管理员可以配置采集策略。
 - 安全审计者可以查询审计和隐私策略。
 

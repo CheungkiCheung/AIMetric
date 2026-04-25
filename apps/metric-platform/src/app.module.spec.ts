@@ -24,9 +24,9 @@ describe('AppModule', () => {
     );
   });
 
-  it('exposes the organization governance directory', () => {
+  it('exposes the organization governance directory', async () => {
     const appModule = new AppModule(createEmptyRepository());
-    const directory = appModule.getOrganizationDirectory();
+    const directory = await appModule.getOrganizationDirectory();
 
     expect(directory).toMatchObject({
       organization: {
@@ -50,6 +50,59 @@ describe('AppModule', () => {
           memberId: 'alice',
           teamKey: 'platform-engineering',
           role: 'developer',
+        }),
+      ],
+    });
+  });
+
+  it('prefers the repository-backed governance directory when available', async () => {
+    const repository = {
+      ...createEmptyRepository(),
+      getGovernanceDirectory: vi.fn(async () => ({
+        organization: {
+          key: 'enterprise-a',
+          name: 'Enterprise A',
+        },
+        teams: [
+          {
+            key: 'team-a',
+            name: 'Team A',
+            organizationKey: 'enterprise-a',
+          },
+        ],
+        projects: [
+          {
+            key: 'project-a',
+            name: 'Project A',
+            teamKey: 'team-a',
+          },
+        ],
+        members: [
+          {
+            memberId: 'manager-1',
+            displayName: 'Manager 1',
+            teamKey: 'team-a',
+            role: 'engineering-manager' as const,
+          },
+        ],
+      })),
+    };
+    const appModule = new AppModule(repository);
+    const directory = await appModule.getOrganizationDirectory();
+
+    expect(repository.getGovernanceDirectory).toHaveBeenCalledTimes(1);
+    expect(directory).toMatchObject({
+      organization: {
+        key: 'enterprise-a',
+      },
+      teams: [
+        expect.objectContaining({
+          key: 'team-a',
+        }),
+      ],
+      members: [
+        expect.objectContaining({
+          role: 'engineering-manager',
         }),
       ],
     });

@@ -33,16 +33,20 @@ export class GovernanceDirectoryService {
   constructor(private readonly directory = defaultGovernanceDirectory) {}
 
   getDirectory(): GovernanceDirectory {
-    return {
-      organization: { ...this.directory.organization },
-      teams: this.directory.teams.map((team) => ({ ...team })),
-      projects: this.directory.projects.map((project) => ({ ...project })),
-      members: this.directory.members.map((member) => ({ ...member })),
-    };
+    return cloneGovernanceDirectory(this.directory);
   }
 }
 
-const defaultGovernanceDirectory: GovernanceDirectory = {
+export const cloneGovernanceDirectory = (
+  directory: GovernanceDirectory,
+): GovernanceDirectory => ({
+  organization: { ...directory.organization },
+  teams: directory.teams.map((team) => ({ ...team })),
+  projects: directory.projects.map((project) => ({ ...project })),
+  members: directory.members.map((member) => ({ ...member })),
+});
+
+export const defaultGovernanceDirectory: GovernanceDirectory = {
   organization: {
     key: 'aimetric-enterprise',
     name: 'AIMetric Enterprise',

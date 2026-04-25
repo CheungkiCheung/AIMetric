@@ -212,6 +212,66 @@ describe('bootstrap', () => {
     });
   });
 
+  it('serves the persisted governance directory over HTTP when the repository provides it', async () => {
+    const metricEventRepository: MetricEventRepository = {
+      ...createEmptyRepository(),
+      async getGovernanceDirectory() {
+        return {
+          organization: {
+            key: 'enterprise-a',
+            name: 'Enterprise A',
+          },
+          teams: [
+            {
+              key: 'team-a',
+              name: 'Team A',
+              organizationKey: 'enterprise-a',
+            },
+          ],
+          projects: [
+            {
+              key: 'project-a',
+              name: 'Project A',
+              teamKey: 'team-a',
+            },
+          ],
+          members: [
+            {
+              memberId: 'manager-1',
+              displayName: 'Manager 1',
+              teamKey: 'team-a',
+              role: 'engineering-manager',
+            },
+          ],
+        };
+      },
+    };
+    const app = await bootstrap({
+      port: 0,
+      metricEventRepository,
+    });
+    servers.push(app);
+
+    const response = await fetch(`${app.baseUrl}/governance/directory`);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      organization: {
+        key: 'enterprise-a',
+      },
+      teams: [
+        expect.objectContaining({
+          key: 'team-a',
+        }),
+      ],
+      members: [
+        expect.objectContaining({
+          role: 'engineering-manager',
+        }),
+      ],
+    });
+  });
+
   it('serves enterprise metrics filtered by dimension over HTTP', async () => {
     const app = await bootstrap({
       port: 0,

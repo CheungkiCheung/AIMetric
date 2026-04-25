@@ -169,7 +169,11 @@ export class AppModule {
     return getEnterpriseMetricCatalog();
   }
 
-  getOrganizationDirectory() {
+  async getOrganizationDirectory() {
+    if (this.metricEventRepository.getGovernanceDirectory) {
+      return this.metricEventRepository.getGovernanceDirectory();
+    }
+
     return this.governanceDirectoryService.getDirectory();
   }
 
