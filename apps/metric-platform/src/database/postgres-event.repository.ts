@@ -2349,39 +2349,51 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
       latest_diff_summary: string | null;
     }>(
       `
+        WITH grouped_edits AS (
+          SELECT
+            edits.session_id,
+            edits.member_id,
+            edits.project_key,
+            edits.payload->>'filePath' AS file_path,
+            COUNT(*) AS edit_span_count,
+            MAX(edits.occurred_at) AS latest_edit_at
+          FROM metric_events edits
+          WHERE ${whereClauses.join(' AND ')}
+          GROUP BY
+            edits.session_id,
+            edits.member_id,
+            edits.project_key,
+            edits.payload->>'filePath'
+        )
         SELECT
-          edits.session_id,
-          edits.member_id,
-          edits.project_key,
-          edits.payload->>'filePath' AS file_path,
-          COUNT(*) AS edit_span_count,
-          MAX(edits.occurred_at) AS latest_edit_at,
-          (
-            SELECT COUNT(*)
-            FROM metric_events tabs
-            WHERE tabs.event_type = 'tab.accepted'
-              AND tabs.session_id = edits.session_id
-              AND tabs.payload->>'filePath' = edits.payload->>'filePath'
-          ) AS tab_accepted_count,
-          (
-            SELECT COALESCE(SUM((tabs.payload->>'acceptedLines')::INTEGER), 0)
-            FROM metric_events tabs
-            WHERE tabs.event_type = 'tab.accepted'
-              AND tabs.session_id = edits.session_id
-              AND tabs.payload->>'filePath' = edits.payload->>'filePath'
-          ) AS tab_accepted_lines,
-          (
-            SELECT LEFT(REGEXP_REPLACE(diff.payload->>'diff', '\\s+', ' ', 'g'), 240)
-            FROM metric_events diff
-            WHERE diff.event_type = 'edit.span.recorded'
-              AND diff.session_id = edits.session_id
-              AND diff.payload->>'filePath' = edits.payload->>'filePath'
-            ORDER BY diff.occurred_at DESC, diff.id DESC
-            LIMIT 1
-          ) AS latest_diff_summary
-        FROM metric_events edits
-        WHERE ${whereClauses.join(' AND ')}
-        GROUP BY edits.session_id, edits.member_id, edits.project_key, edits.payload->>'filePath'
+          grouped_edits.session_id,
+          grouped_edits.member_id,
+          grouped_edits.project_key,
+          grouped_edits.file_path,
+          grouped_edits.edit_span_count,
+          grouped_edits.latest_edit_at,
+          COALESCE(tab_summary.tab_accepted_count, 0) AS tab_accepted_count,
+          COALESCE(tab_summary.tab_accepted_lines, 0) AS tab_accepted_lines,
+          latest_diff.latest_diff_summary
+        FROM grouped_edits
+        LEFT JOIN LATERAL (
+          SELECT
+            COUNT(*) AS tab_accepted_count,
+            COALESCE(SUM((tabs.payload->>'acceptedLines')::INTEGER), 0) AS tab_accepted_lines
+          FROM metric_events tabs
+          WHERE tabs.event_type = 'tab.accepted'
+            AND tabs.session_id = grouped_edits.session_id
+            AND tabs.payload->>'filePath' = grouped_edits.file_path
+        ) tab_summary ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT LEFT(REGEXP_REPLACE(diff.payload->>'diff', '\\s+', ' ', 'g'), 240) AS latest_diff_summary
+          FROM metric_events diff
+          WHERE diff.event_type = 'edit.span.recorded'
+            AND diff.session_id = grouped_edits.session_id
+            AND diff.payload->>'filePath' = grouped_edits.file_path
+          ORDER BY diff.occurred_at DESC, diff.id DESC
+          LIMIT 1
+        ) latest_diff ON TRUE
         ORDER BY latest_edit_at DESC
       `,
       values,

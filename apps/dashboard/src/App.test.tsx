@@ -558,8 +558,8 @@ describe('App', () => {
       />,
     );
 
-    expect(await screen.findByText('提效管理者运营驾驶舱')).toBeInTheDocument();
-    expect(screen.getByText('趋势分析层')).toBeInTheDocument();
+    expect(await screen.findByText('提效管理者 AI 工具度量驾驶舱')).toBeInTheDocument();
+    expect(screen.getByText('AI 工具资产与采集覆盖')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '近 30 天' })).toBeInTheDocument();
     expect(screen.getByText('专题分析与治理页')).toBeInTheDocument();
     expect(screen.getByText('企业级 AI 研发效能平台')).toBeInTheDocument();
@@ -623,7 +623,7 @@ describe('App', () => {
     expect(screen.getByText('/repo/src/demo.ts')).toBeInTheDocument();
     expect(screen.getAllByText('70.0%').length).toBeGreaterThan(0);
     expect(screen.getByText('62.5%')).toBeInTheDocument();
-    expect(screen.getByText('83.3%')).toBeInTheDocument();
+    expect(screen.getAllByText('83.3%').length).toBeGreaterThan(0);
     expect(screen.getByText('25%')).toBeInTheDocument();
     expect(screen.getByText('命中规则版本')).toBeInTheDocument();
     expect(screen.getAllByText('v1').length).toBeGreaterThan(0);
@@ -739,7 +739,7 @@ describe('App', () => {
       />,
     );
 
-    await screen.findByText('提效管理者运营驾驶舱');
+    await screen.findByText('提效管理者 AI 工具度量驾驶舱');
     fireEvent.change(screen.getByLabelText('项目'), {
       target: { value: 'navigation' },
     });
@@ -919,7 +919,7 @@ describe('App', () => {
       await act(async () => {
         await Promise.resolve();
       });
-      expect(screen.getByText('提效管理者运营驾驶舱')).toBeInTheDocument();
+      expect(screen.getByText('提效管理者 AI 工具度量驾驶舱')).toBeInTheDocument();
 
       await act(async () => {
         vi.advanceTimersByTime(1000);
@@ -1028,6 +1028,7 @@ describe('App', () => {
         candidateVersion: 'v1',
         percentage: 40,
         includedMembers: ['alice', 'bob'],
+        updatedAt: undefined,
       });
     });
   });

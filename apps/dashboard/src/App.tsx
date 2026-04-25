@@ -593,12 +593,14 @@ export const App = ({
           metricValues={enterpriseMetricValues}
           metricSnapshots={enterpriseMetricSnapshots}
           teamSnapshot={teamSnapshot}
+          analysisSummary={analysisSummary}
           requirementSummary={requirementSummary}
           pullRequestSummary={pullRequestSummary}
-          ciRunSummary={ciRunSummary}
+          deploymentSummary={deploymentSummary}
           defectAttributionSummary={defectAttributionSummary}
           collectorHealth={collectorHealth}
           governanceDirectory={governanceDirectory}
+          mcpAuditMetrics={mcpAuditMetrics}
         />
         {filterControls}
         <section style={filterPanelStyle}>
