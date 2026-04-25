@@ -323,11 +323,12 @@ export class AppModule {
       calculatedAt?: string;
     } = {},
   ): Promise<MetricCalculationResult[]> {
-    const [recordedMetricEvents, analysisSummary, mcpAuditMetrics] =
+    const [recordedMetricEvents, analysisSummary, mcpAuditMetrics, requirements] =
       await Promise.all([
         this.metricEventRepository.listRecordedMetricEvents(filters),
         this.buildAnalysisSummary(filters),
         this.metricEventRepository.buildMcpAuditMetrics(filters),
+        this.listRequirements(filters),
       ]);
 
     return calculateEnterpriseMetrics({
@@ -344,6 +345,7 @@ export class AppModule {
         recordedMetricEvents,
         analysisSummary,
         mcpAuditMetrics,
+        requirementSummary: buildRequirementCalculationSummary(requirements),
       },
     });
   }
@@ -461,4 +463,37 @@ const buildMetricSnapshots = (
   };
 
   return [...personalSnapshots, teamSnapshot];
+};
+
+const buildRequirementCalculationSummary = (
+  requirements: RequirementRecord[],
+) => {
+  const aiLeadTimes = requirements
+    .filter(
+      (requirement) =>
+        requirement.aiTouched && typeof requirement.leadTimeHours === 'number',
+    )
+    .map((requirement) => requirement.leadTimeHours as number);
+  const nonAiLeadTimes = requirements
+    .filter(
+      (requirement) =>
+        !requirement.aiTouched && typeof requirement.leadTimeHours === 'number',
+    )
+    .map((requirement) => requirement.leadTimeHours as number);
+
+  return {
+    totalRequirementCount: requirements.length,
+    aiTouchedRequirementCount: requirements.filter((requirement) => requirement.aiTouched)
+      .length,
+    nonAiRequirementCount: requirements.filter((requirement) => !requirement.aiTouched)
+      .length,
+    averageAiLeadTimeHours:
+      aiLeadTimes.length === 0
+        ? 0
+        : aiLeadTimes.reduce((sum, value) => sum + value, 0) / aiLeadTimes.length,
+    averageNonAiLeadTimeHours:
+      nonAiLeadTimes.length === 0
+        ? 0
+        : nonAiLeadTimes.reduce((sum, value) => sum + value, 0) / nonAiLeadTimes.length,
+  };
 };

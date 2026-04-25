@@ -467,6 +467,30 @@ describe('AppModule', () => {
         failureRate: 0.2,
         averageDurationMs: 24,
       })),
+      listRequirements: vi.fn(async () => [
+        {
+          provider: 'jira' as const,
+          projectKey: 'navigation',
+          requirementKey: 'AIM-101',
+          title: 'AI delivery',
+          status: 'done' as const,
+          aiTouched: true,
+          leadTimeHours: 24,
+          createdAt: '2026-04-23T00:00:00.000Z',
+          updatedAt: '2026-04-24T00:00:00.000Z',
+        },
+        {
+          provider: 'jira' as const,
+          projectKey: 'navigation',
+          requirementKey: 'AIM-102',
+          title: 'Manual delivery',
+          status: 'done' as const,
+          aiTouched: false,
+          leadTimeHours: 36,
+          createdAt: '2026-04-23T00:00:00.000Z',
+          updatedAt: '2026-04-24T00:00:00.000Z',
+        },
+      ]),
     };
     const filters = {
       projectKey: 'navigation',
@@ -482,6 +506,7 @@ describe('AppModule', () => {
     expect(repository.listRecordedMetricEvents).toHaveBeenCalledWith(filters);
     expect(repository.buildAnalysisSummary).toHaveBeenCalledWith(filters);
     expect(repository.buildMcpAuditMetrics).toHaveBeenCalledWith(filters);
+    expect(repository.listRequirements).toHaveBeenCalledWith(filters);
     expect(result).toEqual([
       expect.objectContaining({
         metricKey: 'ai_output_rate',
@@ -504,6 +529,11 @@ describe('AppModule', () => {
       expect.objectContaining({
         metricKey: 'mcp_tool_success_rate',
         value: 0.8,
+      }),
+      expect.objectContaining({
+        metricKey: 'lead_time_ai_vs_non_ai',
+        value: -12,
+        unit: 'hours',
       }),
     ]);
   });

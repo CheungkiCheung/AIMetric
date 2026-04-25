@@ -13,6 +13,7 @@ describe('enterprise metric calculation pipeline', () => {
       'ai_session_count',
       'tab_accepted_lines',
       'mcp_tool_success_rate',
+      'lead_time_ai_vs_non_ai',
     ]);
     expect(registry.getDefinition('ai_output_rate')).toMatchObject({
       key: 'ai_output_rate',
@@ -69,6 +70,13 @@ describe('enterprise metric calculation pipeline', () => {
           failureRate: 0.2,
           averageDurationMs: 24,
         },
+        requirementSummary: {
+          totalRequirementCount: 5,
+          aiTouchedRequirementCount: 3,
+          nonAiRequirementCount: 2,
+          averageAiLeadTimeHours: 24,
+          averageNonAiLeadTimeHours: 36,
+        },
       },
     });
 
@@ -107,6 +115,13 @@ describe('enterprise metric calculation pipeline', () => {
         value: 0.8,
         unit: 'ratio',
         confidence: 'high',
+      }),
+      expect.objectContaining({
+        metricKey: 'lead_time_ai_vs_non_ai',
+        value: -12,
+        unit: 'hours',
+        confidence: 'medium',
+        dataRequirements: ['requirement-summary'],
       }),
     ]);
   });

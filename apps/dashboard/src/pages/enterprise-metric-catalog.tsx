@@ -85,6 +85,10 @@ const formatMetricValue = ({ value, unit }: MetricCalculationResult) => {
     return `${(value * 100).toFixed(1)}％`;
   }
 
+  if (unit === 'hours') {
+    return `${value.toFixed(1)} 小时`;
+  }
+
   return new Intl.NumberFormat('zh-CN').format(value);
 };
 

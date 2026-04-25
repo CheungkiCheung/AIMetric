@@ -248,6 +248,32 @@ const createClient = (
         antiGamingNote: '出码率不是越高越好，必须同时看质量、返工和业务交付。',
       },
     },
+    {
+      metricKey: 'lead_time_ai_vs_non_ai',
+      value: -12,
+      unit: 'hours',
+      confidence: 'medium',
+      scope: 'team',
+      projectKey: 'aimetric',
+      periodStart: '1970-01-01T00:00:00.000Z',
+      periodEnd: '2026-04-24T00:00:00.000Z',
+      calculatedAt: '2026-04-24T01:00:00.000Z',
+      definitionVersion: 1,
+      dataRequirements: ['requirement-summary'],
+      definition: {
+        key: 'lead_time_ai_vs_non_ai',
+        name: 'AI 参与需求 Lead Time 对比',
+        dimension: 'delivery-efficiency',
+        question: 'AI 参与需求是否比非 AI 需求更快流向生产。',
+        formula: 'AI 参与需求平均 Lead Time 与非 AI 参与需求平均 Lead Time 的差异',
+        dataSources: ['delivery-tracker', 'pr-provider', 'deployment-provider', 'mcp-events'],
+        automationLevel: 'medium',
+        updateFrequency: 'daily',
+        dashboardPlacement: 'engineering-management',
+        assessmentUsage: 'team-improvement',
+        antiGamingNote: '必须按需求规模和类型分层对比，避免简单平均造成误判。',
+      },
+    },
   ],
   getCollectorIngestionHealth: async () => ({
     deliveryMode: 'queue',
@@ -375,6 +401,8 @@ describe('App', () => {
     expect(screen.getByText('统一指标计算管线')).toBeInTheDocument();
     expect(screen.getAllByText('AI 出码率').length).toBeGreaterThan(0);
     expect(screen.getAllByText('70.0%').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('AI 参与需求 Lead Time 对比').length).toBeGreaterThan(0);
+    expect(screen.getByText('-12.0 小时')).toBeInTheDocument();
     expect(screen.getByText('六类核心维度')).toBeInTheDocument();
     expect(screen.getByText('AI-IDE 使用人数比例')).toBeInTheDocument();
     expect(screen.getByText('必须按需求规模和类型分层对比，避免简单平均造成误判。')).toBeInTheDocument();

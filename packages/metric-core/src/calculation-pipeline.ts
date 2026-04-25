@@ -6,14 +6,15 @@ import {
 
 export type EnterpriseMetricScope = 'personal' | 'team' | 'project';
 
-export type EnterpriseMetricValueUnit = 'ratio' | 'count' | 'lines';
+export type EnterpriseMetricValueUnit = 'ratio' | 'count' | 'lines' | 'hours';
 
 export type EnterpriseMetricConfidence = 'high' | 'medium' | 'low';
 
 export type MetricDataRequirement =
   | 'recorded-metric-events'
   | 'analysis-summary'
-  | 'mcp-audit-metrics';
+  | 'mcp-audit-metrics'
+  | 'requirement-summary';
 
 export interface MetricCalculationContext {
   scope: EnterpriseMetricScope;
@@ -48,10 +49,19 @@ export interface CalculationMcpAuditMetrics {
   averageDurationMs: number;
 }
 
+export interface CalculationRequirementSummary {
+  totalRequirementCount: number;
+  aiTouchedRequirementCount: number;
+  nonAiRequirementCount: number;
+  averageAiLeadTimeHours: number;
+  averageNonAiLeadTimeHours: number;
+}
+
 export interface MetricCalculationInput {
   recordedMetricEvents?: CalculationRecordedMetricEvent[];
   analysisSummary?: CalculationAnalysisSummary;
   mcpAuditMetrics?: CalculationMcpAuditMetrics;
+  requirementSummary?: CalculationRequirementSummary;
 }
 
 export interface MetricCalculationResult {
@@ -227,6 +237,32 @@ const defaultCalculators: MetricCalculator[] = [
       confidence:
         (input.mcpAuditMetrics?.totalToolCalls ?? 0) > 0 ? 'high' : 'low',
     }),
+  ),
+  createCalculator(
+    'lead_time_ai_vs_non_ai',
+    'hours',
+    ['requirement-summary'],
+    (input) => {
+      const requirementSummary = input.requirementSummary;
+
+      if (
+        !requirementSummary ||
+        requirementSummary.aiTouchedRequirementCount === 0 ||
+        requirementSummary.nonAiRequirementCount === 0
+      ) {
+        return {
+          value: 0,
+          confidence: 'low' as const,
+        };
+      }
+
+      return {
+        value:
+          requirementSummary.averageAiLeadTimeHours -
+          requirementSummary.averageNonAiLeadTimeHours,
+        confidence: 'medium' as const,
+      };
+    },
   ),
 ];
 
