@@ -272,6 +272,166 @@ describe('bootstrap', () => {
     });
   });
 
+  it('filters the governance directory by viewer scope over HTTP', async () => {
+    const metricEventRepository: MetricEventRepository = {
+      ...createEmptyRepository(),
+      async getGovernanceDirectory() {
+        return {
+          organization: {
+            key: 'enterprise-a',
+            name: 'Enterprise A',
+          },
+          teams: [
+            {
+              key: 'team-a',
+              name: 'Team A',
+              organizationKey: 'enterprise-a',
+            },
+            {
+              key: 'team-b',
+              name: 'Team B',
+              organizationKey: 'enterprise-a',
+            },
+          ],
+          projects: [
+            {
+              key: 'project-a',
+              name: 'Project A',
+              teamKey: 'team-a',
+            },
+            {
+              key: 'project-b',
+              name: 'Project B',
+              teamKey: 'team-b',
+            },
+          ],
+          members: [
+            {
+              memberId: 'manager-1',
+              displayName: 'Manager 1',
+              teamKey: 'team-a',
+              role: 'engineering-manager',
+            },
+            {
+              memberId: 'developer-2',
+              displayName: 'Developer 2',
+              teamKey: 'team-b',
+              role: 'developer',
+            },
+          ],
+        };
+      },
+      async getGovernanceViewerScope(viewerId) {
+        if (viewerId !== 'manager-1') {
+          return undefined;
+        }
+
+        return {
+          viewerId: 'manager-1',
+          role: 'engineering-manager',
+          organizationKey: 'enterprise-a',
+          teamKeys: ['team-a'],
+          projectKeys: ['project-a'],
+          memberIds: ['manager-1'],
+        };
+      },
+    };
+    const app = await bootstrap({
+      port: 0,
+      metricEventRepository,
+    });
+    servers.push(app);
+
+    const response = await fetch(`${app.baseUrl}/governance/directory`, {
+      headers: {
+        'x-aimetric-viewer-id': 'manager-1',
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      organization: {
+        key: 'enterprise-a',
+        name: 'Enterprise A',
+      },
+      teams: [
+        {
+          key: 'team-a',
+          name: 'Team A',
+          organizationKey: 'enterprise-a',
+        },
+      ],
+      projects: [
+        {
+          key: 'project-a',
+          name: 'Project A',
+          teamKey: 'team-a',
+        },
+      ],
+      members: [
+        {
+          memberId: 'manager-1',
+          displayName: 'Manager 1',
+          teamKey: 'team-a',
+          role: 'engineering-manager',
+        },
+      ],
+    });
+  });
+
+  it('rejects metric requests outside the viewer scope over HTTP', async () => {
+    const listCalls: unknown[] = [];
+    const metricEventRepository: MetricEventRepository = {
+      ...createEmptyRepository(),
+      async listRecordedMetricEvents(filters?: unknown) {
+        listCalls.push(filters);
+        return [];
+      },
+      async getGovernanceViewerScope(viewerId) {
+        if (viewerId !== 'manager-1') {
+          return undefined;
+        }
+
+        return {
+          viewerId: 'manager-1',
+          role: 'engineering-manager',
+          organizationKey: 'enterprise-a',
+          teamKeys: ['team-a'],
+          projectKeys: ['project-a'],
+          memberIds: ['manager-1'],
+        };
+      },
+    };
+    const app = await bootstrap({
+      port: 0,
+      metricEventRepository,
+    });
+    servers.push(app);
+
+    const deniedResponse = await fetch(
+      `${app.baseUrl}/metrics/team?projectKey=project-b`,
+      {
+        headers: {
+          'x-aimetric-viewer-id': 'manager-1',
+        },
+      },
+    );
+
+    expect(deniedResponse.status).toBe(403);
+    expect(listCalls).toHaveLength(0);
+
+    const allowedResponse = await fetch(`${app.baseUrl}/metrics/team`, {
+      headers: {
+        'x-aimetric-viewer-id': 'manager-1',
+      },
+    });
+
+    expect(allowedResponse.status).toBe(200);
+    expect(listCalls[0]).toEqual({
+      projectKeys: ['project-a'],
+    });
+  });
+
   it('serves enterprise metrics filtered by dimension over HTTP', async () => {
     const app = await bootstrap({
       port: 0,

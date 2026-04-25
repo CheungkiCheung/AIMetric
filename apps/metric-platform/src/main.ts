@@ -9,6 +9,7 @@ import type {
   MetricEventRepository,
   MetricSnapshotFilters,
 } from './database/postgres-event.repository.js';
+import type { GovernanceViewerScope } from './governance/governance-directory.service.js';
 import {
   createSnapshotRecalculationScheduler,
   type SnapshotRecalculationScheduler,
@@ -185,6 +186,44 @@ const parseEnterpriseMetricDimension = (
     : undefined;
 };
 
+const readViewerId = (request: IncomingMessage): string | undefined => {
+  const viewerId = request.headers['x-aimetric-viewer-id'];
+  return typeof viewerId === 'string' && viewerId.length > 0 ? viewerId : undefined;
+};
+
+const applyViewerScopeToFilters = <T extends MetricSnapshotFilters>(
+  filters: T,
+  viewerScope?: GovernanceViewerScope,
+): { denied: boolean; filters: T } => {
+  if (!viewerScope || viewerScope.role === 'platform-admin') {
+    return { denied: false, filters };
+  }
+
+  if (
+    filters.projectKey &&
+    !viewerScope.projectKeys.includes(filters.projectKey)
+  ) {
+    return { denied: true, filters };
+  }
+
+  if (
+    filters.memberId &&
+    !viewerScope.memberIds.includes(filters.memberId)
+  ) {
+    return { denied: true, filters };
+  }
+
+  return {
+    denied: false,
+    filters: filters.projectKey
+      ? filters
+      : {
+          ...filters,
+          projectKeys: viewerScope.projectKeys,
+        },
+  };
+};
+
 const handleRequest = async (
   request: IncomingMessage,
   response: ServerResponse,
@@ -199,7 +238,14 @@ const handleRequest = async (
 ): Promise<void> => {
   const method = request.method ?? 'GET';
   const url = parseRequestUrl(request);
+  const viewerId = readViewerId(request);
+  const viewerScope = await appModule.getViewerScope(viewerId);
   runtime.requestCount += 1;
+
+  if (viewerId && !viewerScope) {
+    writeJson(response, 403, { message: 'Viewer is not authorized' });
+    return;
+  }
 
   if (method === 'GET' && url.pathname === '/health') {
     writeJson(response, 200, { status: 'ok', service: 'metric-platform' });
@@ -233,37 +279,77 @@ const handleRequest = async (
   }
 
   if (method === 'GET' && url.pathname === '/metrics/personal') {
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
     writeJson(
       response,
       200,
-      await appModule.buildPersonalSnapshot(getMetricSnapshotFilters(url)),
+      await appModule.buildPersonalSnapshot(scoped.filters),
     );
     return;
   }
 
   if (method === 'GET' && url.pathname === '/metrics/team') {
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
     writeJson(
       response,
       200,
-      await appModule.buildTeamSnapshot(getMetricSnapshotFilters(url)),
+      await appModule.buildTeamSnapshot(scoped.filters),
     );
     return;
   }
 
   if (method === 'GET' && url.pathname === '/metrics/snapshots') {
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
     writeJson(
       response,
       200,
-      await appModule.listMetricSnapshots(getMetricSnapshotFilters(url)),
+      await appModule.listMetricSnapshots(scoped.filters),
     );
     return;
   }
 
   if (method === 'GET' && url.pathname === '/metrics/mcp-audit') {
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
     writeJson(
       response,
       200,
-      await appModule.buildMcpAuditMetrics(getMetricSnapshotFilters(url)),
+      await appModule.buildMcpAuditMetrics(scoped.filters),
     );
     return;
   }
@@ -274,20 +360,32 @@ const handleRequest = async (
   }
 
   if (method === 'GET' && url.pathname === '/governance/directory') {
-    writeJson(response, 200, await appModule.getOrganizationDirectory());
+    writeJson(
+      response,
+      200,
+      await appModule.getScopedOrganizationDirectory(viewerId),
+    );
     return;
   }
 
   if (method === 'GET' && url.pathname === '/enterprise-metrics/values') {
-    const filters = getMetricSnapshotFilters(url);
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
 
     writeJson(
       response,
       200,
       await appModule.calculateEnterpriseMetricValues(
-        filters,
+        scoped.filters,
         {
-          metricKeys: filters.metricKeys,
+          metricKeys: scoped.filters.metricKeys,
         },
       ),
     );
@@ -295,10 +393,20 @@ const handleRequest = async (
   }
 
   if (method === 'GET' && url.pathname === '/enterprise-metrics/snapshots') {
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
     writeJson(
       response,
       200,
-      await appModule.listEnterpriseMetricSnapshots(getMetricSnapshotFilters(url)),
+      await appModule.listEnterpriseMetricSnapshots(scoped.filters),
     );
     return;
   }
@@ -318,46 +426,96 @@ const handleRequest = async (
   }
 
   if (method === 'GET' && url.pathname === '/evidence/edits') {
+    const scoped = applyViewerScopeToFilters(
+      getEditEvidenceFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
     writeJson(
       response,
       200,
-      await appModule.listEditSpanEvidence(getEditEvidenceFilters(url)),
+      await appModule.listEditSpanEvidence(scoped.filters),
     );
     return;
   }
 
   if (method === 'GET' && url.pathname === '/evidence/tab-completions') {
+    const scoped = applyViewerScopeToFilters(
+      getEditEvidenceFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
     writeJson(
       response,
       200,
-      await appModule.listTabAcceptedEvents(getEditEvidenceFilters(url)),
+      await appModule.listTabAcceptedEvents(scoped.filters),
     );
     return;
   }
 
   if (method === 'GET' && url.pathname === '/analysis/summary') {
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
     writeJson(
       response,
       200,
-      await appModule.buildAnalysisSummary(getMetricSnapshotFilters(url)),
+      await appModule.buildAnalysisSummary(scoped.filters),
     );
     return;
   }
 
   if (method === 'GET' && url.pathname === '/analysis/sessions') {
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
     writeJson(
       response,
       200,
-      await appModule.listSessionAnalysisRows(getMetricSnapshotFilters(url)),
+      await appModule.listSessionAnalysisRows(scoped.filters),
     );
     return;
   }
 
   if (method === 'GET' && url.pathname === '/analysis/output') {
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
     writeJson(
       response,
       200,
-      await appModule.listOutputAnalysisRows(getMetricSnapshotFilters(url)),
+      await appModule.listOutputAnalysisRows(scoped.filters),
     );
     return;
   }

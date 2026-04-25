@@ -108,6 +108,90 @@ describe('AppModule', () => {
     });
   });
 
+  it('filters the governance directory by viewer scope', async () => {
+    const repository = {
+      ...createEmptyRepository(),
+      getGovernanceDirectory: vi.fn(async () => ({
+        organization: {
+          key: 'enterprise-a',
+          name: 'Enterprise A',
+        },
+        teams: [
+          {
+            key: 'team-a',
+            name: 'Team A',
+            organizationKey: 'enterprise-a',
+          },
+          {
+            key: 'team-b',
+            name: 'Team B',
+            organizationKey: 'enterprise-a',
+          },
+        ],
+        projects: [
+          {
+            key: 'project-a',
+            name: 'Project A',
+            teamKey: 'team-a',
+          },
+          {
+            key: 'project-b',
+            name: 'Project B',
+            teamKey: 'team-b',
+          },
+        ],
+        members: [
+          {
+            memberId: 'manager-1',
+            displayName: 'Manager 1',
+            teamKey: 'team-a',
+            role: 'engineering-manager' as const,
+          },
+          {
+            memberId: 'developer-2',
+            displayName: 'Developer 2',
+            teamKey: 'team-b',
+            role: 'developer' as const,
+          },
+        ],
+      })),
+      getGovernanceViewerScope: vi.fn(async () => ({
+        viewerId: 'manager-1',
+        role: 'engineering-manager' as const,
+        organizationKey: 'enterprise-a',
+        teamKeys: ['team-a'],
+        projectKeys: ['project-a'],
+        memberIds: ['manager-1'],
+      })),
+    };
+    const appModule = new AppModule(repository);
+    const directory = await appModule.getScopedOrganizationDirectory('manager-1');
+
+    expect(directory).toMatchObject({
+      organization: {
+        key: 'enterprise-a',
+      },
+      teams: [
+        expect.objectContaining({
+          key: 'team-a',
+        }),
+      ],
+      projects: [
+        expect.objectContaining({
+          key: 'project-a',
+        }),
+      ],
+      members: [
+        expect.objectContaining({
+          memberId: 'manager-1',
+        }),
+      ],
+    });
+    expect(directory.teams).toHaveLength(1);
+    expect(directory.projects).toHaveLength(1);
+    expect(directory.members).toHaveLength(1);
+  });
+
   it('filters enterprise metrics by dimension', () => {
     const appModule = new AppModule(createEmptyRepository());
     const metrics = appModule.listEnterpriseMetricsByDimension('quality-risk');

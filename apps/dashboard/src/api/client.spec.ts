@@ -548,4 +548,42 @@ describe('createDashboardClient', () => {
       'http://127.0.0.1:3001/analysis/output?projectKey=aimetric&memberId=alice',
     ]);
   });
+
+  it('sends viewer headers when a dashboard viewer id is configured', async () => {
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+
+    globalThis.fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      requests.push({
+        url: String(input),
+        init,
+      });
+
+      return new Response(
+        JSON.stringify({
+          acceptedAiLines: 44,
+          commitTotalLines: 55,
+          aiOutputRate: 0.8,
+          sessionCount: 5,
+        }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+
+    const client = createDashboardClient(
+      'http://127.0.0.1:3001',
+      'http://127.0.0.1:3000',
+      'manager-1',
+    );
+
+    await client.getPersonalSnapshot();
+
+    expect(requests[0]).toEqual({
+      url: 'http://127.0.0.1:3001/metrics/personal',
+      init: {
+        headers: {
+          'x-aimetric-viewer-id': 'manager-1',
+        },
+      },
+    });
+  });
 });

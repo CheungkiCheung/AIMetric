@@ -16,6 +16,11 @@ import {
   type RecordedMetricEvent,
 } from './database/postgres-event.repository.js';
 import { GovernanceDirectoryService } from './governance/governance-directory.service.js';
+import {
+  buildGovernanceViewerScope,
+  filterGovernanceDirectoryByViewerScope,
+  type GovernanceViewerScope,
+} from './governance/governance-directory.service.js';
 import { KnowledgeSearchService } from './knowledge/knowledge-search.service.js';
 import { MetricsController } from './metrics/metrics.controller.js';
 import { MetricsService } from './metrics/metrics.service.js';
@@ -175,6 +180,32 @@ export class AppModule {
     }
 
     return this.governanceDirectoryService.getDirectory();
+  }
+
+  async getViewerScope(viewerId?: string): Promise<GovernanceViewerScope | undefined> {
+    if (!viewerId) {
+      return undefined;
+    }
+
+    if (this.metricEventRepository.getGovernanceViewerScope) {
+      return this.metricEventRepository.getGovernanceViewerScope(viewerId);
+    }
+
+    return buildGovernanceViewerScope(
+      this.governanceDirectoryService.getDirectory(),
+      viewerId,
+    );
+  }
+
+  async getScopedOrganizationDirectory(
+    viewerId?: string,
+  ) {
+    const [directory, viewerScope] = await Promise.all([
+      this.getOrganizationDirectory(),
+      this.getViewerScope(viewerId),
+    ]);
+
+    return filterGovernanceDirectoryByViewerScope(directory, viewerScope);
   }
 
   listEnterpriseMetricsByDimension(dimension: EnterpriseMetricDimensionKey) {

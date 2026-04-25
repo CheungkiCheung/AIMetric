@@ -2,10 +2,12 @@ import { Pool, type QueryResult, type QueryResultRow } from 'pg';
 import type { IngestionBatch } from '@aimetric/event-schema';
 import type { MetricCalculationResult } from '@aimetric/metric-core';
 import {
+  buildGovernanceViewerScope,
   cloneGovernanceDirectory,
   defaultGovernanceDirectory,
   type GovernanceDirectory,
   type GovernanceMember,
+  type GovernanceViewerScope,
 } from '../governance/governance-directory.service.js';
 
 export interface RecordedMetricEvent {
@@ -17,6 +19,7 @@ export interface RecordedMetricEvent {
 
 export interface MetricSnapshotFilters {
   projectKey?: string;
+  projectKeys?: string[];
   memberId?: string;
   from?: string;
   to?: string;
@@ -143,6 +146,9 @@ export interface MetricEventRepository {
     filters?: MetricSnapshotFilters,
   ): Promise<OutputAnalysisRow[]>;
   getGovernanceDirectory?(): Promise<GovernanceDirectory>;
+  getGovernanceViewerScope?(
+    viewerId: string,
+  ): Promise<GovernanceViewerScope | undefined>;
   disconnect(): Promise<void>;
 }
 
@@ -157,6 +163,24 @@ interface Queryable {
   ): Promise<QueryResult<T>>;
   end?(): Promise<void>;
 }
+
+const appendProjectFilterClauses = (
+  values: Array<string | string[]>,
+  whereClauses: string[],
+  filters: Pick<MetricSnapshotFilters, 'projectKey' | 'projectKeys'>,
+  column: string,
+) => {
+  if (filters.projectKey) {
+    values.push(filters.projectKey);
+    whereClauses.push(`${column} = $${values.length}`);
+    return;
+  }
+
+  if (filters.projectKeys && filters.projectKeys.length > 0) {
+    values.push(filters.projectKeys);
+    whereClauses.push(`${column} = ANY($${values.length})`);
+  }
+};
 
 export class PostgresMetricEventRepository implements MetricEventRepository {
   private readonly database: Queryable;
@@ -445,13 +469,9 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
   ): Promise<RecordedMetricEvent[]> {
     await this.ensureSchema();
 
-    const values: string[] = [];
+    const values: Array<string | string[]> = [];
     const whereClauses = [`event_type = 'session.recorded'`];
-
-    if (filters.projectKey) {
-      values.push(filters.projectKey);
-      whereClauses.push(`project_key = $${values.length}`);
-    }
+    appendProjectFilterClauses(values, whereClauses, filters, 'project_key');
 
     if (filters.memberId) {
       values.push(filters.memberId);
@@ -497,13 +517,9 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
   ): Promise<McpAuditMetrics> {
     await this.ensureSchema();
 
-    const values: string[] = [];
+    const values: Array<string | string[]> = [];
     const whereClauses = [`event_type = 'mcp.tool.called'`];
-
-    if (filters.projectKey) {
-      values.push(filters.projectKey);
-      whereClauses.push(`project_key = $${values.length}`);
-    }
+    appendProjectFilterClauses(values, whereClauses, filters, 'project_key');
 
     if (filters.memberId) {
       values.push(filters.memberId);
@@ -559,13 +575,9 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
   ): Promise<EditSpanEvidenceRecord[]> {
     await this.ensureSchema();
 
-    const values: string[] = [];
+    const values: Array<string | string[]> = [];
     const whereClauses = [`event_type = 'edit.span.recorded'`];
-
-    if (filters.projectKey) {
-      values.push(filters.projectKey);
-      whereClauses.push(`project_key = $${values.length}`);
-    }
+    appendProjectFilterClauses(values, whereClauses, filters, 'project_key');
 
     if (filters.memberId) {
       values.push(filters.memberId);
@@ -636,13 +648,9 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
   ): Promise<TabAcceptedEventRecord[]> {
     await this.ensureSchema();
 
-    const values: string[] = [];
+    const values: Array<string | string[]> = [];
     const whereClauses = [`event_type = 'tab.accepted'`];
-
-    if (filters.projectKey) {
-      values.push(filters.projectKey);
-      whereClauses.push(`project_key = $${values.length}`);
-    }
+    appendProjectFilterClauses(values, whereClauses, filters, 'project_key');
 
     if (filters.memberId) {
       values.push(filters.memberId);
@@ -707,15 +715,11 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
   ): Promise<AnalysisSummaryRecord> {
     await this.ensureSchema();
 
-    const values: string[] = [];
+    const values: Array<string | string[]> = [];
     const whereClauses = [
       `event_type IN ('session.recorded', 'edit.span.recorded', 'tab.accepted')`,
     ];
-
-    if (filters.projectKey) {
-      values.push(filters.projectKey);
-      whereClauses.push(`project_key = $${values.length}`);
-    }
+    appendProjectFilterClauses(values, whereClauses, filters, 'project_key');
 
     if (filters.memberId) {
       values.push(filters.memberId);
@@ -773,13 +777,9 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
   ): Promise<SessionAnalysisRow[]> {
     await this.ensureSchema();
 
-    const values: string[] = [];
+    const values: Array<string | string[]> = [];
     const whereClauses = [`sessions.event_type = 'session.recorded'`];
-
-    if (filters.projectKey) {
-      values.push(filters.projectKey);
-      whereClauses.push(`sessions.project_key = $${values.length}`);
-    }
+    appendProjectFilterClauses(values, whereClauses, filters, 'sessions.project_key');
 
     if (filters.memberId) {
       values.push(filters.memberId);
@@ -884,13 +884,9 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
   ): Promise<OutputAnalysisRow[]> {
     await this.ensureSchema();
 
-    const values: string[] = [];
+    const values: Array<string | string[]> = [];
     const whereClauses = [`edits.event_type = 'edit.span.recorded'`];
-
-    if (filters.projectKey) {
-      values.push(filters.projectKey);
-      whereClauses.push(`edits.project_key = $${values.length}`);
-    }
+    appendProjectFilterClauses(values, whereClauses, filters, 'edits.project_key');
 
     if (filters.memberId) {
       values.push(filters.memberId);
@@ -1021,13 +1017,9 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
   ): Promise<MetricSnapshotRecord[]> {
     await this.ensureSchema();
 
-    const values: string[] = [];
+    const values: Array<string | string[]> = [];
     const whereClauses: string[] = [];
-
-    if (filters.projectKey) {
-      values.push(filters.projectKey);
-      whereClauses.push(`project_key = $${values.length}`);
-    }
+    appendProjectFilterClauses(values, whereClauses, filters, 'project_key');
 
     if (filters.memberId) {
       values.push(filters.memberId);
@@ -1163,10 +1155,7 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
     const values: Array<string | string[]> = [];
     const whereClauses: string[] = [];
 
-    if (filters.projectKey) {
-      values.push(filters.projectKey);
-      whereClauses.push(`project_key = $${values.length}`);
-    }
+    appendProjectFilterClauses(values, whereClauses, filters, 'project_key');
 
     if (filters.memberId) {
       values.push(filters.memberId);
@@ -1339,6 +1328,14 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
         role: member.role,
       })),
     };
+  }
+
+  async getGovernanceViewerScope(
+    viewerId: string,
+  ): Promise<GovernanceViewerScope | undefined> {
+    const directory = await this.getGovernanceDirectory();
+
+    return buildGovernanceViewerScope(directory, viewerId);
   }
 
   async disconnect(): Promise<void> {

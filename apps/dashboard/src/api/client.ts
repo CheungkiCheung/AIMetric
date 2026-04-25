@@ -270,13 +270,26 @@ const fallbackGovernanceDirectory: GovernanceDirectory = {
   members: [],
 };
 
-const fetchJson = async <T>(url: string, fallback: T): Promise<T> => {
+const buildViewerHeaders = (viewerId?: string): HeadersInit | undefined =>
+  viewerId
+    ? {
+        'x-aimetric-viewer-id': viewerId,
+      }
+    : undefined;
+
+const fetchJson = async <T>(
+  url: string,
+  fallback: T,
+  viewerId?: string,
+): Promise<T> => {
   if (typeof fetch !== 'function') {
     return fallback;
   }
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: buildViewerHeaders(viewerId),
+    });
 
     if (!response.ok) {
       return fallback;
@@ -292,6 +305,7 @@ const sendJson = async <T>(
   url: string,
   body: unknown,
   fallback: T,
+  viewerId?: string,
 ): Promise<T> => {
   if (typeof fetch !== 'function') {
     return fallback;
@@ -302,6 +316,7 @@ const sendJson = async <T>(
       method: 'POST',
       headers: {
         'content-type': 'application/json',
+        ...buildViewerHeaders(viewerId),
       },
       body: JSON.stringify(body),
     });
@@ -367,56 +382,67 @@ const buildRuleUrl = (
 export const createDashboardClient = (
   baseUrl = 'http://localhost:3001',
   collectorGatewayBaseUrl = 'http://localhost:3000',
+  viewerId = import.meta.env.VITE_AIMETRIC_VIEWER_ID as string | undefined,
 ): DashboardClient => ({
   getPersonalSnapshot: (filters) =>
     fetchJson<PersonalSnapshot>(
       buildMetricUrl(baseUrl, '/metrics/personal', filters),
       fallbackPersonalSnapshot,
+      viewerId,
     ),
   getTeamSnapshot: (filters) =>
     fetchJson<TeamSnapshot>(
       buildMetricUrl(baseUrl, '/metrics/team', filters),
       fallbackTeamSnapshot,
+      viewerId,
     ),
   getMcpAuditMetrics: (filters) =>
     fetchJson<McpAuditMetrics>(
       buildMetricUrl(baseUrl, '/metrics/mcp-audit', filters),
       fallbackMcpAuditMetrics,
+      viewerId,
     ),
   getAnalysisSummary: (filters) =>
     fetchJson<AnalysisSummary>(
       buildMetricUrl(baseUrl, '/analysis/summary', filters),
       fallbackAnalysisSummary,
+      viewerId,
     ),
   getSessionAnalysisRows: (filters) =>
     fetchJson<SessionAnalysisRow[]>(
       buildMetricUrl(baseUrl, '/analysis/sessions', filters),
       [],
+      viewerId,
     ),
   getOutputAnalysisRows: (filters) =>
     fetchJson<OutputAnalysisRow[]>(
       buildMetricUrl(baseUrl, '/analysis/output', filters),
       [],
+      viewerId,
     ),
   getRuleVersions: (projectKey) =>
     fetchJson<RuleVersionCatalog>(
       buildRuleUrl(baseUrl, '/rules/versions', projectKey),
       fallbackRuleVersions,
+      viewerId,
     ),
   getRuleRollout: (projectKey) =>
     fetchJson<RuleRollout>(
       buildRuleUrl(baseUrl, '/rules/rollout', projectKey),
       fallbackRuleRollout,
+      viewerId,
     ),
   getRuleRolloutEvaluation: (projectKey, memberId) =>
     fetchJson<RuleRolloutEvaluation>(
       buildRuleUrl(baseUrl, '/rules/rollout/evaluate', projectKey, memberId),
       fallbackRuleRolloutEvaluation,
+      viewerId,
     ),
   getEnterpriseMetricCatalog: () =>
     fetchJson<EnterpriseMetricCatalog>(
       new URL('/enterprise-metrics/catalog', baseUrl).toString(),
       fallbackEnterpriseMetricCatalog,
+      viewerId,
     ),
   getEnterpriseMetricValues: (filters, metricKeys) =>
     fetchJson<MetricCalculationResult[]>(
@@ -427,6 +453,7 @@ export const createDashboardClient = (
         metricKeys,
       ),
       [],
+      viewerId,
     ),
   getCollectorIngestionHealth: () =>
     fetchJson<CollectorIngestionHealth>(
@@ -437,11 +464,13 @@ export const createDashboardClient = (
     fetchJson<GovernanceDirectory>(
       new URL('/governance/directory', baseUrl).toString(),
       fallbackGovernanceDirectory,
+      viewerId,
     ),
   updateRuleRollout: (input) =>
     sendJson<RuleRollout>(
       new URL('/rules/rollout', baseUrl).toString(),
       input,
       fallbackRuleRollout,
+      viewerId,
     ),
 });
