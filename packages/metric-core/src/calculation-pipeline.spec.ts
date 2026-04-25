@@ -16,6 +16,7 @@ describe('enterprise metric calculation pipeline', () => {
       'lead_time_ai_vs_non_ai',
       'pr_cycle_time',
       'review_rejection_rate',
+      'ci_pass_rate',
     ]);
     expect(registry.getDefinition('ai_output_rate')).toMatchObject({
       key: 'ai_output_rate',
@@ -86,6 +87,13 @@ describe('enterprise metric calculation pipeline', () => {
           reviewedPullRequestCount: 4,
           rejectedPullRequestCount: 1,
         },
+        ciSummary: {
+          totalRunCount: 6,
+          completedRunCount: 5,
+          successfulRunCount: 4,
+          failedRunCount: 1,
+          passRate: 0.8,
+        },
       },
     });
 
@@ -145,6 +153,13 @@ describe('enterprise metric calculation pipeline', () => {
         unit: 'ratio',
         confidence: 'medium',
         dataRequirements: ['pull-request-summary'],
+      }),
+      expect.objectContaining({
+        metricKey: 'ci_pass_rate',
+        value: 0.8,
+        unit: 'ratio',
+        confidence: 'high',
+        dataRequirements: ['ci-summary'],
       }),
     ]);
   });

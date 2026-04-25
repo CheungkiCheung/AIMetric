@@ -16,6 +16,8 @@ import {
   type MetricSnapshotFilters,
   type PullRequestRecord,
   type PullRequestSummary,
+  type CiRunRecord,
+  type CiRunSummary,
   type RequirementRecord,
   type RequirementSummary,
   type RecordedMetricEvent,
@@ -238,6 +240,37 @@ export class AppModule {
     );
   }
 
+  async importCiRuns(ciRuns: CiRunRecord[]) {
+    if (!this.metricEventRepository.importCiRuns) {
+      throw new Error('CI run import is not configured');
+    }
+
+    await this.metricEventRepository.importCiRuns(ciRuns);
+
+    return {
+      importedCiRuns: ciRuns.length,
+    };
+  }
+
+  async listCiRuns(filters: MetricSnapshotFilters = {}) {
+    return (await this.metricEventRepository.listCiRuns?.(filters)) ?? [];
+  }
+
+  async buildCiRunSummary(
+    filters: MetricSnapshotFilters = {},
+  ): Promise<CiRunSummary> {
+    return (
+      (await this.metricEventRepository.buildCiRunSummary?.(filters)) ?? {
+        totalRunCount: 0,
+        completedRunCount: 0,
+        successfulRunCount: 0,
+        failedRunCount: 0,
+        passRate: 0,
+        averageDurationMinutes: 0,
+      }
+    );
+  }
+
   getEnterpriseMetricCatalog() {
     return getEnterpriseMetricCatalog();
   }
@@ -329,6 +362,7 @@ export class AppModule {
       mcpAuditMetrics,
       requirements,
       pullRequests,
+      ciRuns,
     ] =
       await Promise.all([
         this.metricEventRepository.listRecordedMetricEvents(filters),
@@ -336,6 +370,7 @@ export class AppModule {
         this.metricEventRepository.buildMcpAuditMetrics(filters),
         this.listRequirements(filters),
         this.listPullRequests(filters),
+        this.listCiRuns(filters),
       ]);
 
     return calculateEnterpriseMetrics({
@@ -354,6 +389,7 @@ export class AppModule {
         mcpAuditMetrics,
         requirementSummary: buildRequirementCalculationSummary(requirements),
         pullRequestSummary: buildPullRequestCalculationSummary(pullRequests),
+        ciSummary: buildCiCalculationSummary(ciRuns),
       },
     });
   }
@@ -531,5 +567,26 @@ const buildPullRequestCalculationSummary = (
           ) / mergedPullRequests.length,
     reviewedPullRequestCount: reviewedPullRequests.length,
     rejectedPullRequestCount: rejectedPullRequests.length,
+  };
+};
+
+const buildCiCalculationSummary = (
+  ciRuns: CiRunRecord[],
+) => {
+  const completedRuns = ciRuns.filter((ciRun) => ciRun.status === 'completed');
+  const successfulRuns = completedRuns.filter(
+    (ciRun) => ciRun.conclusion === 'success',
+  );
+  const failedRuns = completedRuns.filter(
+    (ciRun) => ciRun.conclusion === 'failure' || ciRun.conclusion === 'timed_out',
+  );
+
+  return {
+    totalRunCount: ciRuns.length,
+    completedRunCount: completedRuns.length,
+    successfulRunCount: successfulRuns.length,
+    failedRunCount: failedRuns.length,
+    passRate:
+      completedRuns.length === 0 ? 0 : successfulRuns.length / completedRuns.length,
   };
 };

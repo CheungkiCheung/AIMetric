@@ -215,6 +215,29 @@ export interface RequirementSummary {
   averageLeadTimeToFirstPrHours: number;
 }
 
+export interface CiRunRecord {
+  provider: 'github-actions';
+  projectKey: string;
+  repoName: string;
+  runId: number;
+  workflowName: string;
+  status: 'queued' | 'in_progress' | 'completed';
+  conclusion?: 'success' | 'failure' | 'cancelled' | 'timed_out' | 'skipped';
+  createdAt: string;
+  completedAt?: string;
+  durationMinutes?: number;
+  updatedAt: string;
+}
+
+export interface CiRunSummary {
+  totalRunCount: number;
+  completedRunCount: number;
+  successfulRunCount: number;
+  failedRunCount: number;
+  passRate: number;
+  averageDurationMinutes: number;
+}
+
 export interface DashboardClient {
   getPersonalSnapshot(filters?: DashboardFilters): Promise<PersonalSnapshot>;
   getTeamSnapshot(filters?: DashboardFilters): Promise<TeamSnapshot>;
@@ -243,6 +266,8 @@ export interface DashboardClient {
   getPullRequests(filters?: DashboardFilters): Promise<PullRequestRecord[]>;
   getRequirementSummary(filters?: DashboardFilters): Promise<RequirementSummary>;
   getRequirements(filters?: DashboardFilters): Promise<RequirementRecord[]>;
+  getCiRunSummary(filters?: DashboardFilters): Promise<CiRunSummary>;
+  getCiRuns(filters?: DashboardFilters): Promise<CiRunRecord[]>;
   updateRuleRollout(input: RuleRollout): Promise<RuleRollout>;
 }
 
@@ -356,6 +381,15 @@ const fallbackRequirementSummary: RequirementSummary = {
   completedRequirementCount: 0,
   averageLeadTimeHours: 0,
   averageLeadTimeToFirstPrHours: 0,
+};
+
+const fallbackCiRunSummary: CiRunSummary = {
+  totalRunCount: 0,
+  completedRunCount: 0,
+  successfulRunCount: 0,
+  failedRunCount: 0,
+  passRate: 0,
+  averageDurationMinutes: 0,
 };
 
 const buildViewerHeaders = (viewerId?: string): HeadersInit | undefined =>
@@ -606,6 +640,20 @@ export const createDashboardClient = (
   getRequirements: (filters) =>
     fetchJson<RequirementRecord[]>(
       buildMetricUrl(baseUrl, '/integrations/requirements', filters),
+      [],
+      viewerId,
+      adminToken,
+    ),
+  getCiRunSummary: (filters) =>
+    fetchJson<CiRunSummary>(
+      buildMetricUrl(baseUrl, '/integrations/ci/runs/summary', filters),
+      fallbackCiRunSummary,
+      viewerId,
+      adminToken,
+    ),
+  getCiRuns: (filters) =>
+    fetchJson<CiRunRecord[]>(
+      buildMetricUrl(baseUrl, '/integrations/ci/runs', filters),
       [],
       viewerId,
       adminToken,

@@ -427,6 +427,77 @@ describe('AppModule', () => {
     });
   });
 
+  it('imports ci runs and builds a ci summary through the repository', async () => {
+    const repository = {
+      ...createEmptyRepository(),
+      importCiRuns: vi.fn(async () => undefined),
+      listCiRuns: vi.fn(async () => [
+        {
+          provider: 'github-actions' as const,
+          projectKey: 'aimetric',
+          repoName: 'AIMetric',
+          runId: 501,
+          workflowName: 'ci',
+          status: 'completed' as const,
+          conclusion: 'success' as const,
+          durationMinutes: 14,
+          createdAt: '2026-04-26T00:00:00.000Z',
+          completedAt: '2026-04-26T00:14:00.000Z',
+          updatedAt: '2026-04-26T00:14:00.000Z',
+        },
+        {
+          provider: 'github-actions' as const,
+          projectKey: 'aimetric',
+          repoName: 'AIMetric',
+          runId: 502,
+          workflowName: 'ci',
+          status: 'completed' as const,
+          conclusion: 'failure' as const,
+          durationMinutes: 10,
+          createdAt: '2026-04-26T01:00:00.000Z',
+          completedAt: '2026-04-26T01:10:00.000Z',
+          updatedAt: '2026-04-26T01:10:00.000Z',
+        },
+      ]),
+      buildCiRunSummary: vi.fn(async () => ({
+        totalRunCount: 2,
+        completedRunCount: 2,
+        successfulRunCount: 1,
+        failedRunCount: 1,
+        passRate: 0.5,
+        averageDurationMinutes: 12,
+      })),
+    };
+    const appModule = new AppModule(repository);
+
+    const importResult = await appModule.importCiRuns([
+      {
+        provider: 'github-actions',
+        projectKey: 'aimetric',
+        repoName: 'AIMetric',
+        runId: 501,
+        workflowName: 'ci',
+        status: 'completed',
+        conclusion: 'success',
+        createdAt: '2026-04-26T00:00:00.000Z',
+        completedAt: '2026-04-26T00:14:00.000Z',
+        updatedAt: '2026-04-26T00:14:00.000Z',
+      },
+    ]);
+    const summary = await appModule.buildCiRunSummary({ projectKey: 'aimetric' });
+
+    expect(importResult).toEqual({ importedCiRuns: 1 });
+    expect(repository.importCiRuns).toHaveBeenCalledTimes(1);
+    expect(summary).toEqual({
+      totalRunCount: 2,
+      completedRunCount: 2,
+      successfulRunCount: 1,
+      failedRunCount: 1,
+      passRate: 0.5,
+      averageDurationMinutes: 12,
+    });
+  });
+
   it('filters enterprise metrics by dimension', () => {
     const appModule = new AppModule(createEmptyRepository());
     const metrics = appModule.listEnterpriseMetricsByDimension('quality-risk');
@@ -521,6 +592,32 @@ describe('AppModule', () => {
           updatedAt: '2026-04-24T00:00:00.000Z',
         },
       ]),
+      listCiRuns: vi.fn(async () => [
+        {
+          provider: 'github-actions' as const,
+          projectKey: 'navigation',
+          repoName: 'AIMetric',
+          runId: 501,
+          workflowName: 'ci',
+          status: 'completed' as const,
+          conclusion: 'success' as const,
+          createdAt: '2026-04-23T00:00:00.000Z',
+          completedAt: '2026-04-23T00:14:00.000Z',
+          updatedAt: '2026-04-23T00:14:00.000Z',
+        },
+        {
+          provider: 'github-actions' as const,
+          projectKey: 'navigation',
+          repoName: 'AIMetric',
+          runId: 502,
+          workflowName: 'ci',
+          status: 'completed' as const,
+          conclusion: 'failure' as const,
+          createdAt: '2026-04-23T01:00:00.000Z',
+          completedAt: '2026-04-23T01:10:00.000Z',
+          updatedAt: '2026-04-23T01:10:00.000Z',
+        },
+      ]),
     };
     const filters = {
       projectKey: 'navigation',
@@ -538,6 +635,7 @@ describe('AppModule', () => {
     expect(repository.buildMcpAuditMetrics).toHaveBeenCalledWith(filters);
     expect(repository.listRequirements).toHaveBeenCalledWith(filters);
     expect(repository.listPullRequests).toHaveBeenCalledWith(filters);
+    expect(repository.listCiRuns).toHaveBeenCalledWith(filters);
     expect(result).toEqual([
       expect.objectContaining({
         metricKey: 'ai_output_rate',
@@ -573,6 +671,11 @@ describe('AppModule', () => {
       }),
       expect.objectContaining({
         metricKey: 'review_rejection_rate',
+        value: 0.5,
+        unit: 'ratio',
+      }),
+      expect.objectContaining({
+        metricKey: 'ci_pass_rate',
         value: 0.5,
         unit: 'ratio',
       }),

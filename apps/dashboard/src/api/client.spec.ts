@@ -275,6 +275,41 @@ describe('createDashboardClient', () => {
         );
       }
 
+      if (url.endsWith('/integrations/ci/runs/summary')) {
+        return new Response(
+          JSON.stringify({
+            totalRunCount: 4,
+            completedRunCount: 4,
+            successfulRunCount: 3,
+            failedRunCount: 1,
+            passRate: 0.75,
+            averageDurationMinutes: 12,
+          }),
+          { status: 200 },
+        );
+      }
+
+      if (url.endsWith('/integrations/ci/runs')) {
+        return new Response(
+          JSON.stringify([
+            {
+              provider: 'github-actions',
+              projectKey: 'aimetric',
+              repoName: 'AIMetric',
+              runId: 501,
+              workflowName: 'ci',
+              status: 'completed',
+              conclusion: 'success',
+              durationMinutes: 14,
+              createdAt: '2026-04-24T00:00:00.000Z',
+              completedAt: '2026-04-24T00:14:00.000Z',
+              updatedAt: '2026-04-24T00:14:00.000Z',
+            },
+          ]),
+          { status: 200 },
+        );
+      }
+
       if (url.includes('/governance/viewer-scopes')) {
         return new Response(
           JSON.stringify({
@@ -399,6 +434,21 @@ describe('createDashboardClient', () => {
         linkedPullRequestCount: 2,
       }),
     ]);
+    await expect(client.getCiRunSummary()).resolves.toMatchObject({
+      totalRunCount: 4,
+      completedRunCount: 4,
+      successfulRunCount: 3,
+      failedRunCount: 1,
+      passRate: 0.75,
+      averageDurationMinutes: 12,
+    });
+    await expect(client.getCiRuns()).resolves.toEqual([
+      expect.objectContaining({
+        provider: 'github-actions',
+        runId: 501,
+        conclusion: 'success',
+      }),
+    ]);
     await expect(client.getViewerScopeAssignment('manager-1')).resolves.toMatchObject({
       viewerId: 'manager-1',
       teamKeys: ['platform-engineering'],
@@ -456,6 +506,8 @@ describe('createDashboardClient', () => {
     await client.getPullRequests(filters);
     await client.getRequirementSummary(filters);
     await client.getRequirements(filters);
+    await client.getCiRunSummary(filters);
+    await client.getCiRuns(filters);
 
     expect(requestedUrls[0]).toBe(
       'http://127.0.0.1:3001/metrics/personal?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
@@ -489,6 +541,12 @@ describe('createDashboardClient', () => {
     );
     expect(requestedUrls[10]).toBe(
       'http://127.0.0.1:3001/integrations/requirements?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+    );
+    expect(requestedUrls[11]).toBe(
+      'http://127.0.0.1:3001/integrations/ci/runs/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+    );
+    expect(requestedUrls[12]).toBe(
+      'http://127.0.0.1:3001/integrations/ci/runs?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
   });
 

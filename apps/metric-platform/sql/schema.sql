@@ -99,6 +99,21 @@ CREATE TABLE IF NOT EXISTS delivery_requirements (
   UNIQUE (provider, project_key, requirement_key)
 );
 
+CREATE TABLE IF NOT EXISTS ci_runs (
+  id BIGSERIAL PRIMARY KEY,
+  provider TEXT NOT NULL,
+  project_key TEXT NOT NULL,
+  repo_name TEXT NOT NULL,
+  run_id BIGINT NOT NULL,
+  workflow_name TEXT NOT NULL,
+  status TEXT NOT NULL,
+  conclusion TEXT,
+  created_at TIMESTAMPTZ NOT NULL,
+  completed_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL,
+  UNIQUE (provider, project_key, repo_name, run_id)
+);
+
 CREATE TABLE IF NOT EXISTS governance_organizations (
   id BIGSERIAL PRIMARY KEY,
   organization_key TEXT NOT NULL UNIQUE,

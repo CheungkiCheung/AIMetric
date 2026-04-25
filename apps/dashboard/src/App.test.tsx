@@ -5,6 +5,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App.js';
 import type {
+  CiRunRecord,
+  CiRunSummary,
   DashboardClient,
   DashboardFilters,
   PullRequestRecord,
@@ -67,6 +69,29 @@ const createClient = (
       leadTimeToFirstPrHours: 8,
       createdAt: '2026-04-24T00:00:00.000Z',
       updatedAt: '2026-04-25T12:00:00.000Z',
+    },
+  ],
+  getCiRunSummary: async (): Promise<CiRunSummary> => ({
+    totalRunCount: 4,
+    completedRunCount: 4,
+    successfulRunCount: 3,
+    failedRunCount: 1,
+    passRate: 0.75,
+    averageDurationMinutes: 12,
+  }),
+  getCiRuns: async (): Promise<CiRunRecord[]> => [
+    {
+      provider: 'github-actions',
+      projectKey: 'aimetric',
+      repoName: 'AIMetric',
+      runId: 501,
+      workflowName: 'ci',
+      status: 'completed',
+      conclusion: 'success',
+      durationMinutes: 14,
+      createdAt: '2026-04-24T00:00:00.000Z',
+      completedAt: '2026-04-24T00:14:00.000Z',
+      updatedAt: '2026-04-24T00:14:00.000Z',
     },
   ],
   getPersonalSnapshot: async () => ({
@@ -379,6 +404,7 @@ describe('App', () => {
     expect(screen.getByText('平台工程团队')).toBeInTheDocument();
     expect(screen.getByText('MCP 采集质量')).toBeInTheDocument();
     expect(screen.getByText('采集健康运营')).toBeInTheDocument();
+    expect(screen.getByText('CI 质量概览')).toBeInTheDocument();
     expect(screen.getByText('需求交付概览')).toBeInTheDocument();
     expect(screen.getByText('GitHub PR 交付概览')).toBeInTheDocument();
     expect(screen.getByText('队列模式')).toBeInTheDocument();
@@ -386,10 +412,13 @@ describe('App', () => {
     expect(screen.getByText('60.0%')).toBeInTheDocument();
     expect(screen.getByText('36.0 小时')).toBeInTheDocument();
     expect(screen.getByText('Jira AIM-101 Build management dashboard')).toBeInTheDocument();
+    expect(screen.getAllByText('75.0%').length).toBeGreaterThan(0);
+    expect(screen.getByText('12.0 分钟')).toBeInTheDocument();
+    expect(screen.getByText('AIMetric #501 ci')).toBeInTheDocument();
     expect(screen.getByText(/关联 PR：2/)).toBeInTheDocument();
     expect(screen.getByText(/PR 编号：101, 103/)).toBeInTheDocument();
     expect(screen.getByText('AI 触达 PR 占比')).toBeInTheDocument();
-    expect(screen.getByText('75.0%')).toBeInTheDocument();
+    expect(screen.getAllByText('75.0%').length).toBeGreaterThan(0);
     expect(screen.getByText('18.0 小时')).toBeInTheDocument();
     expect(screen.getByText('AIMetric #101 Add collector health dashboard')).toBeInTheDocument();
     expect(screen.getByText(/关联需求：AIM-101/)).toBeInTheDocument();
@@ -483,6 +512,8 @@ describe('App', () => {
     );
     const getRequirementSummary = vi.fn(createClient().getRequirementSummary);
     const getRequirements = vi.fn(createClient().getRequirements);
+    const getCiRunSummary = vi.fn(createClient().getCiRunSummary);
+    const getCiRuns = vi.fn(createClient().getCiRuns);
     const getPullRequestSummary = vi.fn(createClient().getPullRequestSummary);
     const getPullRequests = vi.fn(createClient().getPullRequests);
     const getCollectorIngestionHealth = vi.fn(
@@ -511,6 +542,8 @@ describe('App', () => {
           getEnterpriseMetricValues,
           getRequirementSummary,
           getRequirements,
+          getCiRunSummary,
+          getCiRuns,
           getPullRequestSummary,
           getPullRequests,
           getCollectorIngestionHealth,
@@ -555,6 +588,12 @@ describe('App', () => {
         expect.objectContaining({ projectKey: 'navigation' }),
       );
       expect(getRequirements).toHaveBeenLastCalledWith(
+        expect.objectContaining({ projectKey: 'navigation' }),
+      );
+      expect(getCiRunSummary).toHaveBeenLastCalledWith(
+        expect.objectContaining({ projectKey: 'navigation' }),
+      );
+      expect(getCiRuns).toHaveBeenLastCalledWith(
         expect.objectContaining({ projectKey: 'navigation' }),
       );
       expect(getPullRequestSummary).toHaveBeenLastCalledWith(
@@ -633,6 +672,8 @@ describe('App', () => {
     );
     const getRequirementSummary = vi.fn(createClient().getRequirementSummary);
     const getRequirements = vi.fn(createClient().getRequirements);
+    const getCiRunSummary = vi.fn(createClient().getCiRunSummary);
+    const getCiRuns = vi.fn(createClient().getCiRuns);
     const getPullRequestSummary = vi.fn(createClient().getPullRequestSummary);
     const getPullRequests = vi.fn(createClient().getPullRequests);
     const getCollectorIngestionHealth = vi.fn(
@@ -663,6 +704,8 @@ describe('App', () => {
             getEnterpriseMetricValues,
             getRequirementSummary,
             getRequirements,
+            getCiRunSummary,
+            getCiRuns,
             getPullRequestSummary,
             getPullRequests,
             getCollectorIngestionHealth,
@@ -695,6 +738,8 @@ describe('App', () => {
       expect(getEnterpriseMetricValues).toHaveBeenCalledTimes(2);
       expect(getRequirementSummary).toHaveBeenCalledTimes(2);
       expect(getRequirements).toHaveBeenCalledTimes(2);
+      expect(getCiRunSummary).toHaveBeenCalledTimes(2);
+      expect(getCiRuns).toHaveBeenCalledTimes(2);
       expect(getPullRequestSummary).toHaveBeenCalledTimes(2);
       expect(getPullRequests).toHaveBeenCalledTimes(2);
       expect(getCollectorIngestionHealth).toHaveBeenCalledTimes(2);

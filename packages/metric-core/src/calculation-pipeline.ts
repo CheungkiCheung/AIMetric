@@ -15,7 +15,8 @@ export type MetricDataRequirement =
   | 'analysis-summary'
   | 'mcp-audit-metrics'
   | 'requirement-summary'
-  | 'pull-request-summary';
+  | 'pull-request-summary'
+  | 'ci-summary';
 
 export interface MetricCalculationContext {
   scope: EnterpriseMetricScope;
@@ -66,12 +67,21 @@ export interface CalculationPullRequestSummary {
   rejectedPullRequestCount: number;
 }
 
+export interface CalculationCiSummary {
+  totalRunCount: number;
+  completedRunCount: number;
+  successfulRunCount: number;
+  failedRunCount: number;
+  passRate: number;
+}
+
 export interface MetricCalculationInput {
   recordedMetricEvents?: CalculationRecordedMetricEvent[];
   analysisSummary?: CalculationAnalysisSummary;
   mcpAuditMetrics?: CalculationMcpAuditMetrics;
   requirementSummary?: CalculationRequirementSummary;
   pullRequestSummary?: CalculationPullRequestSummary;
+  ciSummary?: CalculationCiSummary;
 }
 
 export interface MetricCalculationResult {
@@ -313,6 +323,26 @@ const defaultCalculators: MetricCalculator[] = [
           pullRequestSummary.rejectedPullRequestCount /
           pullRequestSummary.reviewedPullRequestCount,
         confidence: 'medium' as const,
+      };
+    },
+  ),
+  createCalculator(
+    'ci_pass_rate',
+    'ratio',
+    ['ci-summary'],
+    (input) => {
+      const ciSummary = input.ciSummary;
+
+      if (!ciSummary || ciSummary.completedRunCount === 0) {
+        return {
+          value: 0,
+          confidence: 'low' as const,
+        };
+      }
+
+      return {
+        value: ciSummary.passRate,
+        confidence: 'high' as const,
       };
     },
   ),

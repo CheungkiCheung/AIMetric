@@ -168,6 +168,29 @@ export interface RequirementSummary {
   averageLeadTimeToFirstPrHours: number;
 }
 
+export interface CiRunRecord {
+  provider: 'github-actions';
+  projectKey: string;
+  repoName: string;
+  runId: number;
+  workflowName: string;
+  status: 'queued' | 'in_progress' | 'completed';
+  conclusion?: 'success' | 'failure' | 'cancelled' | 'timed_out' | 'skipped';
+  createdAt: string;
+  completedAt?: string;
+  durationMinutes?: number;
+  updatedAt: string;
+}
+
+export interface CiRunSummary {
+  totalRunCount: number;
+  completedRunCount: number;
+  successfulRunCount: number;
+  failedRunCount: number;
+  passRate: number;
+  averageDurationMinutes: number;
+}
+
 export interface CollectorIdentityRecord {
   identityKey: string;
   memberId: string;
@@ -222,6 +245,13 @@ export interface MetricEventRepository {
   buildRequirementSummary?(
     filters?: MetricSnapshotFilters,
   ): Promise<RequirementSummary>;
+  importCiRuns?(ciRuns: CiRunRecord[]): Promise<void>;
+  listCiRuns?(
+    filters?: MetricSnapshotFilters,
+  ): Promise<CiRunRecord[]>;
+  buildCiRunSummary?(
+    filters?: MetricSnapshotFilters,
+  ): Promise<CiRunSummary>;
   listSessionAnalysisRows?(
     filters?: MetricSnapshotFilters,
   ): Promise<SessionAnalysisRow[]>;
@@ -392,6 +422,22 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
             created_at TIMESTAMPTZ NOT NULL,
             updated_at TIMESTAMPTZ NOT NULL,
             UNIQUE (provider, project_key, requirement_key)
+          )
+        `);
+        await this.database.query(`
+          CREATE TABLE IF NOT EXISTS ci_runs (
+            id BIGSERIAL PRIMARY KEY,
+            provider TEXT NOT NULL,
+            project_key TEXT NOT NULL,
+            repo_name TEXT NOT NULL,
+            run_id BIGINT NOT NULL,
+            workflow_name TEXT NOT NULL,
+            status TEXT NOT NULL,
+            conclusion TEXT,
+            created_at TIMESTAMPTZ NOT NULL,
+            completed_at TIMESTAMPTZ,
+            updated_at TIMESTAMPTZ NOT NULL,
+            UNIQUE (provider, project_key, repo_name, run_id)
           )
         `);
         await this.database.query(`
@@ -1311,6 +1357,158 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
           ? 0
           : leadTimeToFirstPrValues.reduce((sum, value) => sum + value, 0) /
             leadTimeToFirstPrValues.length,
+    };
+  }
+
+  async importCiRuns(ciRuns: CiRunRecord[]): Promise<void> {
+    if (ciRuns.length === 0) {
+      return;
+    }
+
+    await this.ensureSchema();
+
+    await Promise.all(
+      ciRuns.map((ciRun) =>
+        this.database.query(
+          `
+            INSERT INTO ci_runs (
+              provider,
+              project_key,
+              repo_name,
+              run_id,
+              workflow_name,
+              status,
+              conclusion,
+              created_at,
+              completed_at,
+              updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            ON CONFLICT (provider, project_key, repo_name, run_id)
+            DO UPDATE SET
+              workflow_name = EXCLUDED.workflow_name,
+              status = EXCLUDED.status,
+              conclusion = EXCLUDED.conclusion,
+              created_at = EXCLUDED.created_at,
+              completed_at = EXCLUDED.completed_at,
+              updated_at = EXCLUDED.updated_at
+          `,
+          [
+            ciRun.provider,
+            ciRun.projectKey,
+            ciRun.repoName,
+            ciRun.runId,
+            ciRun.workflowName,
+            ciRun.status,
+            ciRun.conclusion ?? null,
+            ciRun.createdAt,
+            ciRun.completedAt ?? null,
+            ciRun.updatedAt,
+          ],
+        ),
+      ),
+    );
+  }
+
+  async listCiRuns(filters: MetricSnapshotFilters = {}): Promise<CiRunRecord[]> {
+    await this.ensureSchema();
+
+    const values: Array<string | string[]> = [];
+    const whereClauses: string[] = [];
+
+    appendProjectFilterClauses(values, whereClauses, filters, 'project_key');
+
+    if (filters.from) {
+      values.push(filters.from);
+      whereClauses.push(`created_at >= $${values.length}`);
+    }
+
+    if (filters.to) {
+      values.push(filters.to);
+      whereClauses.push(`created_at <= $${values.length}`);
+    }
+
+    const result = await this.database.query<{
+      provider: CiRunRecord['provider'];
+      project_key: string;
+      repo_name: string;
+      run_id: number;
+      workflow_name: string;
+      status: CiRunRecord['status'];
+      conclusion: CiRunRecord['conclusion'] | null;
+      created_at: Date | string;
+      completed_at: Date | string | null;
+      updated_at: Date | string;
+    }>(
+      `
+        SELECT
+          provider,
+          project_key,
+          repo_name,
+          run_id,
+          workflow_name,
+          status,
+          conclusion,
+          created_at,
+          completed_at,
+          updated_at
+        FROM ci_runs
+        ${whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : ''}
+        ORDER BY updated_at DESC, run_id DESC
+      `,
+      values,
+    );
+
+    return result.rows.map((row) => ({
+      provider: row.provider,
+      projectKey: row.project_key,
+      repoName: row.repo_name,
+      runId: row.run_id,
+      workflowName: row.workflow_name,
+      status: row.status,
+      ...(row.conclusion ? { conclusion: row.conclusion } : {}),
+      createdAt: toIsoString(row.created_at),
+      ...(row.completed_at ? { completedAt: toIsoString(row.completed_at) } : {}),
+      ...(row.completed_at
+        ? {
+            durationMinutes:
+              calculateCycleTimeHours(
+                toIsoString(row.created_at),
+                toIsoString(row.completed_at),
+              ) * 60,
+          }
+        : {}),
+      updatedAt: toIsoString(row.updated_at),
+    }));
+  }
+
+  async buildCiRunSummary(
+    filters: MetricSnapshotFilters = {},
+  ): Promise<CiRunSummary> {
+    const ciRuns = await this.listCiRuns(filters);
+    const completedRuns = ciRuns.filter((ciRun) => ciRun.status === 'completed');
+    const successfulRuns = completedRuns.filter(
+      (ciRun) => ciRun.conclusion === 'success',
+    );
+    const failedRuns = completedRuns.filter(
+      (ciRun) => ciRun.conclusion === 'failure' || ciRun.conclusion === 'timed_out',
+    );
+    const durationValues = completedRuns
+      .map((ciRun) => ciRun.durationMinutes)
+      .filter((value): value is number => typeof value === 'number');
+
+    return {
+      totalRunCount: ciRuns.length,
+      completedRunCount: completedRuns.length,
+      successfulRunCount: successfulRuns.length,
+      failedRunCount: failedRuns.length,
+      passRate:
+        completedRuns.length === 0 ? 0 : successfulRuns.length / completedRuns.length,
+      averageDurationMinutes:
+        durationValues.length === 0
+          ? 0
+          : durationValues.reduce((sum, value) => sum + value, 0) /
+            durationValues.length,
     };
   }
 

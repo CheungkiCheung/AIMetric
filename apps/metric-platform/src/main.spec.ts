@@ -840,6 +840,135 @@ describe('bootstrap', () => {
     ]);
   });
 
+  it('imports and serves ci run data over HTTP', async () => {
+    const importedCiRuns: unknown[] = [];
+    const metricEventRepository: MetricEventRepository = {
+      ...createEmptyRepository(),
+      async importCiRuns(ciRuns) {
+        importedCiRuns.push(...ciRuns);
+      },
+      async listCiRuns(filters) {
+        expect(filters).toEqual({ projectKey: 'aimetric' });
+
+        return [
+          {
+            provider: 'github-actions' as const,
+            projectKey: 'aimetric',
+            repoName: 'AIMetric',
+            runId: 501,
+            workflowName: 'ci',
+            status: 'completed' as const,
+            conclusion: 'success' as const,
+            durationMinutes: 14,
+            createdAt: '2026-04-26T00:00:00.000Z',
+            completedAt: '2026-04-26T00:14:00.000Z',
+            updatedAt: '2026-04-26T00:14:00.000Z',
+          },
+          {
+            provider: 'github-actions' as const,
+            projectKey: 'aimetric',
+            repoName: 'AIMetric',
+            runId: 502,
+            workflowName: 'ci',
+            status: 'completed' as const,
+            conclusion: 'failure' as const,
+            durationMinutes: 10,
+            createdAt: '2026-04-26T01:00:00.000Z',
+            completedAt: '2026-04-26T01:10:00.000Z',
+            updatedAt: '2026-04-26T01:10:00.000Z',
+          },
+        ];
+      },
+      async buildCiRunSummary() {
+        return {
+          totalRunCount: 2,
+          completedRunCount: 2,
+          successfulRunCount: 1,
+          failedRunCount: 1,
+          passRate: 0.5,
+          averageDurationMinutes: 12,
+        };
+      },
+    };
+    const app = await bootstrap({
+      port: 0,
+      adminToken: 'admin-secret',
+      metricEventRepository,
+    });
+    servers.push(app);
+
+    const importResponse = await fetch(
+      `${app.baseUrl}/integrations/ci/runs/import`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer admin-secret',
+          'content-type': 'application/json',
+          'x-aimetric-actor': 'platform-admin',
+        },
+        body: JSON.stringify({
+          ciRuns: [
+            {
+              provider: 'github-actions',
+              projectKey: 'aimetric',
+              repoName: 'AIMetric',
+              runId: 501,
+              workflowName: 'ci',
+              status: 'completed',
+              conclusion: 'success',
+              createdAt: '2026-04-26T00:00:00.000Z',
+              completedAt: '2026-04-26T00:14:00.000Z',
+              updatedAt: '2026-04-26T00:14:00.000Z',
+            },
+          ],
+        }),
+      },
+    );
+    const listResponse = await fetch(
+      `${app.baseUrl}/integrations/ci/runs?projectKey=aimetric`,
+    );
+    const summaryResponse = await fetch(
+      `${app.baseUrl}/integrations/ci/runs/summary?projectKey=aimetric`,
+    );
+    const auditResponse = await fetch(`${app.baseUrl}/admin/audit`, {
+      headers: {
+        authorization: 'Bearer admin-secret',
+      },
+    });
+
+    expect(importResponse.status).toBe(200);
+    await expect(importResponse.json()).resolves.toEqual({
+      importedCiRuns: 1,
+    });
+    expect(importedCiRuns).toHaveLength(1);
+    expect(listResponse.status).toBe(200);
+    await expect(listResponse.json()).resolves.toEqual([
+      expect.objectContaining({
+        runId: 501,
+        conclusion: 'success',
+      }),
+      expect.objectContaining({
+        runId: 502,
+        conclusion: 'failure',
+      }),
+    ]);
+    expect(summaryResponse.status).toBe(200);
+    await expect(summaryResponse.json()).resolves.toEqual({
+      totalRunCount: 2,
+      completedRunCount: 2,
+      successfulRunCount: 1,
+      failedRunCount: 1,
+      passRate: 0.5,
+      averageDurationMinutes: 12,
+    });
+    await expect(auditResponse.json()).resolves.toEqual([
+      expect.objectContaining({
+        action: 'ci-runs.import',
+        actor: 'platform-admin',
+      }),
+    ]);
+  });
+
   it('serves enterprise metrics filtered by dimension over HTTP', async () => {
     const app = await bootstrap({
       port: 0,
@@ -959,6 +1088,34 @@ describe('bootstrap', () => {
           },
         ];
       },
+      async listCiRuns() {
+        return [
+          {
+            provider: 'github-actions' as const,
+            projectKey: 'navigation',
+            repoName: 'AIMetric',
+            runId: 501,
+            workflowName: 'ci',
+            status: 'completed' as const,
+            conclusion: 'success' as const,
+            createdAt: '2026-04-23T00:00:00.000Z',
+            completedAt: '2026-04-23T00:14:00.000Z',
+            updatedAt: '2026-04-23T00:14:00.000Z',
+          },
+          {
+            provider: 'github-actions' as const,
+            projectKey: 'navigation',
+            repoName: 'AIMetric',
+            runId: 502,
+            workflowName: 'ci',
+            status: 'completed' as const,
+            conclusion: 'failure' as const,
+            createdAt: '2026-04-23T01:00:00.000Z',
+            completedAt: '2026-04-23T01:10:00.000Z',
+            updatedAt: '2026-04-23T01:10:00.000Z',
+          },
+        ];
+      },
     };
     const app = await bootstrap({ port: 0, metricEventRepository });
     servers.push(app);
@@ -1003,6 +1160,11 @@ describe('bootstrap', () => {
       }),
       expect.objectContaining({
         metricKey: 'review_rejection_rate',
+        value: 0.5,
+        unit: 'ratio',
+      }),
+      expect.objectContaining({
+        metricKey: 'ci_pass_rate',
         value: 0.5,
         unit: 'ratio',
       }),

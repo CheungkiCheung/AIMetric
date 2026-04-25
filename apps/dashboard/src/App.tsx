@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import {
   createDashboardClient,
   type AnalysisSummary,
+  type CiRunRecord,
+  type CiRunSummary,
   type CollectorIngestionHealth,
   type DashboardClient,
   type DashboardFilters,
@@ -22,6 +24,7 @@ import {
   type TeamSnapshot,
 } from './api/client.js';
 import { AnalysisSummarySection } from './pages/analysis-summary.js';
+import { CiRunDashboard } from './pages/ci-run-dashboard.js';
 import { CollectorHealthDashboard } from './pages/collector-health-dashboard.js';
 import { EnterpriseMetricCatalogPanel } from './pages/enterprise-metric-catalog.js';
 import { GovernanceDirectoryDashboard } from './pages/governance-directory-dashboard.js';
@@ -111,6 +114,8 @@ export const App = ({
   const [mcpAuditMetrics, setMcpAuditMetrics] = useState<McpAuditMetrics | null>(null);
   const [collectorHealth, setCollectorHealth] =
     useState<CollectorIngestionHealth | null>(null);
+  const [ciRunSummary, setCiRunSummary] = useState<CiRunSummary | null>(null);
+  const [ciRuns, setCiRuns] = useState<CiRunRecord[]>([]);
   const [governanceDirectory, setGovernanceDirectory] =
     useState<GovernanceDirectory | null>(null);
   const [pullRequestSummary, setPullRequestSummary] =
@@ -140,6 +145,8 @@ export const App = ({
       rolloutEvaluation,
       metricValues,
       collectorIngestionHealth,
+      ciSummary,
+      ciRows,
       directory,
       prSummary,
       prRows,
@@ -157,6 +164,8 @@ export const App = ({
       client.getRuleRolloutEvaluation(projectKey, nextFilters.memberId),
       client.getEnterpriseMetricValues(nextFilters),
       client.getCollectorIngestionHealth(),
+      client.getCiRunSummary(nextFilters),
+      client.getCiRuns(nextFilters),
       client.getGovernanceDirectory(),
       client.getPullRequestSummary(nextFilters),
       client.getPullRequests(nextFilters),
@@ -176,6 +185,8 @@ export const App = ({
       rolloutEvaluation,
       metricValues,
       collectorIngestionHealth,
+      ciSummary,
+      ciRows,
       directory,
       prSummary,
       prRows,
@@ -200,6 +211,8 @@ export const App = ({
         rolloutEvaluation,
         metricValues,
         collectorIngestionHealth,
+        ciSummary,
+        ciRows,
         directory,
         prSummary,
         prRows,
@@ -222,6 +235,8 @@ export const App = ({
       setRuleRolloutEvaluation(rolloutEvaluation);
       setEnterpriseMetricValues(metricValues);
       setCollectorHealth(collectorIngestionHealth);
+      setCiRunSummary(ciSummary);
+      setCiRuns(ciRows);
       setGovernanceDirectory(directory);
       setPullRequestSummary(prSummary);
       setPullRequests(prRows);
@@ -289,6 +304,8 @@ export const App = ({
         rolloutEvaluation,
         metricValues,
         collectorIngestionHealth,
+        ciSummary,
+        ciRows,
         directory,
         prSummary,
         prRows,
@@ -307,6 +324,8 @@ export const App = ({
       setRuleRolloutEvaluation(rolloutEvaluation);
       setEnterpriseMetricValues(metricValues);
       setCollectorHealth(collectorIngestionHealth);
+      setCiRunSummary(ciSummary);
+      setCiRuns(ciRows);
       setGovernanceDirectory(directory);
       setPullRequestSummary(prSummary);
       setPullRequests(prRows);
@@ -389,6 +408,7 @@ export const App = ({
     !teamSnapshot ||
     !mcpAuditMetrics ||
     !collectorHealth ||
+    !ciRunSummary ||
     !governanceDirectory ||
     !pullRequestSummary ||
     !requirementSummary ||
@@ -450,6 +470,7 @@ export const App = ({
         />
         <AnalysisSummarySection summary={analysisSummary} />
         <CollectorHealthDashboard health={collectorHealth} />
+        <CiRunDashboard summary={ciRunSummary} rows={ciRuns} />
         <RequirementDashboard summary={requirementSummary} rows={requirements} />
         <PullRequestDashboard summary={pullRequestSummary} rows={pullRequests} />
         <SessionAnalysisTable rows={sessionAnalysisRows} />

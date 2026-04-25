@@ -5,6 +5,7 @@ import { IngestionBatchSchema } from '@aimetric/event-schema';
 import type { EnterpriseMetricDimensionKey } from '@aimetric/metric-core';
 import { AppModule } from './app.module.js';
 import type {
+  CiRunRecord,
   CollectorIdentityRecord,
   EditEvidenceFilters,
   MetricEventRepository,
@@ -381,6 +382,60 @@ const getRequirementsFromBody = (body: unknown): RequirementRecord[] | undefined
   return normalized.length === requirements.length ? normalized : undefined;
 };
 
+const getCiRunsFromBody = (body: unknown): CiRunRecord[] | undefined => {
+  if (!body || typeof body !== 'object') {
+    return undefined;
+  }
+
+  const ciRuns = (body as Record<string, unknown>).ciRuns;
+
+  if (!Array.isArray(ciRuns)) {
+    return undefined;
+  }
+
+  const normalized = ciRuns.flatMap((item) => {
+    if (!item || typeof item !== 'object') {
+      return [];
+    }
+
+    const payload = item as Record<string, unknown>;
+
+    if (
+      payload.provider !== 'github-actions' ||
+      typeof payload.projectKey !== 'string' ||
+      typeof payload.repoName !== 'string' ||
+      typeof payload.runId !== 'number' ||
+      typeof payload.workflowName !== 'string' ||
+      typeof payload.status !== 'string' ||
+      typeof payload.createdAt !== 'string' ||
+      typeof payload.updatedAt !== 'string'
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        provider: 'github-actions' as const,
+        projectKey: payload.projectKey,
+        repoName: payload.repoName,
+        runId: payload.runId,
+        workflowName: payload.workflowName,
+        status: payload.status as CiRunRecord['status'],
+        ...(typeof payload.conclusion === 'string'
+          ? { conclusion: payload.conclusion as CiRunRecord['conclusion'] }
+          : {}),
+        createdAt: payload.createdAt,
+        ...(typeof payload.completedAt === 'string'
+          ? { completedAt: payload.completedAt }
+          : {}),
+        updatedAt: payload.updatedAt,
+      },
+    ];
+  });
+
+  return normalized.length === ciRuns.length ? normalized : undefined;
+};
+
 const applyViewerScopeToFilters = <T extends MetricSnapshotFilters>(
   filters: T,
   viewerScope?: GovernanceViewerScope,
@@ -694,6 +749,36 @@ const handleRequest = async (
     }
 
     writeJson(response, 200, await appModule.buildRequirementSummary(scoped.filters));
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/integrations/ci/runs') {
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
+    writeJson(response, 200, await appModule.listCiRuns(scoped.filters));
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/integrations/ci/runs/summary') {
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
+    writeJson(response, 200, await appModule.buildCiRunSummary(scoped.filters));
     return;
   }
 
@@ -1106,6 +1191,27 @@ const handleRequest = async (
 
     writeJson(response, 200, await appModule.importRequirements(requirements));
     recordAdminAudit(runtime, request, 'requirements.import');
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/integrations/ci/runs/import') {
+    if (!isAuthorizedAdminRequest(request, runtime.adminToken)) {
+      writeJson(response, 401, { message: 'Unauthorized admin request' });
+      return;
+    }
+
+    const body = await readJsonBody(request);
+    const ciRuns = getCiRunsFromBody(body);
+
+    if (!ciRuns) {
+      writeJson(response, 400, {
+        message: 'ciRuns is required and must contain valid CI run records',
+      });
+      return;
+    }
+
+    writeJson(response, 200, await appModule.importCiRuns(ciRuns));
+    recordAdminAudit(runtime, request, 'ci-runs.import');
     return;
   }
 
