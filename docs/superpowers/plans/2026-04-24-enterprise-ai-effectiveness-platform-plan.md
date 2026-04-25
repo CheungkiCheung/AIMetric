@@ -891,9 +891,10 @@ Agent 能力：
 - CI/CD 集成：第二版已补齐 `ci_pass_rate` 的真实指标计算，已接入统一企业指标语义层。
 - 发布系统集成：第一版已完成部署事实模型，已支持 `POST /integrations/deployments/import` 导入、`GET /integrations/deployments` 查询、`GET /integrations/deployments/summary` 汇总，以及 Dashboard“发布质量概览”展示。
 - 发布系统集成：第二版已补齐 `deployment_frequency`、`change_failure_rate` 与 `rollback_rate` 的真实指标计算，已接入统一企业指标语义层。
+- 缺陷/事故系统集成：第一版已完成事故事实模型，已支持 `POST /integrations/incidents/import` 导入、`GET /integrations/incidents` 查询、`GET /integrations/incidents/summary` 汇总，以及 Dashboard“事故风险概览”展示。
+- 缺陷/事故系统集成：第二版已把 `change_failure_rate` 升级为部署事实与事故关联联合口径，更贴近企业生产治理视角。
 - GitLab PR 集成。
 - 需求系统集成：第一版已完成，已支持 `POST /integrations/requirements/import` 导入、`GET /integrations/requirements` 查询、`GET /integrations/requirements/summary` 汇总，以及 Dashboard“需求交付概览”展示，当前兼容 `jira / tapd` 两类 provider；第二版已支持根据 PR 标题或显式字段自动识别需求号并回填“需求到首个 PR”关联。
-- 缺陷系统集成。
 - AI 参与需求 / PR / 发布链路归因。
 
 验收标准：

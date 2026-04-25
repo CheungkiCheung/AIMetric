@@ -9,6 +9,7 @@ import type {
   CollectorIdentityRecord,
   DeploymentRecord,
   EditEvidenceFilters,
+  IncidentRecord,
   MetricEventRepository,
   MetricSnapshotFilters,
   PullRequestRecord,
@@ -495,6 +496,62 @@ const getDeploymentsFromBody = (body: unknown): DeploymentRecord[] | undefined =
   return normalized.length === deployments.length ? normalized : undefined;
 };
 
+const getIncidentsFromBody = (body: unknown): IncidentRecord[] | undefined => {
+  if (!body || typeof body !== 'object') {
+    return undefined;
+  }
+
+  const incidents = (body as Record<string, unknown>).incidents;
+
+  if (!Array.isArray(incidents)) {
+    return undefined;
+  }
+
+  const normalized = incidents.flatMap((item) => {
+    if (!item || typeof item !== 'object') {
+      return [];
+    }
+
+    const payload = item as Record<string, unknown>;
+
+    if (
+      (payload.provider !== 'pagerduty' &&
+        payload.provider !== 'sentry' &&
+        payload.provider !== 'manual') ||
+      typeof payload.projectKey !== 'string' ||
+      typeof payload.incidentKey !== 'string' ||
+      typeof payload.title !== 'string' ||
+      typeof payload.severity !== 'string' ||
+      typeof payload.status !== 'string' ||
+      !Array.isArray(payload.linkedDeploymentIds) ||
+      payload.linkedDeploymentIds.some((value) => typeof value !== 'string') ||
+      typeof payload.createdAt !== 'string' ||
+      typeof payload.updatedAt !== 'string'
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        provider: payload.provider as IncidentRecord['provider'],
+        projectKey: payload.projectKey,
+        incidentKey: payload.incidentKey,
+        title: payload.title,
+        severity: payload.severity as IncidentRecord['severity'],
+        status: payload.status as IncidentRecord['status'],
+        linkedDeploymentIds: [...new Set(payload.linkedDeploymentIds as string[])],
+        createdAt: payload.createdAt,
+        ...(typeof payload.resolvedAt === 'string'
+          ? { resolvedAt: payload.resolvedAt }
+          : {}),
+        updatedAt: payload.updatedAt,
+      },
+    ];
+  });
+
+  return normalized.length === incidents.length ? normalized : undefined;
+};
+
 const applyViewerScopeToFilters = <T extends MetricSnapshotFilters>(
   filters: T,
   viewerScope?: GovernanceViewerScope,
@@ -872,6 +929,36 @@ const handleRequest = async (
       200,
       await appModule.buildDeploymentSummary(scoped.filters),
     );
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/integrations/incidents') {
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
+    writeJson(response, 200, await appModule.listIncidents(scoped.filters));
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/integrations/incidents/summary') {
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
+    writeJson(response, 200, await appModule.buildIncidentSummary(scoped.filters));
     return;
   }
 
@@ -1326,6 +1413,27 @@ const handleRequest = async (
 
     writeJson(response, 200, await appModule.importDeployments(deployments));
     recordAdminAudit(runtime, request, 'deployments.import');
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/integrations/incidents/import') {
+    if (!isAuthorizedAdminRequest(request, runtime.adminToken)) {
+      writeJson(response, 401, { message: 'Unauthorized admin request' });
+      return;
+    }
+
+    const body = await readJsonBody(request);
+    const incidents = getIncidentsFromBody(body);
+
+    if (!incidents) {
+      writeJson(response, 400, {
+        message: 'incidents is required and must contain valid incident records',
+      });
+      return;
+    }
+
+    writeJson(response, 200, await appModule.importIncidents(incidents));
+    recordAdminAudit(runtime, request, 'incidents.import');
     return;
   }
 

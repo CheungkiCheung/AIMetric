@@ -265,6 +265,27 @@ export interface DeploymentSummary {
   averageDurationMinutes: number;
 }
 
+export interface IncidentRecord {
+  provider: 'pagerduty' | 'sentry' | 'manual';
+  projectKey: string;
+  incidentKey: string;
+  title: string;
+  severity: 'sev1' | 'sev2' | 'sev3' | 'sev4';
+  status: 'open' | 'resolved';
+  linkedDeploymentIds: string[];
+  createdAt: string;
+  resolvedAt?: string;
+  updatedAt: string;
+}
+
+export interface IncidentSummary {
+  totalIncidentCount: number;
+  openIncidentCount: number;
+  resolvedIncidentCount: number;
+  linkedDeploymentCount: number;
+  averageResolutionHours: number;
+}
+
 export interface DashboardClient {
   getPersonalSnapshot(filters?: DashboardFilters): Promise<PersonalSnapshot>;
   getTeamSnapshot(filters?: DashboardFilters): Promise<TeamSnapshot>;
@@ -297,6 +318,8 @@ export interface DashboardClient {
   getCiRuns(filters?: DashboardFilters): Promise<CiRunRecord[]>;
   getDeploymentSummary(filters?: DashboardFilters): Promise<DeploymentSummary>;
   getDeployments(filters?: DashboardFilters): Promise<DeploymentRecord[]>;
+  getIncidentSummary(filters?: DashboardFilters): Promise<IncidentSummary>;
+  getIncidents(filters?: DashboardFilters): Promise<IncidentRecord[]>;
   updateRuleRollout(input: RuleRollout): Promise<RuleRollout>;
 }
 
@@ -430,6 +453,14 @@ const fallbackDeploymentSummary: DeploymentSummary = {
   changeFailureRate: 0,
   rollbackRate: 0,
   averageDurationMinutes: 0,
+};
+
+const fallbackIncidentSummary: IncidentSummary = {
+  totalIncidentCount: 0,
+  openIncidentCount: 0,
+  resolvedIncidentCount: 0,
+  linkedDeploymentCount: 0,
+  averageResolutionHours: 0,
 };
 
 const buildViewerHeaders = (viewerId?: string): HeadersInit | undefined =>
@@ -708,6 +739,20 @@ export const createDashboardClient = (
   getDeployments: (filters) =>
     fetchJson<DeploymentRecord[]>(
       buildMetricUrl(baseUrl, '/integrations/deployments', filters),
+      [],
+      viewerId,
+      adminToken,
+    ),
+  getIncidentSummary: (filters) =>
+    fetchJson<IncidentSummary>(
+      buildMetricUrl(baseUrl, '/integrations/incidents/summary', filters),
+      fallbackIncidentSummary,
+      viewerId,
+      adminToken,
+    ),
+  getIncidents: (filters) =>
+    fetchJson<IncidentRecord[]>(
+      buildMetricUrl(baseUrl, '/integrations/incidents', filters),
       [],
       viewerId,
       adminToken,

@@ -11,6 +11,8 @@ import type {
   DashboardFilters,
   DeploymentRecord,
   DeploymentSummary,
+  IncidentRecord,
+  IncidentSummary,
   PullRequestRecord,
   PullRequestSummary,
   RequirementRecord,
@@ -120,6 +122,27 @@ const createClient = (
       createdAt: '2026-04-24T02:00:00.000Z',
       finishedAt: '2026-04-24T02:18:00.000Z',
       updatedAt: '2026-04-24T02:18:00.000Z',
+    },
+  ],
+  getIncidentSummary: async (): Promise<IncidentSummary> => ({
+    totalIncidentCount: 2,
+    openIncidentCount: 1,
+    resolvedIncidentCount: 1,
+    linkedDeploymentCount: 2,
+    averageResolutionHours: 2.5,
+  }),
+  getIncidents: async (): Promise<IncidentRecord[]> => [
+    {
+      provider: 'pagerduty',
+      projectKey: 'aimetric',
+      incidentKey: 'INC-7',
+      title: 'Production deployment issue',
+      severity: 'sev2',
+      status: 'resolved',
+      linkedDeploymentIds: ['deploy-2'],
+      createdAt: '2026-04-24T03:05:00.000Z',
+      resolvedAt: '2026-04-24T05:35:00.000Z',
+      updatedAt: '2026-04-24T05:35:00.000Z',
     },
   ],
   getPersonalSnapshot: async () => ({
@@ -434,6 +457,7 @@ describe('App', () => {
     expect(screen.getByText('采集健康运营')).toBeInTheDocument();
     expect(screen.getByText('CI 质量概览')).toBeInTheDocument();
     expect(screen.getByText('发布质量概览')).toBeInTheDocument();
+    expect(screen.getByText('事故风险概览')).toBeInTheDocument();
     expect(screen.getByText('需求交付概览')).toBeInTheDocument();
     expect(screen.getByText('GitHub PR 交付概览')).toBeInTheDocument();
     expect(screen.getByText('队列模式')).toBeInTheDocument();
@@ -447,6 +471,8 @@ describe('App', () => {
     expect(screen.getAllByText('25.0%').length).toBeGreaterThan(0);
     expect(screen.getByText('16.0 分钟')).toBeInTheDocument();
     expect(screen.getByText('AIMetric deploy-1')).toBeInTheDocument();
+    expect(screen.getByText('2.5 小时')).toBeInTheDocument();
+    expect(screen.getByText('INC-7 Production deployment issue')).toBeInTheDocument();
     expect(screen.getByText(/关联 PR：2/)).toBeInTheDocument();
     expect(screen.getByText(/PR 编号：101, 103/)).toBeInTheDocument();
     expect(screen.getByText('AI 触达 PR 占比')).toBeInTheDocument();

@@ -218,6 +218,27 @@ export interface DeploymentSummary {
   averageDurationMinutes: number;
 }
 
+export interface IncidentRecord {
+  provider: 'pagerduty' | 'sentry' | 'manual';
+  projectKey: string;
+  incidentKey: string;
+  title: string;
+  severity: 'sev1' | 'sev2' | 'sev3' | 'sev4';
+  status: 'open' | 'resolved';
+  linkedDeploymentIds: string[];
+  createdAt: string;
+  resolvedAt?: string;
+  updatedAt: string;
+}
+
+export interface IncidentSummary {
+  totalIncidentCount: number;
+  openIncidentCount: number;
+  resolvedIncidentCount: number;
+  linkedDeploymentCount: number;
+  averageResolutionHours: number;
+}
+
 export interface CollectorIdentityRecord {
   identityKey: string;
   memberId: string;
@@ -286,6 +307,13 @@ export interface MetricEventRepository {
   buildDeploymentSummary?(
     filters?: MetricSnapshotFilters,
   ): Promise<DeploymentSummary>;
+  importIncidents?(incidents: IncidentRecord[]): Promise<void>;
+  listIncidents?(
+    filters?: MetricSnapshotFilters,
+  ): Promise<IncidentRecord[]>;
+  buildIncidentSummary?(
+    filters?: MetricSnapshotFilters,
+  ): Promise<IncidentSummary>;
   listSessionAnalysisRows?(
     filters?: MetricSnapshotFilters,
   ): Promise<SessionAnalysisRow[]>;
@@ -490,6 +518,22 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
             finished_at TIMESTAMPTZ,
             updated_at TIMESTAMPTZ NOT NULL,
             UNIQUE (provider, project_key, repo_name, deployment_id)
+          )
+        `);
+        await this.database.query(`
+          CREATE TABLE IF NOT EXISTS incident_records (
+            id BIGSERIAL PRIMARY KEY,
+            provider TEXT NOT NULL,
+            project_key TEXT NOT NULL,
+            incident_key TEXT NOT NULL,
+            title TEXT NOT NULL,
+            severity TEXT NOT NULL,
+            status TEXT NOT NULL,
+            linked_deployment_ids TEXT[] NOT NULL DEFAULT '{}',
+            created_at TIMESTAMPTZ NOT NULL,
+            resolved_at TIMESTAMPTZ,
+            updated_at TIMESTAMPTZ NOT NULL,
+            UNIQUE (provider, project_key, incident_key)
           )
         `);
         await this.database.query(`
@@ -1704,6 +1748,10 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
     filters: MetricSnapshotFilters = {},
   ): Promise<DeploymentSummary> {
     const deployments = await this.listDeployments(filters);
+    const incidents = await this.listIncidents(filters);
+    const incidentDeploymentIds = new Set(
+      incidents.flatMap((incident) => incident.linkedDeploymentIds),
+    );
     const successfulDeployments = deployments.filter(
       (deployment) => deployment.status === 'success',
     );
@@ -1711,7 +1759,8 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
       (deployment) =>
         deployment.status === 'failed' ||
         deployment.rolledBack ||
-        typeof deployment.incidentKey === 'string',
+        typeof deployment.incidentKey === 'string' ||
+        incidentDeploymentIds.has(deployment.deploymentId),
     );
     const rolledBackDeployments = deployments.filter(
       (deployment) => deployment.rolledBack,
@@ -1740,6 +1789,152 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
           ? 0
           : durationValues.reduce((sum, value) => sum + value, 0) /
             durationValues.length,
+    };
+  }
+
+  async importIncidents(incidents: IncidentRecord[]): Promise<void> {
+    if (incidents.length === 0) {
+      return;
+    }
+
+    await this.ensureSchema();
+
+    await Promise.all(
+      incidents.map((incident) =>
+        this.database.query(
+          `
+            INSERT INTO incident_records (
+              provider,
+              project_key,
+              incident_key,
+              title,
+              severity,
+              status,
+              linked_deployment_ids,
+              created_at,
+              resolved_at,
+              updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            ON CONFLICT (provider, project_key, incident_key)
+            DO UPDATE SET
+              title = EXCLUDED.title,
+              severity = EXCLUDED.severity,
+              status = EXCLUDED.status,
+              linked_deployment_ids = EXCLUDED.linked_deployment_ids,
+              created_at = EXCLUDED.created_at,
+              resolved_at = EXCLUDED.resolved_at,
+              updated_at = EXCLUDED.updated_at
+          `,
+          [
+            incident.provider,
+            incident.projectKey,
+            incident.incidentKey,
+            incident.title,
+            incident.severity,
+            incident.status,
+            incident.linkedDeploymentIds,
+            incident.createdAt,
+            incident.resolvedAt ?? null,
+            incident.updatedAt,
+          ],
+        ),
+      ),
+    );
+  }
+
+  async listIncidents(
+    filters: MetricSnapshotFilters = {},
+  ): Promise<IncidentRecord[]> {
+    await this.ensureSchema();
+
+    const values: Array<string | string[]> = [];
+    const whereClauses: string[] = [];
+
+    appendProjectFilterClauses(values, whereClauses, filters, 'project_key');
+
+    if (filters.from) {
+      values.push(filters.from);
+      whereClauses.push(`created_at >= $${values.length}`);
+    }
+
+    if (filters.to) {
+      values.push(filters.to);
+      whereClauses.push(`created_at <= $${values.length}`);
+    }
+
+    const result = await this.database.query<{
+      provider: IncidentRecord['provider'];
+      project_key: string;
+      incident_key: string;
+      title: string;
+      severity: IncidentRecord['severity'];
+      status: IncidentRecord['status'];
+      linked_deployment_ids: string[] | null;
+      created_at: Date | string;
+      resolved_at: Date | string | null;
+      updated_at: Date | string;
+    }>(
+      `
+        SELECT
+          provider,
+          project_key,
+          incident_key,
+          title,
+          severity,
+          status,
+          linked_deployment_ids,
+          created_at,
+          resolved_at,
+          updated_at
+        FROM incident_records
+        ${whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : ''}
+        ORDER BY updated_at DESC, incident_key DESC
+      `,
+      values,
+    );
+
+    return result.rows.map((row) => ({
+      provider: row.provider,
+      projectKey: row.project_key,
+      incidentKey: row.incident_key,
+      title: row.title,
+      severity: row.severity,
+      status: row.status,
+      linkedDeploymentIds: row.linked_deployment_ids ?? [],
+      createdAt: toIsoString(row.created_at),
+      ...(row.resolved_at ? { resolvedAt: toIsoString(row.resolved_at) } : {}),
+      updatedAt: toIsoString(row.updated_at),
+    }));
+  }
+
+  async buildIncidentSummary(
+    filters: MetricSnapshotFilters = {},
+  ): Promise<IncidentSummary> {
+    const incidents = await this.listIncidents(filters);
+    const openIncidents = incidents.filter((incident) => incident.status === 'open');
+    const resolvedIncidents = incidents.filter(
+      (incident) => incident.status === 'resolved',
+    );
+    const resolutionHours = resolvedIncidents
+      .filter((incident) => incident.resolvedAt)
+      .map((incident) =>
+        calculateCycleTimeHours(incident.createdAt, incident.resolvedAt as string),
+      );
+    const linkedDeploymentCount = new Set(
+      incidents.flatMap((incident) => incident.linkedDeploymentIds),
+    ).size;
+
+    return {
+      totalIncidentCount: incidents.length,
+      openIncidentCount: openIncidents.length,
+      resolvedIncidentCount: resolvedIncidents.length,
+      linkedDeploymentCount,
+      averageResolutionHours:
+        resolutionHours.length === 0
+          ? 0
+          : resolutionHours.reduce((sum, value) => sum + value, 0) /
+            resolutionHours.length,
     };
   }
 

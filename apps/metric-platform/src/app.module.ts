@@ -20,6 +20,8 @@ import {
   type CiRunSummary,
   type DeploymentRecord,
   type DeploymentSummary,
+  type IncidentRecord,
+  type IncidentSummary,
   type RequirementRecord,
   type RequirementSummary,
   type RecordedMetricEvent,
@@ -306,6 +308,36 @@ export class AppModule {
     );
   }
 
+  async importIncidents(incidents: IncidentRecord[]) {
+    if (!this.metricEventRepository.importIncidents) {
+      throw new Error('Incident import is not configured');
+    }
+
+    await this.metricEventRepository.importIncidents(incidents);
+
+    return {
+      importedIncidents: incidents.length,
+    };
+  }
+
+  async listIncidents(filters: MetricSnapshotFilters = {}) {
+    return (await this.metricEventRepository.listIncidents?.(filters)) ?? [];
+  }
+
+  async buildIncidentSummary(
+    filters: MetricSnapshotFilters = {},
+  ): Promise<IncidentSummary> {
+    return (
+      (await this.metricEventRepository.buildIncidentSummary?.(filters)) ?? {
+        totalIncidentCount: 0,
+        openIncidentCount: 0,
+        resolvedIncidentCount: 0,
+        linkedDeploymentCount: 0,
+        averageResolutionHours: 0,
+      }
+    );
+  }
+
   getEnterpriseMetricCatalog() {
     return getEnterpriseMetricCatalog();
   }
@@ -399,6 +431,7 @@ export class AppModule {
       pullRequests,
       ciRuns,
       deployments,
+      incidents,
     ] =
       await Promise.all([
         this.metricEventRepository.listRecordedMetricEvents(filters),
@@ -408,6 +441,7 @@ export class AppModule {
         this.listPullRequests(filters),
         this.listCiRuns(filters),
         this.listDeployments(filters),
+        this.listIncidents(filters),
       ]);
 
     return calculateEnterpriseMetrics({
@@ -427,7 +461,7 @@ export class AppModule {
         requirementSummary: buildRequirementCalculationSummary(requirements),
         pullRequestSummary: buildPullRequestCalculationSummary(pullRequests),
         ciSummary: buildCiCalculationSummary(ciRuns),
-        deploymentSummary: buildDeploymentCalculationSummary(deployments),
+        deploymentSummary: buildDeploymentCalculationSummary(deployments, incidents),
       },
     });
   }
@@ -631,7 +665,11 @@ const buildCiCalculationSummary = (
 
 const buildDeploymentCalculationSummary = (
   deployments: DeploymentRecord[],
+  incidents: IncidentRecord[],
 ) => {
+  const incidentDeploymentIds = new Set(
+    incidents.flatMap((incident) => incident.linkedDeploymentIds),
+  );
   const successfulDeployments = deployments.filter(
     (deployment) => deployment.status === 'success',
   );
@@ -639,7 +677,8 @@ const buildDeploymentCalculationSummary = (
     (deployment) =>
       deployment.status === 'failed' ||
       deployment.rolledBack ||
-      typeof deployment.incidentKey === 'string',
+      typeof deployment.incidentKey === 'string' ||
+      incidentDeploymentIds.has(deployment.deploymentId),
   );
   const rolledBackDeployments = deployments.filter(
     (deployment) => deployment.rolledBack,

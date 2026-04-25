@@ -347,6 +347,39 @@ describe('createDashboardClient', () => {
         );
       }
 
+      if (url.endsWith('/integrations/incidents/summary')) {
+        return new Response(
+          JSON.stringify({
+            totalIncidentCount: 2,
+            openIncidentCount: 1,
+            resolvedIncidentCount: 1,
+            linkedDeploymentCount: 2,
+            averageResolutionHours: 2.5,
+          }),
+          { status: 200 },
+        );
+      }
+
+      if (url.endsWith('/integrations/incidents')) {
+        return new Response(
+          JSON.stringify([
+            {
+              provider: 'pagerduty',
+              projectKey: 'aimetric',
+              incidentKey: 'INC-7',
+              title: 'Production deployment issue',
+              severity: 'sev2',
+              status: 'resolved',
+              linkedDeploymentIds: ['deploy-2'],
+              createdAt: '2026-04-24T03:05:00.000Z',
+              resolvedAt: '2026-04-24T05:35:00.000Z',
+              updatedAt: '2026-04-24T05:35:00.000Z',
+            },
+          ]),
+          { status: 200 },
+        );
+      }
+
       if (url.includes('/governance/viewer-scopes')) {
         return new Response(
           JSON.stringify({
@@ -497,6 +530,16 @@ describe('createDashboardClient', () => {
         status: 'success',
       }),
     ]);
+    await expect(client.getIncidentSummary()).resolves.toMatchObject({
+      totalIncidentCount: 2,
+      openIncidentCount: 1,
+    });
+    await expect(client.getIncidents()).resolves.toEqual([
+      expect.objectContaining({
+        incidentKey: 'INC-7',
+        severity: 'sev2',
+      }),
+    ]);
     await expect(client.getViewerScopeAssignment('manager-1')).resolves.toMatchObject({
       viewerId: 'manager-1',
       teamKeys: ['platform-engineering'],
@@ -558,6 +601,8 @@ describe('createDashboardClient', () => {
     await client.getCiRuns(filters);
     await client.getDeploymentSummary(filters);
     await client.getDeployments(filters);
+    await client.getIncidentSummary(filters);
+    await client.getIncidents(filters);
 
     expect(requestedUrls[0]).toBe(
       'http://127.0.0.1:3001/metrics/personal?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
@@ -603,6 +648,12 @@ describe('createDashboardClient', () => {
     );
     expect(requestedUrls[14]).toBe(
       'http://127.0.0.1:3001/integrations/deployments?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+    );
+    expect(requestedUrls[15]).toBe(
+      'http://127.0.0.1:3001/integrations/incidents/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+    );
+    expect(requestedUrls[16]).toBe(
+      'http://127.0.0.1:3001/integrations/incidents?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
   });
 

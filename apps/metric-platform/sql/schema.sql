@@ -131,6 +131,21 @@ CREATE TABLE IF NOT EXISTS deployment_runs (
   UNIQUE (provider, project_key, repo_name, deployment_id)
 );
 
+CREATE TABLE IF NOT EXISTS incident_records (
+  id BIGSERIAL PRIMARY KEY,
+  provider TEXT NOT NULL,
+  project_key TEXT NOT NULL,
+  incident_key TEXT NOT NULL,
+  title TEXT NOT NULL,
+  severity TEXT NOT NULL,
+  status TEXT NOT NULL,
+  linked_deployment_ids TEXT[] NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL,
+  resolved_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL,
+  UNIQUE (provider, project_key, incident_key)
+);
+
 CREATE TABLE IF NOT EXISTS governance_organizations (
   id BIGSERIAL PRIMARY KEY,
   organization_key TEXT NOT NULL UNIQUE,

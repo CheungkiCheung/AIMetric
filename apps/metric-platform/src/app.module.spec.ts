@@ -579,6 +579,63 @@ describe('AppModule', () => {
     });
   });
 
+  it('imports incidents and builds an incident summary through the repository', async () => {
+    const repository = {
+      ...createEmptyRepository(),
+      importIncidents: vi.fn(async () => undefined),
+      listIncidents: vi.fn(async () => [
+        {
+          provider: 'pagerduty' as const,
+          projectKey: 'aimetric',
+          incidentKey: 'INC-7',
+          title: 'Production deployment issue',
+          severity: 'sev2' as const,
+          status: 'resolved' as const,
+          linkedDeploymentIds: ['deploy-2'],
+          createdAt: '2026-04-26T03:05:00.000Z',
+          resolvedAt: '2026-04-26T04:05:00.000Z',
+          updatedAt: '2026-04-26T04:05:00.000Z',
+        },
+      ]),
+      buildIncidentSummary: vi.fn(async () => ({
+        totalIncidentCount: 1,
+        openIncidentCount: 0,
+        resolvedIncidentCount: 1,
+        linkedDeploymentCount: 1,
+        averageResolutionHours: 1,
+      })),
+    };
+    const appModule = new AppModule(repository);
+
+    const importResult = await appModule.importIncidents([
+      {
+        provider: 'pagerduty',
+        projectKey: 'aimetric',
+        incidentKey: 'INC-7',
+        title: 'Production deployment issue',
+        severity: 'sev2',
+        status: 'resolved',
+        linkedDeploymentIds: ['deploy-2'],
+        createdAt: '2026-04-26T03:05:00.000Z',
+        resolvedAt: '2026-04-26T04:05:00.000Z',
+        updatedAt: '2026-04-26T04:05:00.000Z',
+      },
+    ]);
+    const summary = await appModule.buildIncidentSummary({
+      projectKey: 'aimetric',
+    });
+
+    expect(importResult).toEqual({ importedIncidents: 1 });
+    expect(repository.importIncidents).toHaveBeenCalledTimes(1);
+    expect(summary).toEqual({
+      totalIncidentCount: 1,
+      openIncidentCount: 0,
+      resolvedIncidentCount: 1,
+      linkedDeploymentCount: 1,
+      averageResolutionHours: 1,
+    });
+  });
+
   it('filters enterprise metrics by dimension', () => {
     const appModule = new AppModule(createEmptyRepository());
     const metrics = appModule.listEnterpriseMetricsByDimension('quality-risk');
@@ -730,6 +787,20 @@ describe('AppModule', () => {
           updatedAt: '2026-04-23T04:12:00.000Z',
         },
       ]),
+      listIncidents: vi.fn(async () => [
+        {
+          provider: 'pagerduty' as const,
+          projectKey: 'navigation',
+          incidentKey: 'INC-9',
+          title: 'Production rollback',
+          severity: 'sev2' as const,
+          status: 'resolved' as const,
+          linkedDeploymentIds: ['deploy-2'],
+          createdAt: '2026-04-23T04:05:00.000Z',
+          resolvedAt: '2026-04-23T05:05:00.000Z',
+          updatedAt: '2026-04-23T05:05:00.000Z',
+        },
+      ]),
     };
     const filters = {
       projectKey: 'navigation',
@@ -749,6 +820,7 @@ describe('AppModule', () => {
     expect(repository.listPullRequests).toHaveBeenCalledWith(filters);
     expect(repository.listCiRuns).toHaveBeenCalledWith(filters);
     expect(repository.listDeployments).toHaveBeenCalledWith(filters);
+    expect(repository.listIncidents).toHaveBeenCalledWith(filters);
     expect(result).toEqual([
       expect.objectContaining({
         metricKey: 'ai_output_rate',

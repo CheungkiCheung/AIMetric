@@ -1107,6 +1107,115 @@ describe('bootstrap', () => {
     ]);
   });
 
+  it('imports and serves incident data over HTTP', async () => {
+    const importedIncidents: unknown[] = [];
+    const metricEventRepository: MetricEventRepository = {
+      ...createEmptyRepository(),
+      async importIncidents(incidents) {
+        importedIncidents.push(...incidents);
+      },
+      async listIncidents(filters) {
+        expect(filters).toEqual({ projectKey: 'aimetric' });
+
+        return [
+          {
+            provider: 'pagerduty' as const,
+            projectKey: 'aimetric',
+            incidentKey: 'INC-7',
+            title: 'Production deployment issue',
+            severity: 'sev2' as const,
+            status: 'resolved' as const,
+            linkedDeploymentIds: ['deploy-2'],
+            createdAt: '2026-04-26T03:05:00.000Z',
+            resolvedAt: '2026-04-26T04:05:00.000Z',
+            updatedAt: '2026-04-26T04:05:00.000Z',
+          },
+        ];
+      },
+      async buildIncidentSummary() {
+        return {
+          totalIncidentCount: 1,
+          openIncidentCount: 0,
+          resolvedIncidentCount: 1,
+          linkedDeploymentCount: 1,
+          averageResolutionHours: 1,
+        };
+      },
+    };
+    const app = await bootstrap({
+      port: 0,
+      adminToken: 'admin-secret',
+      metricEventRepository,
+    });
+    servers.push(app);
+
+    const importResponse = await fetch(
+      `${app.baseUrl}/integrations/incidents/import`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer admin-secret',
+          'content-type': 'application/json',
+          'x-aimetric-actor': 'platform-admin',
+        },
+        body: JSON.stringify({
+          incidents: [
+            {
+              provider: 'pagerduty',
+              projectKey: 'aimetric',
+              incidentKey: 'INC-7',
+              title: 'Production deployment issue',
+              severity: 'sev2',
+              status: 'resolved',
+              linkedDeploymentIds: ['deploy-2'],
+              createdAt: '2026-04-26T03:05:00.000Z',
+              resolvedAt: '2026-04-26T04:05:00.000Z',
+              updatedAt: '2026-04-26T04:05:00.000Z',
+            },
+          ],
+        }),
+      },
+    );
+    const listResponse = await fetch(
+      `${app.baseUrl}/integrations/incidents?projectKey=aimetric`,
+    );
+    const summaryResponse = await fetch(
+      `${app.baseUrl}/integrations/incidents/summary?projectKey=aimetric`,
+    );
+    const auditResponse = await fetch(`${app.baseUrl}/admin/audit`, {
+      headers: {
+        authorization: 'Bearer admin-secret',
+      },
+    });
+
+    expect(importResponse.status).toBe(200);
+    await expect(importResponse.json()).resolves.toEqual({
+      importedIncidents: 1,
+    });
+    expect(importedIncidents).toHaveLength(1);
+    expect(listResponse.status).toBe(200);
+    await expect(listResponse.json()).resolves.toEqual([
+      expect.objectContaining({
+        incidentKey: 'INC-7',
+        severity: 'sev2',
+      }),
+    ]);
+    expect(summaryResponse.status).toBe(200);
+    await expect(summaryResponse.json()).resolves.toEqual({
+      totalIncidentCount: 1,
+      openIncidentCount: 0,
+      resolvedIncidentCount: 1,
+      linkedDeploymentCount: 1,
+      averageResolutionHours: 1,
+    });
+    await expect(auditResponse.json()).resolves.toEqual([
+      expect.objectContaining({
+        action: 'incidents.import',
+        actor: 'platform-admin',
+      }),
+    ]);
+  });
+
   it('serves enterprise metrics filtered by dimension over HTTP', async () => {
     const app = await bootstrap({
       port: 0,
@@ -1282,6 +1391,22 @@ describe('bootstrap', () => {
             createdAt: '2026-04-23T04:00:00.000Z',
             finishedAt: '2026-04-23T04:12:00.000Z',
             updatedAt: '2026-04-23T04:12:00.000Z',
+          },
+        ];
+      },
+      async listIncidents() {
+        return [
+          {
+            provider: 'pagerduty' as const,
+            projectKey: 'navigation',
+            incidentKey: 'INC-9',
+            title: 'Production rollback',
+            severity: 'sev2' as const,
+            status: 'resolved' as const,
+            linkedDeploymentIds: ['deploy-2'],
+            createdAt: '2026-04-23T04:05:00.000Z',
+            resolvedAt: '2026-04-23T05:05:00.000Z',
+            updatedAt: '2026-04-23T05:05:00.000Z',
           },
         ];
       },
