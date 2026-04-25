@@ -117,6 +117,7 @@ export interface OutputAnalysisRow {
 
 export interface CollectorIngestionHealth {
   deliveryMode: 'sync' | 'queue';
+  queueBackend: 'memory' | 'file';
   queueDepth: number;
   deadLetterDepth: number;
   enqueuedTotal: number;
@@ -219,6 +220,7 @@ const fallbackEnterpriseMetricCatalog = getEnterpriseMetricCatalog();
 
 const fallbackCollectorIngestionHealth: CollectorIngestionHealth = {
   deliveryMode: 'sync',
+  queueBackend: 'memory',
   queueDepth: 0,
   deadLetterDepth: 0,
   enqueuedTotal: 0,

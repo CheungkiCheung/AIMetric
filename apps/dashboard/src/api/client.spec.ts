@@ -154,6 +154,7 @@ describe('createDashboardClient', () => {
         return new Response(
           JSON.stringify({
             deliveryMode: 'queue',
+            queueBackend: 'file',
             queueDepth: 3,
             deadLetterDepth: 1,
             enqueuedTotal: 10,
@@ -232,6 +233,7 @@ describe('createDashboardClient', () => {
     ]);
     await expect(client.getCollectorIngestionHealth()).resolves.toMatchObject({
       deliveryMode: 'queue',
+      queueBackend: 'file',
       queueDepth: 3,
       deadLetterDepth: 1,
       failedForwardTotal: 2,
@@ -315,6 +317,7 @@ describe('createDashboardClient', () => {
       return new Response(
         JSON.stringify({
           deliveryMode: 'sync',
+          queueBackend: 'memory',
           queueDepth: 0,
           deadLetterDepth: 0,
           enqueuedTotal: 0,
@@ -332,6 +335,7 @@ describe('createDashboardClient', () => {
 
     await expect(client.getCollectorIngestionHealth()).resolves.toMatchObject({
       deliveryMode: 'sync',
+      queueBackend: 'memory',
       forwardedTotal: 4,
     });
     expect(requestedUrls).toEqual([
@@ -346,6 +350,7 @@ describe('createDashboardClient', () => {
 
     await expect(client.getCollectorIngestionHealth()).resolves.toEqual({
       deliveryMode: 'sync',
+      queueBackend: 'memory',
       queueDepth: 0,
       deadLetterDepth: 0,
       enqueuedTotal: 0,

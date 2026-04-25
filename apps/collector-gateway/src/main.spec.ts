@@ -1,12 +1,19 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { bootstrap } from './main.js';
 
 describe('collector gateway bootstrap', () => {
   const servers: Array<{ close: () => Promise<void> }> = [];
+  const temporaryDirectories: string[] = [];
 
   afterEach(async () => {
     await Promise.all(servers.map((server) => server.close()));
     servers.length = 0;
+    temporaryDirectories.splice(0).forEach((directory) => {
+      rmSync(directory, { recursive: true, force: true });
+    });
   });
 
   it('accepts ingestion batches over HTTP', async () => {
@@ -154,6 +161,34 @@ describe('collector gateway bootstrap', () => {
     expect(authorizedResponse.status).toBe(200);
     await expect(authorizedResponse.json()).resolves.toMatchObject({
       attempted: 0,
+    });
+  });
+
+  it('can boot with a file-backed ingestion queue', async () => {
+    const queueDir = mkdtempSync(join(tmpdir(), 'aimetric-http-queue-'));
+    temporaryDirectories.push(queueDir);
+    const app = await bootstrap({
+      port: 0,
+      ingestionDeliveryMode: 'queue',
+      ingestionQueueBackend: 'file',
+      ingestionQueueDir: queueDir,
+    });
+    servers.push(app);
+
+    const ingestionResponse = await fetch(`${app.baseUrl}/ingestion`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(createIngestionBatch()),
+    });
+    const healthResponse = await fetch(`${app.baseUrl}/ingestion/health`);
+
+    expect(ingestionResponse.status).toBe(200);
+    await expect(healthResponse.json()).resolves.toMatchObject({
+      deliveryMode: 'queue',
+      queueBackend: 'file',
+      queueDepth: 1,
     });
   });
 });

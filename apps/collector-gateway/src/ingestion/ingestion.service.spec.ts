@@ -1,10 +1,17 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { IngestionService } from './ingestion.service.js';
+import { FileBackedIngestionQueue, IngestionService } from './ingestion.service.js';
 
 describe('IngestionService', () => {
   const originalFetch = globalThis.fetch;
+  const temporaryDirectories: string[] = [];
 
   afterEach(() => {
+    temporaryDirectories.splice(0).forEach((directory) => {
+      rmSync(directory, { recursive: true, force: true });
+    });
     globalThis.fetch = originalFetch;
     vi.restoreAllMocks();
   });
@@ -119,6 +126,73 @@ describe('IngestionService', () => {
       queueDepth: 0,
       deadLetterDepth: 1,
       failedForwardTotal: 2,
+    });
+  });
+
+  it('persists queued batches across service restarts with a file-backed queue', async () => {
+    const queueDir = mkdtempSync(join(tmpdir(), 'aimetric-ingestion-queue-'));
+    temporaryDirectories.push(queueDir);
+    globalThis.fetch = vi.fn(async () =>
+      new Response(JSON.stringify({ imported: 1, schemaVersion: 'v1' }), {
+        status: 200,
+      }),
+    ) as typeof fetch;
+
+    const firstService = new IngestionService({
+      deliveryMode: 'queue',
+      queue: new FileBackedIngestionQueue({ queueDir }),
+    });
+    await firstService.ingest(createIngestionBatch());
+
+    const restartedService = new IngestionService({
+      deliveryMode: 'queue',
+      queue: new FileBackedIngestionQueue({ queueDir }),
+    });
+    const result = await restartedService.flushQueuedBatches();
+
+    expect(result).toEqual({
+      attempted: 1,
+      forwarded: 1,
+      failed: 0,
+      remainingDepth: 0,
+      deadLetterDepth: 0,
+    });
+    expect(restartedService.getHealth()).toMatchObject({
+      queueBackend: 'file',
+      queueDepth: 0,
+      deadLetterDepth: 0,
+      forwardedTotal: 1,
+    });
+  });
+
+  it('persists dead-lettered batches with a file-backed queue', async () => {
+    const queueDir = mkdtempSync(join(tmpdir(), 'aimetric-ingestion-dlq-'));
+    temporaryDirectories.push(queueDir);
+    globalThis.fetch = vi.fn(async () => new Response('', { status: 503 })) as typeof fetch;
+    const service = new IngestionService({
+      deliveryMode: 'queue',
+      queue: new FileBackedIngestionQueue({
+        queueDir,
+        maxDeliveryAttempts: 2,
+      }),
+    });
+
+    await service.ingest(createIngestionBatch());
+    await service.flushQueuedBatches();
+    await service.flushQueuedBatches();
+
+    const restartedService = new IngestionService({
+      deliveryMode: 'queue',
+      queue: new FileBackedIngestionQueue({
+        queueDir,
+        maxDeliveryAttempts: 2,
+      }),
+    });
+
+    expect(restartedService.getHealth()).toMatchObject({
+      queueBackend: 'file',
+      queueDepth: 0,
+      deadLetterDepth: 1,
     });
   });
 });

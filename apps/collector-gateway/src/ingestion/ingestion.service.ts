@@ -1,9 +1,22 @@
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { IngestionBatchSchema, type IngestionBatch } from '@aimetric/event-schema';
 
 export type IngestionDeliveryMode = 'sync' | 'queue';
+export type IngestionQueueBackend = 'memory' | 'file';
 
 export interface IngestionServiceOptions {
   deliveryMode?: IngestionDeliveryMode;
+  queueBackend?: IngestionQueueBackend;
+  queueDir?: string;
   metricPlatformBaseUrl?: string;
   queue?: IngestionQueue;
   maxDeliveryAttempts?: number;
@@ -27,6 +40,7 @@ export interface IngestionFlushResult {
 
 export interface IngestionHealthSnapshot {
   deliveryMode: IngestionDeliveryMode;
+  queueBackend: IngestionQueueBackend;
   queueDepth: number;
   deadLetterDepth: number;
   enqueuedTotal: number;
@@ -42,6 +56,7 @@ export interface IngestionQueueItem {
 }
 
 export interface IngestionQueueSnapshot {
+  backend: IngestionQueueBackend;
   depth: number;
   deadLetterDepth: number;
 }
@@ -107,6 +122,7 @@ export class InMemoryIngestionQueue implements IngestionQueue {
 
   snapshot(): IngestionQueueSnapshot {
     return {
+      backend: 'memory',
       depth: this.items.length,
       deadLetterDepth: this.deadLetters.length,
     };
@@ -118,6 +134,126 @@ export class InMemoryIngestionQueue implements IngestionQueue {
     if (index >= 0) {
       this.items.splice(index, 1);
     }
+  }
+}
+
+export interface FileBackedIngestionQueueOptions {
+  queueDir: string;
+  maxDeliveryAttempts?: number;
+}
+
+interface FileBackedQueuePayload extends IngestionQueueItem {}
+
+export class FileBackedIngestionQueue implements IngestionQueue {
+  private readonly pendingDir: string;
+  private readonly deadLetterDir: string;
+  private readonly maxDeliveryAttempts: number;
+
+  constructor(options: FileBackedIngestionQueueOptions) {
+    this.pendingDir = join(options.queueDir, 'pending');
+    this.deadLetterDir = join(options.queueDir, 'dead-letter');
+    this.maxDeliveryAttempts = options.maxDeliveryAttempts ?? 3;
+    mkdirSync(this.pendingDir, { recursive: true });
+    mkdirSync(this.deadLetterDir, { recursive: true });
+  }
+
+  enqueue(batch: IngestionBatch): IngestionQueueItem {
+    const item: IngestionQueueItem = {
+      id: `ingestion_${Date.now()}_${randomUUID()}`,
+      batch,
+      attempts: 0,
+      enqueuedAt: new Date().toISOString(),
+    };
+
+    writeFileSync(
+      this.getPendingPath(item.id),
+      JSON.stringify(item),
+      'utf8',
+    );
+
+    return item;
+  }
+
+  peek(): IngestionQueueItem | undefined {
+    const file = this.listPendingFiles()[0];
+
+    if (!file) {
+      return undefined;
+    }
+
+    return this.readItem(join(this.pendingDir, file));
+  }
+
+  ack(itemId: string): void {
+    const path = this.getPendingPath(itemId);
+
+    if (existsSync(path)) {
+      rmSync(path);
+    }
+  }
+
+  fail(itemId: string): void {
+    const path = this.getPendingPath(itemId);
+
+    if (!existsSync(path)) {
+      return;
+    }
+
+    const item = this.readItem(path);
+
+    if (!item) {
+      rmSync(path, { force: true });
+      return;
+    }
+
+    const nextItem: IngestionQueueItem = {
+      ...item,
+      attempts: item.attempts + 1,
+    };
+
+    if (nextItem.attempts >= this.maxDeliveryAttempts) {
+      writeFileSync(
+        this.getDeadLetterPath(nextItem.id),
+        JSON.stringify(nextItem),
+        'utf8',
+      );
+      rmSync(path);
+      return;
+    }
+
+    writeFileSync(path, JSON.stringify(nextItem), 'utf8');
+  }
+
+  snapshot(): IngestionQueueSnapshot {
+    return {
+      backend: 'file',
+      depth: this.listPendingFiles().length,
+      deadLetterDepth: this.listDeadLetterFiles().length,
+    };
+  }
+
+  private readItem(path: string): IngestionQueueItem | undefined {
+    try {
+      return JSON.parse(readFileSync(path, 'utf8')) as FileBackedQueuePayload;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private listPendingFiles(): string[] {
+    return listJsonFiles(this.pendingDir);
+  }
+
+  private listDeadLetterFiles(): string[] {
+    return listJsonFiles(this.deadLetterDir);
+  }
+
+  private getPendingPath(itemId: string): string {
+    return join(this.pendingDir, `${itemId}.json`);
+  }
+
+  private getDeadLetterPath(itemId: string): string {
+    return join(this.deadLetterDir, `${itemId}.json`);
   }
 }
 
@@ -138,7 +274,11 @@ export class IngestionService {
       'http://127.0.0.1:3001';
     this.queue =
       options.queue ??
-      new InMemoryIngestionQueue(options.maxDeliveryAttempts ?? 3);
+      createDefaultQueue({
+        queueBackend: options.queueBackend,
+        queueDir: options.queueDir,
+        maxDeliveryAttempts: options.maxDeliveryAttempts,
+      });
   }
 
   async ingest(input: unknown): Promise<IngestionResult> {
@@ -207,6 +347,7 @@ export class IngestionService {
 
     return {
       deliveryMode: this.deliveryMode,
+      queueBackend: snapshot.backend,
       queueDepth: snapshot.depth,
       deadLetterDepth: snapshot.deadLetterDepth,
       enqueuedTotal: this.enqueuedTotal,
@@ -240,3 +381,36 @@ export class IngestionService {
 
 const readDeliveryModeFromEnvironment = (): IngestionDeliveryMode =>
   process.env.INGESTION_DELIVERY_MODE === 'queue' ? 'queue' : 'sync';
+
+const readQueueBackendFromEnvironment = (): IngestionQueueBackend =>
+  process.env.INGESTION_QUEUE_BACKEND === 'file' ? 'file' : 'memory';
+
+const createDefaultQueue = (options: {
+  queueBackend?: IngestionQueueBackend;
+  queueDir?: string;
+  maxDeliveryAttempts?: number;
+}): IngestionQueue => {
+  const queueBackend = options.queueBackend ?? readQueueBackendFromEnvironment();
+
+  if (queueBackend === 'file') {
+    return new FileBackedIngestionQueue({
+      queueDir:
+        options.queueDir ??
+        process.env.INGESTION_QUEUE_DIR ??
+        '.aimetric-ingestion-queue',
+      maxDeliveryAttempts: options.maxDeliveryAttempts,
+    });
+  }
+
+  return new InMemoryIngestionQueue(options.maxDeliveryAttempts ?? 3);
+};
+
+const listJsonFiles = (directory: string): string[] => {
+  try {
+    return readdirSync(directory)
+      .filter((file) => file.endsWith('.json'))
+      .sort();
+  } catch {
+    return [];
+  }
+};

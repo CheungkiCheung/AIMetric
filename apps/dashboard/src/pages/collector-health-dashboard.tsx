@@ -45,6 +45,7 @@ export const CollectorHealthDashboard = ({
   health,
 }: CollectorHealthDashboardProps) => {
   const modeLabel = health.deliveryMode === 'queue' ? '队列模式' : '同步模式';
+  const backendLabel = health.queueBackend === 'file' ? '文件持久队列' : '内存队列';
   const riskLabel =
     health.deadLetterDepth > 0
       ? '存在 DLQ，需要排查重放'
@@ -73,6 +74,10 @@ export const CollectorHealthDashboard = ({
         <article style={cardStyle}>
           <p style={labelStyle}>投递模式</p>
           <p style={{ ...valueStyle, fontSize: '24px' }}>{modeLabel}</p>
+        </article>
+        <article style={cardStyle}>
+          <p style={labelStyle}>队列后端</p>
+          <p style={{ ...valueStyle, fontSize: '24px' }}>{backendLabel}</p>
         </article>
         <article style={cardStyle}>
           <p style={labelStyle}>待投递批次</p>

@@ -191,6 +191,7 @@ const createClient = (
   ],
   getCollectorIngestionHealth: async () => ({
     deliveryMode: 'queue',
+    queueBackend: 'file',
     queueDepth: 3,
     deadLetterDepth: 1,
     enqueuedTotal: 10,
@@ -252,6 +253,7 @@ describe('App', () => {
     expect(screen.getByText('MCP 采集质量')).toBeInTheDocument();
     expect(screen.getByText('采集健康运营')).toBeInTheDocument();
     expect(screen.getByText('队列模式')).toBeInTheDocument();
+    expect(screen.getByText('文件持久队列')).toBeInTheDocument();
     expect(screen.getByText('待投递批次')).toBeInTheDocument();
     expect(screen.getByText('DLQ 批次')).toBeInTheDocument();
     expect(screen.getByText('规则中心管理')).toBeInTheDocument();

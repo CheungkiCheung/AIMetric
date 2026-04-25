@@ -839,7 +839,7 @@ Agent 能力：
 
 交付：
 
-- Redis Stream / BullMQ：待企业级持久队列替换。
+- Redis Stream / BullMQ：待多副本企业级持久队列替换；单实例准生产已新增文件持久队列。
 - ingestion worker：第一版已完成手动 flush worker 入口 `POST /ingestion/flush`。
 - retry / DLQ：第一版已完成进程内队列重试和 DLQ 计数。
 - queue lag 指标：第一版已完成 queue depth / DLQ depth。
@@ -850,8 +850,8 @@ Agent 能力：
 
 - collector-gateway 短暂不可用时员工端可以本地缓冲：第一版已完成，collector-sdk 支持 `.aimetric/outbox`，CLI adapter 和 Cursor adapter 已接入。
 - 员工端可恢复投递：第一版已完成，`aimetric status` 展示 `outboxDepth`，`aimetric doctor` 对待 flush 批次降级提醒，`aimetric flush` 可手动发送本地 outbox。
-- ingestion worker 可以恢复消费：第一版已满足，队列模式下 flush 后可恢复投递。
-- 管理者能看到采集链路状态：第一版已满足，可查看投递模式、queue depth、DLQ depth、forwarded total 和 failed forward total。
+- ingestion worker 可以恢复消费：第一版已满足，队列模式下 flush 后可恢复投递；文件队列支持服务重启后继续 flush。
+- 管理者能看到采集链路状态：第一版已满足，可查看投递模式、队列后端、queue depth、DLQ depth、forwarded total 和 failed forward total。
 - 重复事件不会重复计入指标：已有 ingestion key 幂等基础，E5 后续需要把队列重放场景纳入专项测试。
 
 ### Phase E6：组织权限与治理模型

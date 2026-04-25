@@ -2,7 +2,10 @@ import { timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { AppModule } from './app.module.js';
-import type { IngestionDeliveryMode } from './ingestion/ingestion.service.js';
+import type {
+  IngestionDeliveryMode,
+  IngestionQueueBackend,
+} from './ingestion/ingestion.service.js';
 
 export interface CollectorGatewayServer {
   baseUrl: string;
@@ -14,6 +17,8 @@ export interface BootstrapOptions {
   port?: number;
   collectorToken?: string;
   ingestionDeliveryMode?: IngestionDeliveryMode;
+  ingestionQueueBackend?: IngestionQueueBackend;
+  ingestionQueueDir?: string;
 }
 
 const readJsonBody = async (request: IncomingMessage): Promise<unknown> =>
@@ -180,6 +185,8 @@ export async function bootstrap(
     options.collectorToken ?? process.env.AIMETRIC_COLLECTOR_TOKEN;
   const appModule = new AppModule({
     deliveryMode: options.ingestionDeliveryMode,
+    queueBackend: options.ingestionQueueBackend,
+    queueDir: options.ingestionQueueDir,
   });
   const metrics = {
     startedAt: Date.now(),
