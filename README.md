@@ -1,6 +1,30 @@
 # AIMetric
 
-AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研发效率的量化与优化》的同构复现项目。当前版本已经进入文章“增强采集档 + 证据链沉淀”阶段，主链路覆盖 MCP 标准化采集、采集网关、归因证据、指标计算、个人/团队看板以及编辑证据查询。
+AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研发效率的量化与优化》的同构复现项目，并已经扩展为可继续工程化落地的企业级 AI 研发效能平台原型。
+
+当前版本重点解决四件事：
+
+- 让员工侧以轻量方式接入 `Cursor / CLI / Codex / Claude Code / VS Code / JetBrains`
+- 让平台侧统一采集 AI 使用、会话、出码、需求、PR、CI、发布、事故、缺陷等多维事实
+- 让管理侧按 `使用渗透 / 有效产出 / 交付效率 / 质量风险 / 业务价值` 观察提效结果
+- 为后续 `Agent / RAG` 智能分析保留统一证据链和指标语义层
+
+## 你可以把它当成什么
+
+- 对内试点版：可用于企业内部 AI 研发提效试点
+- 管理平台骨架：可继续补 SSO、租户隔离、K8s、告警、数据治理
+- 文章同构复现：尽量保持文章里的模块边界、术语和分层
+
+## 角色入口
+
+- 员工接入：
+  看 [docs/operations/employee-onboarding-guide.md](/Users/zhangqixiang/0_1WORK/zhongxing/AIMetric/docs/operations/employee-onboarding-guide.md)
+- 平台部署 / 运维：
+  看 [docs/operations/production-runbook.md](/Users/zhangqixiang/0_1WORK/zhongxing/AIMetric/docs/operations/production-runbook.md)
+- 试点推进 / 管理者落地：
+  看 [docs/operations/pilot-rollout-guide.md](/Users/zhangqixiang/0_1WORK/zhongxing/AIMetric/docs/operations/pilot-rollout-guide.md)
+- 全量中文计划：
+  看 [docs/superpowers/plans/2026-04-23-aimetric-中文执行计划.md](/Users/zhangqixiang/0_1WORK/zhongxing/AIMetric/docs/superpowers/plans/2026-04-23-aimetric-%E4%B8%AD%E6%96%87%E6%89%A7%E8%A1%8C%E8%AE%A1%E5%88%92.md)
 
 ## 当前完成度
 
@@ -55,6 +79,10 @@ AIMetric 是对文章《AI出码率70%+的背后：高德团队如何实现AI研
 - 本地 `docker-compose.yml`，包含 PostgreSQL 和 Redis
 - 准生产运维手册：[production-runbook.md](docs/operations/production-runbook.md)
 - 基础 README、设计文档、Phase 1 执行计划
+- 企业指标语义层、组织治理、viewer scope 授权、身份映射
+- `GitHub / GitLab PR`、`Jira / TAPD`、`GitHub Actions / GitLab CI`、发布、事故、缺陷主线接入
+- 缺陷归因分析：`AI 参与需求缺陷率`、`AI 触达 PR 逃逸缺陷率`、`发布失败关联缺陷数`、`事故关联缺陷数`
+- 业务价值轻量指标：`critical_requirement_cycle_time`
 
 未完成：
 
@@ -107,7 +135,7 @@ docs/
   superpowers/plans/   Phase 1 执行计划
 ```
 
-## 本地启动
+## 快速开始
 
 ### 1. 安装依赖
 
@@ -117,7 +145,22 @@ docs/
 corepack pnpm install
 ```
 
-### 2. 启动基础依赖
+### 2. 准备环境变量
+
+复制根目录环境样例：
+
+```bash
+cp .env.example .env.local
+```
+
+最小必填项：
+
+- `DATABASE_URL`
+- `METRIC_PLATFORM_URL`
+- `AIMETRIC_COLLECTOR_TOKEN`
+- `METRIC_PLATFORM_ADMIN_TOKEN`
+
+### 3. 启动基础依赖
 
 ```bash
 docker compose up -d
@@ -128,7 +171,54 @@ docker compose up -d
 - PostgreSQL：`127.0.0.1:5432`
 - Redis：`127.0.0.1:6379`
 
-### 3. 启动后端服务
+### 4. 启动后端服务
+
+```bash
+export DATABASE_URL='postgresql://aimetric:aimetric@127.0.0.1:5432/aimetric?sslmode=disable'
+export AIMETRIC_COLLECTOR_TOKEN='local-collector-token'
+export METRIC_PLATFORM_ADMIN_TOKEN='local-admin-token'
+export METRIC_PLATFORM_URL='http://127.0.0.1:3001'
+
+corepack pnpm start:metric-platform
+corepack pnpm start:collector-gateway
+```
+
+默认端口：
+
+- `collector-gateway`：`http://127.0.0.1:3000`
+- `metric-platform`：`http://127.0.0.1:3001`
+
+### 5. 启动前端看板
+
+```bash
+corepack pnpm dev:dashboard
+```
+
+前端默认从 `http://localhost:3001` 读取指标平台数据。
+
+### 6. 打开试点流程
+
+建议本地按这个顺序体验：
+
+1. 用 `aimetric onboard` 生成员工侧配置
+2. 用 `aimetric doctor` 检查接入状态
+3. 导入一批需求 / PR / CI / 发布 / 缺陷示例数据
+4. 打开 Dashboard 查看个人、团队、需求、PR、CI、发布、事故、缺陷与归因视图
+
+## 本地启动
+
+### 1. 启动基础依赖
+
+```bash
+docker compose up -d
+```
+
+当前 `docker-compose.yml` 提供：
+
+- PostgreSQL：`127.0.0.1:5432`
+- Redis：`127.0.0.1:6379`
+
+### 2. 启动后端服务
 
 ```bash
 corepack pnpm start:collector-gateway
@@ -152,13 +242,53 @@ export METRIC_PLATFORM_ADMIN_TOKEN='replace-with-admin-secret'
 - `collector-gateway`：`http://127.0.0.1:3000`
 - `metric-platform`：`http://127.0.0.1:3001`
 
-### 4. 启动前端看板
+### 3. 启动前端看板
 
 ```bash
 corepack pnpm dev:dashboard
 ```
 
 前端默认从 `http://localhost:3001` 读取指标平台数据。
+
+## 员工接入最小示例
+
+员工机器通常只需要：
+
+- 一个 `Node.js` 运行时
+- 一个 `aimetric` onboarding 命令入口
+- 一个指向 collector 的 token 环境变量
+
+示例：
+
+```bash
+corepack pnpm --filter @aimetric/employee-onboarding build
+node packages/employee-onboarding/dist/cli.js onboard \
+  --workspaceDir=/path/to/repo \
+  --profile=cursor \
+  --projectKey=aimetric \
+  --repoName=AIMetric \
+  --memberId=alice
+
+node packages/employee-onboarding/dist/cli.js doctor --workspaceDir=/path/to/repo
+node packages/employee-onboarding/dist/cli.js status --workspaceDir=/path/to/repo
+```
+
+如果 collector 暂时不可达：
+
+- 员工命令不会直接阻断
+- 事件会缓存在 `.aimetric/outbox`
+- 后续可执行 `aimetric flush`
+
+## 试点建议
+
+建议按三层推进：
+
+1. 小范围试点：
+   先选 `1-2` 个团队、`10-30` 名研发，跑通采集、权限、指标和管理看板
+2. 角色校准：
+   让员工、技术管理者、提效管理者分别确认他们最关心的面板和口径
+3. 再扩大范围：
+   扩到多团队后，再考虑 `SSO / K8s / 告警 / 数据保留 / Agent-RAG`
 
 ## API 示例
 
@@ -257,6 +387,23 @@ METRIC_SNAPSHOT_RECALCULATION_INTERVAL_MS=60000 corepack pnpm start:metric-platf
 corepack pnpm test
 corepack pnpm -r lint
 ```
+
+## 当前建议的收尾边界
+
+如果你要把这版作为“企业试点前版本”，现在已经足够：
+
+- 员工端轻量接入
+- 多工具采集主链路
+- 多维指标与管理视图
+- 组织治理与权限
+- 需求、PR、CI、发布、事故、缺陷主线
+- 缺陷归因与关键需求周期
+
+下一阶段更适合切到：
+
+- 试点联调与真实接入
+- Agent / RAG 智能分析
+- 更强的生产化部署能力
 
 补充说明：
 
