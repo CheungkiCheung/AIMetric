@@ -1,6 +1,7 @@
 import {
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   utimesSync,
@@ -168,6 +169,30 @@ describe('syncCursorSessions', () => {
     expect(result.published).toBe(true);
     expect(requests[0]?.url).toBe('http://127.0.0.1:3000/ingestion');
     expect(requests[0]?.authorization).toBe('Bearer secret-token');
+    expect(
+      readFileSync(join(workspaceDir, '.aimetric', 'cursor-sync-state.json'), 'utf8'),
+    ).toContain('cursor-session-1');
+  });
+
+  it('buffers cursor-db batches and persists sync state when collector publishing fails', async () => {
+    const { workspaceDir, cursorProjectsDir } = createWorkspaceWithCursorTranscript();
+    globalThis.fetch = vi.fn(async () => new Response('', { status: 503 })) as typeof fetch;
+
+    const result = await syncCursorSessions({
+      workspaceDir,
+      dryRun: false,
+      now: () => '2026-04-24T00:10:00.000Z',
+      cursorProjectsDir,
+      homeDir: workspaceDir,
+      platform: 'darwin',
+    });
+
+    expect(result).toMatchObject({
+      published: false,
+      buffered: true,
+      bufferedDepth: 1,
+    });
+    expect(readdirSync(join(workspaceDir, '.aimetric', 'outbox'))).toHaveLength(1);
     expect(
       readFileSync(join(workspaceDir, '.aimetric', 'cursor-sync-state.json'), 'utf8'),
     ).toContain('cursor-session-1');

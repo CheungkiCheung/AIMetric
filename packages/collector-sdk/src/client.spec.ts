@@ -1,9 +1,21 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LocalEventBuffer } from './buffer.js';
-import { CollectorClient, publishIngestionBatch } from './client.js';
+import {
+  CollectorClient,
+  flushBufferedIngestionBatches,
+  publishIngestionBatch,
+  publishIngestionBatchWithBuffer,
+} from './client.js';
 import { loadAimMetricConfig } from './config.js';
 
 const temporaryWorkspaces: string[] = [];
@@ -256,6 +268,69 @@ describe('CollectorClient', () => {
       },
     ]);
   });
+
+  it('buffers ingestion batches to disk when publishing fails', async () => {
+    const workspaceDir = createWorkspaceWithConfig();
+    const config = await loadAimMetricConfig({ workspaceDir });
+    globalThis.fetch = vi.fn(async () => new Response('', { status: 503 })) as typeof fetch;
+
+    const result = await publishIngestionBatchWithBuffer(
+      config.collector,
+      createBatch(),
+      {
+        workspaceDir,
+      },
+    );
+
+    const outboxDir = join(workspaceDir, '.aimetric', 'outbox');
+    expect(result).toMatchObject({
+      published: false,
+      buffered: true,
+      bufferedDepth: 1,
+    });
+    expect(readdirSync(outboxDir)).toHaveLength(1);
+  });
+
+  it('flushes buffered ingestion batches in FIFO order and removes successful files', async () => {
+    const workspaceDir = createWorkspaceWithConfig();
+    const config = await loadAimMetricConfig({ workspaceDir });
+    const publishedSessionIds: string[] = [];
+    globalThis.fetch = vi.fn(async () => new Response('', { status: 503 })) as typeof fetch;
+
+    await publishIngestionBatchWithBuffer(
+      config.collector,
+      createBatch('sess_1'),
+      { workspaceDir },
+    );
+    await publishIngestionBatchWithBuffer(
+      config.collector,
+      createBatch('sess_2'),
+      { workspaceDir },
+    );
+
+    globalThis.fetch = vi.fn(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        const batch = JSON.parse(String(init?.body));
+        publishedSessionIds.push(batch.events[0].payload.sessionId);
+
+        return new Response(JSON.stringify({ accepted: 1 }), { status: 200 });
+      },
+    ) as typeof fetch;
+
+    const result = await flushBufferedIngestionBatches(config.collector, {
+      workspaceDir,
+    });
+
+    expect(result).toEqual({
+      attempted: 2,
+      published: 2,
+      failed: 0,
+      remainingDepth: 0,
+    });
+    expect(publishedSessionIds).toEqual(['sess_1', 'sess_2']);
+    expect(existsSync(join(workspaceDir, '.aimetric', 'outbox'))).toBe(true);
+    expect(readdirSync(join(workspaceDir, '.aimetric', 'outbox'))).toHaveLength(0);
+  });
 });
 
 const createWorkspaceWithConfig = (
@@ -304,3 +379,19 @@ const withoutUndefined = (input: Record<string, unknown>) =>
   Object.fromEntries(
     Object.entries(input).filter(([, value]) => value !== undefined),
   );
+
+const createBatch = (sessionId = 'sess_1') => ({
+  schemaVersion: 'v1' as const,
+  source: 'cursor',
+  events: [
+    {
+      eventType: 'session.recorded',
+      occurredAt: '2026-04-24T00:00:00.000Z',
+      payload: {
+        sessionId,
+        projectKey: 'aimetric',
+        repoName: 'AIMetric',
+      },
+    },
+  ],
+});

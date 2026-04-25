@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto';
+import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import type { IngestionBatch } from '@aimetric/event-schema';
 import { LocalEventBuffer } from './buffer.js';
 import type { AimMetricConfig } from './config.js';
@@ -9,6 +12,30 @@ export interface CollectorClientOptions {
 export interface PublishIngestionBatchOptions {
   environment?: Record<string, string | undefined>;
   fetchImplementation?: typeof fetch;
+}
+
+export interface PublishIngestionBatchWithBufferOptions
+  extends PublishIngestionBatchOptions {
+  workspaceDir: string;
+}
+
+export interface BufferedPublishResult {
+  published: boolean;
+  buffered: boolean;
+  bufferedDepth: number;
+}
+
+export interface FlushBufferedIngestionOptions
+  extends PublishIngestionBatchOptions {
+  workspaceDir: string;
+  limit?: number;
+}
+
+export interface FlushBufferedIngestionResult {
+  attempted: number;
+  published: number;
+  failed: number;
+  remainingDepth: number;
 }
 
 export interface SessionRecordedInput {
@@ -154,6 +181,62 @@ export async function publishIngestionBatch(
   }
 }
 
+export async function publishIngestionBatchWithBuffer(
+  collector: AimMetricConfig['collector'],
+  batch: IngestionBatch,
+  options: PublishIngestionBatchWithBufferOptions,
+): Promise<BufferedPublishResult> {
+  try {
+    await publishIngestionBatch(collector, batch, options);
+
+    return {
+      published: true,
+      buffered: false,
+      bufferedDepth: await readOutboxDepth(options.workspaceDir),
+    };
+  } catch {
+    await writeOutboxBatch(options.workspaceDir, batch);
+
+    return {
+      published: false,
+      buffered: true,
+      bufferedDepth: await readOutboxDepth(options.workspaceDir),
+    };
+  }
+}
+
+export async function flushBufferedIngestionBatches(
+  collector: AimMetricConfig['collector'],
+  options: FlushBufferedIngestionOptions,
+): Promise<FlushBufferedIngestionResult> {
+  const files = await readOutboxFiles(options.workspaceDir);
+  const selectedFiles = files.slice(0, options.limit ?? files.length);
+  let attempted = 0;
+  let published = 0;
+  let failed = 0;
+
+  for (const file of selectedFiles) {
+    attempted += 1;
+
+    try {
+      const batch = JSON.parse(await readFile(file, 'utf8')) as IngestionBatch;
+      await publishIngestionBatch(collector, batch, options);
+      await rm(file);
+      published += 1;
+    } catch {
+      failed += 1;
+      break;
+    }
+  }
+
+  return {
+    attempted,
+    published,
+    failed,
+    remainingDepth: await readOutboxDepth(options.workspaceDir),
+  };
+}
+
 const resolveCollectorAuthToken = (
   collector: AimMetricConfig['collector'],
   environment: Record<string, string | undefined>,
@@ -165,3 +248,35 @@ const resolveCollectorAuthToken = (
   const token = environment[collector.authTokenEnv];
   return token && token.length > 0 ? token : undefined;
 };
+
+const writeOutboxBatch = async (
+  workspaceDir: string,
+  batch: IngestionBatch,
+): Promise<void> => {
+  const outboxDir = getOutboxDir(workspaceDir);
+  await mkdir(outboxDir, { recursive: true });
+  const filename = `${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID()}.json`;
+
+  await writeFile(join(outboxDir, filename), JSON.stringify(batch), 'utf8');
+};
+
+const readOutboxDepth = async (workspaceDir: string): Promise<number> =>
+  (await readOutboxFiles(workspaceDir)).length;
+
+const readOutboxFiles = async (workspaceDir: string): Promise<string[]> => {
+  const outboxDir = getOutboxDir(workspaceDir);
+
+  try {
+    const files = await readdir(outboxDir);
+
+    return files
+      .filter((file) => file.endsWith('.json'))
+      .sort()
+      .map((file) => join(outboxDir, file));
+  } catch {
+    return [];
+  }
+};
+
+const getOutboxDir = (workspaceDir: string): string =>
+  join(workspaceDir, '.aimetric', 'outbox');

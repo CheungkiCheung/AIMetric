@@ -7,7 +7,7 @@ import {
 import {
   CollectorClient,
   loadAimMetricConfig,
-  publishIngestionBatch,
+  publishIngestionBatchWithBuffer,
   type CollectorClientOptions,
   type SessionRecordedInput,
 } from '@aimetric/collector-sdk';
@@ -23,6 +23,8 @@ export interface RecordCliSessionInput
 export interface RecordCliSessionResult {
   batch: IngestionBatch;
   published: boolean;
+  buffered?: boolean;
+  bufferedDepth?: number;
 }
 
 export interface GetCliAdapterHealthReportInput {
@@ -177,11 +179,20 @@ export async function recordCliSession(
     };
   }
 
-  await publishIngestionBatch(config.collector, batch);
+  const publishResult = await publishIngestionBatchWithBuffer(
+    config.collector,
+    batch,
+    {
+      workspaceDir:
+        input.workspaceDir ?? process.cwd(),
+    },
+  );
 
   return {
     batch,
-    published: true,
+    published: publishResult.published,
+    buffered: publishResult.buffered,
+    bufferedDepth: publishResult.bufferedDepth,
   };
 }
 

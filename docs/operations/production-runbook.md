@@ -124,6 +124,27 @@ curl -X POST http://127.0.0.1:3000/ingestion/flush
 - `failedForwardTotal` 增长：说明存在下游不可用、HTTP 非 2xx 或网络异常。
 - 当前内存队列重启会丢失，不能作为最终企业级持久队列。
 
+## 4.2 员工端本地 outbox
+
+`collector-sdk` 已提供第一版本地 outbox。CLI adapter 和 Cursor adapter 在 `--publish` 时，如果 collector-gateway 不可用或返回非 2xx，会把完整 ingestion batch 写入：
+
+```text
+.aimetric/outbox/*.json
+```
+
+行为说明：
+
+- 员工侧命令不会因为 collector 短暂不可用直接失败。
+- 成功写入 outbox 后，结果会返回 `buffered: true` 和 `bufferedDepth`。
+- Cursor adapter 在 batch 已本地缓冲后会推进 `cursor-sync-state.json`，避免下一次扫描重复生成同一批事件。
+- `collector-sdk` 提供 `flushBufferedIngestionBatches`，后续可封装成 `aimetric flush` 或后台定时任务。
+
+排障判断：
+
+- `bufferedDepth` 持续增长：说明员工端能采集，但 collector-gateway 或网络不可达。
+- outbox 文件长期未清空：需要检查员工端 flush 任务、collector token 和 collector-gateway 可用性。
+- 当前 outbox 是本地文件队列，适合员工端轻量缓冲；企业侧统一队列仍应使用 collector-gateway 的队列 / Redis Stream。
+
 ## 5. 管理审计
 
 开启 `METRIC_PLATFORM_ADMIN_TOKEN` 后，以下管理操作会写入轻量审计记录：

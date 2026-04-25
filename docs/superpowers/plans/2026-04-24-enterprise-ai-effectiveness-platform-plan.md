@@ -258,7 +258,7 @@ adapter 必须提供：
 
 ```text
 collector-sdk / adapter
-  -> local buffer
+  -> local buffer / outbox
   -> collector-gateway
   -> queue
   -> ingestion-worker
@@ -848,7 +848,7 @@ Agent 能力：
 
 验收标准：
 
-- collector-gateway 短暂不可用时员工端可以本地缓冲：待 collector-sdk 本地缓冲联动增强。
+- collector-gateway 短暂不可用时员工端可以本地缓冲：第一版已完成，collector-sdk 支持 `.aimetric/outbox`，CLI adapter 和 Cursor adapter 已接入。
 - ingestion worker 可以恢复消费：第一版已满足，队列模式下 flush 后可恢复投递。
 - 重复事件不会重复计入指标：已有 ingestion key 幂等基础，E5 后续需要把队列重放场景纳入专项测试。
 

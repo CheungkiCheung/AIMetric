@@ -9,6 +9,8 @@ const main = async (): Promise<void> => {
     JSON.stringify(
       {
         published: result.published,
+        buffered: result.buffered ?? false,
+        bufferedDepth: result.bufferedDepth ?? 0,
         events: result.batch.events.length,
         batch: result.batch,
       },

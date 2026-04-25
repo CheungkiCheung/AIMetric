@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -151,6 +151,25 @@ describe('recordCliSession', () => {
         },
       ],
     });
+  });
+
+  it('buffers the batch when collector-gateway publishing fails', async () => {
+    const workspaceDir = createWorkspaceWithConfig();
+    globalThis.fetch = vi.fn(async () => new Response('', { status: 503 })) as typeof fetch;
+
+    const result = await recordCliSession({
+      workspaceDir,
+      sessionId: 'cli_sess_1',
+      dryRun: false,
+      now: () => '2026-04-24T00:00:00.000Z',
+    });
+
+    expect(result).toMatchObject({
+      published: false,
+      buffered: true,
+      bufferedDepth: 1,
+    });
+    expect(readdirSync(join(workspaceDir, '.aimetric', 'outbox'))).toHaveLength(1);
   });
 });
 

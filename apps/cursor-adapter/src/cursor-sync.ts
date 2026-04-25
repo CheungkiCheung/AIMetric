@@ -11,7 +11,7 @@ import {
 import {
   CollectorClient,
   loadAimMetricConfig,
-  publishIngestionBatch,
+  publishIngestionBatchWithBuffer,
   type CollectorClientOptions,
 } from '@aimetric/collector-sdk';
 import {
@@ -42,6 +42,8 @@ export interface CursorSyncInput extends CollectorClientOptions {
 
 export interface CursorSyncResult {
   published: boolean;
+  buffered?: boolean;
+  bufferedDepth?: number;
   discoveredSessions: number;
   exportedSessions: number;
   skippedSessions: number;
@@ -327,7 +329,14 @@ export async function syncCursorSessions(
     };
   }
 
-  await publishIngestionBatch(config.collector, batch);
+  const publishResult = await publishIngestionBatchWithBuffer(
+    config.collector,
+    batch,
+    {
+      workspaceDir:
+        input.workspaceDir ?? process.cwd(),
+    },
+  );
   await writeCursorSyncState(
     statePath,
     buildNextCursorSyncState(
@@ -338,7 +347,9 @@ export async function syncCursorSessions(
   );
 
   return {
-    published: true,
+    published: publishResult.published,
+    buffered: publishResult.buffered,
+    bufferedDepth: publishResult.bufferedDepth,
     discoveredSessions: discoveredSessions.length,
     exportedSessions: exportableSessions.length,
     skippedSessions: discoveredSessions.length - exportableSessions.length,
