@@ -50,6 +50,7 @@ import { RuleCenterDashboard } from './pages/rule-center-dashboard.js';
 import { SessionAnalysisTable } from './pages/session-analysis-table.js';
 import { TeamDashboard } from './pages/team-dashboard.js';
 import { ViewerScopeDashboard } from './pages/viewer-scope-dashboard.js';
+import './pages/effectiveness-manager-cockpit.css';
 
 const shellStyle = {
   minHeight: '100vh',
@@ -556,9 +557,10 @@ export const App = ({
   }
 
   return (
-    <main style={shellStyle}>
-      <div style={panelStyle}>
+    <main className="aimetric-enterprise-shell" style={shellStyle}>
+      <div className="aimetric-enterprise-panel" style={panelStyle}>
         <header
+          className="aimetric-enterprise-header"
           style={{
             padding: '28px',
             borderRadius: '28px',

@@ -695,7 +695,7 @@ export const EffectivenessManagerCockpit = ({
   };
 
   return (
-    <section style={darkHeroStyle}>
+    <section className="emc" style={darkHeroStyle}>
       <div style={splitGridStyle}>
         <div style={{ display: 'grid', gap: '18px' }}>
           <div>
