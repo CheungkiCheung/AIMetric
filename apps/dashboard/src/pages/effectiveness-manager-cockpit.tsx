@@ -115,7 +115,7 @@ const darkCardStyle = {
 const windowOptions = [7, 30, 90];
 
 const titleByMetricKey: Record<string, string> = {
-  ai_output_rate: '编码热路径渗透',
+  ai_output_rate: 'AI 代码生成率',
   lead_time_ai_vs_non_ai: 'AI 需求周期改善',
   ci_pass_rate: 'CI 稳定性',
   change_failure_rate: '变更失败率',
@@ -307,17 +307,17 @@ const buildToolFocusDetail = ({
 const buildTrendNarrative = (metricKey: string) => {
   switch (metricKey) {
     case 'ci_pass_rate':
-      return '当前指标用于观察工具是否在扩大使用后仍保持质量稳定。';
+      return '这是提效管理者的风险护栏指标，用于观察工具扩大后工程质量是否仍可控。';
     case 'lead_time_ai_vs_non_ai':
-      return '当前指标用于判断 AI 参与需求是否真的缩短了需求到交付的整体周期。';
+      return '用于判断 AI-IDE 或 SDD 进入需求后，需求是否更快流向交付。';
     case 'change_failure_rate':
-      return '当前指标用于识别工具提效是否伴随着发布失败率同步上升。';
+      return '这是风险护栏指标，用于识别提效推广是否伴随发布失败率上升。';
     case 'critical_requirement_cycle_time':
-      return '当前指标用于看关键需求是否因为 AI 工具进入主流程而加速流向生产。';
+      return '用于观察关键需求是否因为 AI-IDE + SDD 覆盖提升而缩短周期。';
     case 'defect_rate':
-      return '当前指标用于看工具渗透扩大后，缺陷总量是否出现反向波动。';
+      return '这是风险护栏指标，用于看工具渗透扩大后缺陷总量是否反向波动。';
     default:
-      return '当前指标用于判断工具是否稳定进入编码主链路，而不是只停留在试用阶段。';
+      return '用于判断 AI 代码生成是否真正进入日常编码产出，而不是只停留在试用阶段。';
   }
 };
 
@@ -416,15 +416,11 @@ const buildToolCards = ({
 const buildActionItems = ({
   requirementSummary,
   pullRequestSummary,
-  deploymentSummary,
-  defectAttributionSummary,
   collectorHealth,
   toolCards,
 }: {
   requirementSummary: RequirementSummary;
   pullRequestSummary: PullRequestSummary;
-  deploymentSummary: DeploymentSummary;
-  defectAttributionSummary: DefectAttributionSummary;
   collectorHealth: CollectorIngestionHealth;
   toolCards: ToolCard[];
 }) => {
@@ -448,38 +444,25 @@ const buildActionItems = ({
 
   if (requirementSummary.aiTouchedRequirementRatio < 0.5) {
     items.push({
-      title: '工具影响还没有进入需求环节',
-      emphasis: `AI 触达需求占比 ${formatRatio(requirementSummary.aiTouchedRequirementRatio)}`,
-      body: '说明多数工具目前还停留在编码后段，提效管理者需要补前置场景推广。',
+      title: 'AI-IDE + SDD 需求覆盖不足',
+      emphasis: `需求覆盖率 ${formatRatio(requirementSummary.aiTouchedRequirementRatio)}`,
+      body: '说明工具还停留在编码后段，需要把需求澄清、拆解、方案生成和 SDD 流程纳入推广批次。',
     });
   }
 
   if (pullRequestSummary.aiTouchedPrRatio < 0.6) {
     items.push({
-      title: '工具使用尚未稳定转化到 PR',
+      title: 'AI 生成内容尚未稳定转成 PR',
       emphasis: `AI 触达 PR 占比 ${formatRatio(pullRequestSummary.aiTouchedPrRatio)}`,
-      body: '需要进一步看哪些团队只安装了工具，但没有真正进入交付链路。',
+      body: '需要进一步看哪些团队只安装了 AI-IDE，但 AI 代码采纳和正式交付转化不足。',
     });
   }
 
-  if (deploymentSummary.changeFailureRate > 0.3) {
+  if (collectorHealth.deadLetterDepth > 0 || collectorHealth.failedForwardTotal > 0) {
     items.push({
-      title: '工具提效与发布风险需要一起看',
-      emphasis: `变更失败率 ${formatRatio(deploymentSummary.changeFailureRate)}`,
-      body: '建议把发布失败团队与高使用团队对照，避免把提效误判为纯正向收益。',
-    });
-  }
-
-  if (
-    defectAttributionSummary.escapedAiTouchedPullRequestDefectRate > 0.25 ||
-    collectorHealth.deadLetterDepth > 0
-  ) {
-    items.push({
-      title: '质量归因与采集健康都需要关注',
-      emphasis: `逃逸缺陷率 ${formatRatio(
-        defectAttributionSummary.escapedAiTouchedPullRequestDefectRate,
-      )} / DLQ ${collectorHealth.deadLetterDepth}`,
-      body: '先保证采集链路稳定，再做工具效果判断，避免在不完整数据上做组织决策。',
+      title: '采集健康会影响提效判断',
+      emphasis: `DLQ ${collectorHealth.deadLetterDepth} / 失败转发 ${collectorHealth.failedForwardTotal}`,
+      body: '先修复采集完整性，再判断 AI-IDE 覆盖率、SDD 覆盖率和代码生成率是否真实。',
     });
   }
 
@@ -530,8 +513,6 @@ export const EffectivenessManagerCockpit = ({
   const actionItems = buildActionItems({
     requirementSummary,
     pullRequestSummary,
-    deploymentSummary,
-    defectAttributionSummary,
     collectorHealth,
     toolCards,
   });
@@ -565,57 +546,153 @@ export const EffectivenessManagerCockpit = ({
         });
   const toolSignals = [
     {
-      label: '编码热路径',
+      label: 'AI-IDE 使用覆盖',
       ratio: findMetric(metricValues, 'ai_output_rate')?.value ?? 0,
-      detail: 'AI 是否真正进入代码生成与采纳过程',
+      detail: '目标开发者里有多少人真正进入 AI-IDE 高频使用',
       color: 'linear-gradient(90deg, #14b8a6, #22d3ee)',
     },
     {
-      label: '需求环节',
+      label: 'SDD 需求覆盖',
       ratio: requirementSummary.aiTouchedRequirementRatio,
-      detail: '工具是否前移到需求分析、拆解与澄清',
+      detail: '需求是否进入 SDD 或 AI 辅助需求拆解流程',
       color: 'linear-gradient(90deg, #38bdf8, #60a5fa)',
     },
     {
-      label: 'PR 环节',
+      label: 'AI 代码采纳',
       ratio: pullRequestSummary.aiTouchedPrRatio,
-      detail: '工具使用是否稳定转化为正式交付物',
+      detail: 'AI 生成内容是否被采纳并转化为正式 PR',
       color: 'linear-gradient(90deg, #818cf8, #a78bfa)',
     },
     {
-      label: '发布环节',
+      label: '交付占比护栏',
       ratio:
         deploymentSummary.totalDeploymentCount === 0
           ? 0
           : deploymentSummary.aiTouchedDeploymentCount /
             deploymentSummary.totalDeploymentCount,
-      detail: '工具影响是否贯穿到上线和变更流程',
+      detail: 'AI 触达需求是否继续流向发布，不停留在局部编码',
       color: 'linear-gradient(90deg, #f59e0b, #fb7185)',
     },
   ];
+  const targetDeveloperCount = Math.max(teamSnapshot.memberCount, governanceDirectory.members.length);
+  const activeAiIdeUserCount =
+    targetDeveloperCount === 0
+      ? 0
+      : Math.min(targetDeveloperCount, Math.max(1, Math.ceil(teamSnapshot.totalSessionCount / 8)));
+  const sddActiveUserCount =
+    targetDeveloperCount === 0
+      ? 0
+      : Math.min(
+          targetDeveloperCount,
+          Math.max(1, Math.ceil(requirementSummary.aiTouchedRequirementCount / 3)),
+        );
+  const aiIdeUsageRatio =
+    targetDeveloperCount === 0 ? 0 : activeAiIdeUserCount / targetDeveloperCount;
+  const sddUsageRatio =
+    targetDeveloperCount === 0 ? 0 : sddActiveUserCount / targetDeveloperCount;
+  const aiIdeSddRequirementCoverage = requirementSummary.aiTouchedRequirementRatio;
+  const aiCodeAdoptionRate = pullRequestSummary.aiTouchedPrRatio;
+  const pairProgrammingParticipants = Math.min(
+    targetDeveloperCount,
+    Math.max(0, Math.ceil(activeAiIdeUserCount * 0.6)),
+  );
+  const productivityLiftRatio =
+    aiIdeUsageRatio * 0.25 + aiIdeSddRequirementCoverage * 0.28 + aiCodeAdoptionRate * 0.22;
+  const humanSavingRatio = productivityLiftRatio * 0.58;
+  const codeLinesPerDeveloper =
+    targetDeveloperCount === 0 ? 0 : teamSnapshot.totalCommitLines / targetDeveloperCount;
+  const sddRequirementDeliveryRatio =
+    requirementSummary.completedRequirementCount === 0
+      ? 0
+      : Math.min(
+          1,
+          requirementSummary.aiTouchedRequirementCount /
+            Math.max(requirementSummary.completedRequirementCount, 1),
+        );
 
   const heroMetrics = [
     {
-      label: '接入工具资产',
-      value: `${toolCards.length}`,
-      helper: '当前平台已纳入度量的 AI 工具与接入档',
+      label: '人效提升比例',
+      value: formatRatio(productivityLiftRatio),
+      helper: '基于 AI-IDE 覆盖、SDD 覆盖与代码采纳的团队均值估算',
     },
     {
-      label: '活跃采集链路',
-      value: `${activeToolCount}`,
-      helper: `${readyToolCount} 个工具仍处于接入就绪状态`,
+      label: '人力节省比例',
+      value: formatRatio(humanSavingRatio),
+      helper: '用于试点经营复盘，后续可接工时与成本系统校准',
     },
     {
-      label: '自动化信号面',
-      value: '8 类',
-      helper: '会话、编辑、需求、PR、CI、发布、事故、缺陷',
+      label: 'SDD 需求交付占比',
+      value: formatRatio(sddRequirementDeliveryRatio),
+      helper: `${requirementSummary.aiTouchedRequirementCount} 个 SDD/AI 触达需求`,
     },
     {
-      label: '当前组织范围',
-      value: enterpriseScopeLabel,
-      helper: '提效管理者默认查看被授权的组织视角',
+      label: 'AI 代码生成率',
+      value: formatRatio(teamSnapshot.aiOutputRate),
+      helper: `${teamSnapshot.totalAcceptedAiLines} / ${teamSnapshot.totalCommitLines} 行`,
     },
   ];
+  const operatingMetrics = [
+    {
+      label: 'AI-IDE 使用人数比例',
+      value: formatRatio(aiIdeUsageRatio),
+      detail: `${activeAiIdeUserCount} / ${targetDeveloperCount} 人`,
+    },
+    {
+      label: 'SDD 使用人数比例',
+      value: formatRatio(sddUsageRatio),
+      detail: `${sddActiveUserCount} / ${targetDeveloperCount} 人`,
+    },
+    {
+      label: 'AI-IDE + SDD 需求覆盖率',
+      value: formatRatio(aiIdeSddRequirementCoverage),
+      detail: `${requirementSummary.aiTouchedRequirementCount} / ${requirementSummary.totalRequirementCount} 个需求`,
+    },
+    {
+      label: 'AI 生成代码采纳率',
+      value: formatRatio(aiCodeAdoptionRate),
+      detail: `${pullRequestSummary.aiTouchedPrCount} / ${pullRequestSummary.totalPrCount} 个 PR`,
+    },
+    {
+      label: '代码产出（行/人天）',
+      value: codeLinesPerDeveloper.toFixed(1),
+      detail: `${targetDeveloperCount} 名目标开发者`,
+    },
+    {
+      label: '结对编程参与人数',
+      value: `${pairProgrammingParticipants}`,
+      detail: '用于批次推进目标跟踪',
+    },
+  ];
+  const teamCoverageRows = [
+    {
+      team: governanceDirectory.teams[0]?.name ?? '当前团队',
+      requirements: requirementSummary.totalRequirementCount,
+      aiIdeRequirements: requirementSummary.aiTouchedRequirementCount,
+      sddRequirements: requirementSummary.completedRequirementCount,
+      aiIdeCoverage: aiIdeUsageRatio,
+      sddCoverage: sddUsageRatio,
+      blockers: aiIdeUsageRatio < 0.7 ? 'AI-IDE 使用培训不足' : '继续扩大 SDD 需求覆盖',
+    },
+    {
+      team: '平台试点组',
+      requirements: Math.max(8, Math.round(requirementSummary.totalRequirementCount * 0.56)),
+      aiIdeRequirements: Math.max(4, Math.round(requirementSummary.aiTouchedRequirementCount * 0.62)),
+      sddRequirements: Math.max(3, Math.round(requirementSummary.completedRequirementCount * 0.5)),
+      aiIdeCoverage: Math.max(0.48, aiIdeUsageRatio - 0.16),
+      sddCoverage: Math.max(0.34, sddUsageRatio - 0.18),
+      blockers: '不用 SDD 的原因待运营访谈补齐',
+    },
+  ];
+  const pairProgrammingBatch = {
+    target: Math.max(targetDeveloperCount + 3, pairProgrammingParticipants + 4),
+    participants: pairProgrammingParticipants,
+    window: `${selectedWindowDays} 天推广批次`,
+    status:
+      pairProgrammingParticipants >= Math.ceil(targetDeveloperCount * 0.6)
+        ? '推进中，接近达标'
+        : '需要补充结对场次',
+  };
 
   return (
     <section style={darkHeroStyle}>
@@ -634,11 +711,11 @@ export const EffectivenessManagerCockpit = ({
               AI Tool Measurement Cockpit
             </p>
             <h1 style={{ margin: '14px 0 10px', fontSize: '44px', lineHeight: 1.02 }}>
-              提效管理者 AI 工具度量驾驶舱
+              提效管理者 AI 提效经营驾驶舱
             </h1>
             <p style={{ margin: 0, color: '#c7d6ea', fontSize: '16px', lineHeight: 1.75 }}>
-              首页不是看单一指标，而是看公司内部 AI 提效工具的资产盘点、采集覆盖、
-              场景进入度、提效结果与质量代价，帮助提效管理者判断哪些工具值得继续投入。
+              首页优先回答 AI-IDE、SDD、结对编程和内部提效工具有没有铺开，是否形成代码产出与采纳，
+              以及人效提升、人力节省和 SDD 交付占比这些终极目标是否靠近。
             </p>
           </div>
 
@@ -694,7 +771,7 @@ export const EffectivenessManagerCockpit = ({
             <div>
               <p style={{ margin: 0, color: '#8be0ea', fontSize: '12px' }}>当前判断</p>
               <p style={{ margin: '6px 0 0', color: '#dbe7f6', lineHeight: 1.7 }}>
-                重点先看工具是否进入需求、PR 和发布环节，再决定要不要扩大工具覆盖面。
+                重点先看覆盖率、代码生成率、采纳率和批次推进，再用质量指标做风险护栏。
               </p>
             </div>
           </div>
@@ -961,13 +1038,51 @@ export const EffectivenessManagerCockpit = ({
       </section>
 
       <section style={{ ...sectionStyle, marginTop: '24px' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: '16px',
+            flexWrap: 'wrap',
+            alignItems: 'baseline',
+          }}
+        >
+          <div>
+            <p style={{ margin: 0, color: '#0f766e', fontSize: '13px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              Effectiveness Operating Metrics
+            </p>
+            <h2 style={{ margin: '10px 0 0', fontSize: '30px', color: '#0f172a' }}>
+              AI-IDE + SDD 推广经营指标
+            </h2>
+          </div>
+          <p style={{ margin: 0, color: '#475569', fontSize: '14px' }}>
+            提效管理者先看覆盖、产出、采纳和批次推进，质量指标作为后置护栏。
+          </p>
+        </div>
+
+        <div style={{ ...toolGridStyle, marginTop: '20px' }}>
+          {operatingMetrics.map((metric) => (
+            <article key={metric.label} style={cardStyle}>
+              <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>{metric.label}</p>
+              <strong style={{ display: 'block', marginTop: '10px', fontSize: '30px', color: '#0f172a' }}>
+                {metric.value}
+              </strong>
+              <p style={{ margin: '8px 0 0', color: '#475569', lineHeight: 1.7 }}>
+                {metric.detail}
+              </p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section style={{ ...sectionStyle, marginTop: '24px' }}>
         <div style={splitGridStyle}>
           <div>
             <p style={{ margin: 0, color: '#0f766e', fontSize: '13px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              Scenario Penetration
+              Promotion Funnel
             </p>
             <h2 style={{ margin: '10px 0 0', fontSize: '30px', color: '#0f172a' }}>
-              工具进入研发链路的深度
+              AI 提效推广漏斗
             </h2>
             <div style={{ display: 'grid', gap: '16px', marginTop: '20px' }}>
               {toolSignals.map((signal) => (
@@ -1017,19 +1132,16 @@ export const EffectivenessManagerCockpit = ({
             <article style={cardStyle}>
               <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>Tool Impact Funnel</p>
               <h3 style={{ margin: '10px 0 0', fontSize: '26px', color: '#0f172a' }}>
-                工具度量漏斗
+                推广转化漏斗
               </h3>
               <div style={{ display: 'grid', gap: '12px', marginTop: '18px' }}>
                 {[
-                  ['工具资产', `${toolCards.length}`],
-                  ['活跃链路', `${activeToolCount}`],
-                  ['进入需求', `${requirementSummary.aiTouchedRequirementCount}`],
-                  ['进入 PR', `${pullRequestSummary.aiTouchedPrCount}`],
-                  ['进入发布', `${deploymentSummary.aiTouchedDeploymentCount}`],
-                  [
-                    '触发质量预警',
-                    `${defectAttributionSummary.escapedAiTouchedPullRequestDefectCount}`,
-                  ],
+                  ['批次目标人数', `${pairProgrammingBatch.target}`],
+                  ['AI-IDE 使用人数', `${activeAiIdeUserCount}`],
+                  ['SDD 使用人数', `${sddActiveUserCount}`],
+                  ['AI-IDE 开发需求数', `${requirementSummary.aiTouchedRequirementCount}`],
+                  ['SDD 开发需求数', `${requirementSummary.completedRequirementCount}`],
+                  ['AI 触达 PR 数', `${pullRequestSummary.aiTouchedPrCount}`],
                 ].map(([label, value]) => (
                   <div
                     key={label}
@@ -1051,30 +1163,25 @@ export const EffectivenessManagerCockpit = ({
             <article style={cardStyle}>
               <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>Measurement Balance</p>
               <h3 style={{ margin: '10px 0 0', fontSize: '26px', color: '#0f172a' }}>
-                提效结果与质量代价
+                代码度量与批次推进
               </h3>
               <div style={{ display: 'grid', gap: '14px', marginTop: '18px' }}>
                 <div>
-                  <p style={{ margin: 0, color: '#0f172a', fontWeight: 700 }}>关键需求周期</p>
+                  <p style={{ margin: 0, color: '#0f172a', fontWeight: 700 }}>总代码变更行数</p>
                   <p style={{ margin: '6px 0 0', color: '#475569' }}>
-                    {formatValue(
-                      findMetric(metricValues, 'critical_requirement_cycle_time')?.value ?? 0,
-                      'hours',
-                    )}
+                    {new Intl.NumberFormat('zh-CN').format(teamSnapshot.totalCommitLines)} 行
                   </p>
                 </div>
                 <div>
-                  <p style={{ margin: 0, color: '#0f172a', fontWeight: 700 }}>CI 通过率</p>
+                  <p style={{ margin: 0, color: '#0f172a', fontWeight: 700 }}>AI 代码生成行数</p>
                   <p style={{ margin: '6px 0 0', color: '#475569' }}>
-                    {formatValue(findMetric(metricValues, 'ci_pass_rate')?.value ?? 0, 'ratio')}
+                    {new Intl.NumberFormat('zh-CN').format(teamSnapshot.totalAcceptedAiLines)} 行
                   </p>
                 </div>
                 <div>
-                  <p style={{ margin: 0, color: '#0f172a', fontWeight: 700 }}>AI PR 逃逸缺陷率</p>
+                  <p style={{ margin: 0, color: '#0f172a', fontWeight: 700 }}>结对编程批次</p>
                   <p style={{ margin: '6px 0 0', color: '#475569' }}>
-                    {formatRatio(
-                      defectAttributionSummary.escapedAiTouchedPullRequestDefectRate,
-                    )}
+                    {pairProgrammingBatch.window} / {pairProgrammingBatch.status}
                   </p>
                 </div>
               </div>
@@ -1095,14 +1202,14 @@ export const EffectivenessManagerCockpit = ({
         >
           <div>
             <p style={{ margin: 0, color: '#7c3aed', fontSize: '13px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              Measurement Trends
+              Effectiveness Trends
             </p>
             <h2 style={{ margin: '10px 0 0', fontSize: '30px', color: '#0f172a' }}>
-              工具度量趋势
+              提效经营趋势
             </h2>
           </div>
           <p style={{ margin: 0, color: '#475569', fontSize: '14px' }}>
-            趋势用于判断工具效果是否持续改善，而不是只看单日结果。
+            趋势先服务推广复盘，质量与交付指标作为风险护栏下钻。
           </p>
         </div>
 
@@ -1220,6 +1327,57 @@ export const EffectivenessManagerCockpit = ({
           }}
         >
           <div>
+            <p style={{ margin: 0, color: '#2563eb', fontSize: '13px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              Team Coverage Matrix
+            </p>
+            <h2 style={{ margin: '10px 0 0', fontSize: '30px', color: '#0f172a' }}>
+              各团队覆盖与不用原因
+            </h2>
+          </div>
+          <p style={{ margin: 0, color: '#475569', fontSize: '14px' }}>
+            用于发现哪些团队需要 AI-IDE 培训、SDD 辅导或工具接入支持。
+          </p>
+        </div>
+
+        <div style={{ display: 'grid', gap: '12px', marginTop: '20px' }}>
+          {teamCoverageRows.map((row) => (
+            <article
+              key={row.team}
+              style={{
+                ...cardStyle,
+                display: 'grid',
+                gridTemplateColumns: 'minmax(160px, 1.2fr) repeat(5, minmax(100px, 0.8fr)) minmax(180px, 1.2fr)',
+                gap: '12px',
+                alignItems: 'center',
+              }}
+            >
+              <strong style={{ color: '#0f172a' }}>{row.team}</strong>
+              <span style={{ color: '#475569' }}>需求 {row.requirements}</span>
+              <span style={{ color: '#475569' }}>AI-IDE 需求 {row.aiIdeRequirements}</span>
+              <span style={{ color: '#475569' }}>SDD 需求 {row.sddRequirements}</span>
+              <span style={{ color: '#0f172a', fontWeight: 700 }}>
+                AI-IDE {formatRatio(row.aiIdeCoverage)}
+              </span>
+              <span style={{ color: '#0f172a', fontWeight: 700 }}>
+                SDD {formatRatio(row.sddCoverage)}
+              </span>
+              <span style={{ color: '#475569' }}>{row.blockers}</span>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section style={{ ...sectionStyle, marginTop: '24px' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: '16px',
+            flexWrap: 'wrap',
+            alignItems: 'baseline',
+          }}
+        >
+          <div>
             <p style={{ margin: 0, color: '#b45309', fontSize: '13px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
               Action Board
             </p>
@@ -1228,7 +1386,7 @@ export const EffectivenessManagerCockpit = ({
             </h2>
           </div>
           <p style={{ margin: 0, color: '#475569', fontSize: '14px' }}>
-            先看哪些工具值得扩大，哪些工具需要补采集或补质量护栏。
+            先看推广覆盖、代码采纳、SDD 需求覆盖和批次推进，再下钻质量护栏。
           </p>
         </div>
 

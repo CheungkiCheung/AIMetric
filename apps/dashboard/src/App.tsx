@@ -583,7 +583,7 @@ export const App = ({
           </h1>
           <p style={{ margin: 0, maxWidth: '680px', color: '#5d4733', fontSize: '16px' }}>
             统一承接员工端轻量采集、研发工具链信号、多维效能指标与治理配置，
-            让管理者从经营视角观察 AI 使用渗透、转化效率与质量风险。
+            让提效管理者从经营视角观察 AI-IDE、SDD、代码采纳、批次推进与人效目标。
           </p>
         </header>
         <EffectivenessManagerCockpit
@@ -618,7 +618,7 @@ export const App = ({
             </p>
             <h2 style={{ margin: 0, fontSize: '28px' }}>专题分析与治理页</h2>
             <p style={{ margin: 0, color: '#6b523c', lineHeight: 1.7 }}>
-              首页先给提效管理者一个经营驾驶舱，再把需求、PR、CI、发布、缺陷归因、采集健康和权限治理作为专题页继续下钻。
+              首页先给提效管理者一个 AI 提效经营驾驶舱，再把需求、PR、CI、发布、缺陷归因、采集健康和权限治理作为专题页继续下钻。
             </p>
           </div>
         </section>

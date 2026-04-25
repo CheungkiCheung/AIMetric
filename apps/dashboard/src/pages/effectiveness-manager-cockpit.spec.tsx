@@ -218,11 +218,11 @@ describe('EffectivenessManagerCockpit', () => {
     render(<EffectivenessManagerCockpit {...createProps()} />);
 
     expect(screen.getAllByText('趋势主视图').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('编码热路径渗透').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('AI 代码生成率').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getAllByRole('button', { name: /CI 稳定性/i })[0]);
 
     expect(screen.getAllByText('CI 稳定性').length).toBeGreaterThan(0);
-    expect(screen.getByText('当前指标用于观察工具是否在扩大使用后仍保持质量稳定。')).toBeInTheDocument();
+    expect(screen.getByText('这是提效管理者的风险护栏指标，用于观察工具扩大后工程质量是否仍可控。')).toBeInTheDocument();
   });
 });
