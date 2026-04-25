@@ -841,7 +841,7 @@ Agent 能力：
 
 - Redis Stream / BullMQ：待多副本企业级持久队列替换；单实例准生产已新增文件持久队列。
 - ingestion worker：第一版已完成手动 flush worker 入口 `POST /ingestion/flush`。
-- retry / DLQ：第一版已完成进程内队列重试和 DLQ 计数。
+- retry / DLQ：第一版已完成重试、DLQ 计数、DLQ 列表和 DLQ 重放接口。
 - queue lag 指标：第一版已完成 queue depth / DLQ depth。
 - 采集失败率、重复率、延迟指标：第一版已完成失败投递计数，延迟和重复率待增强。
 - 管理端采集健康 API：第一版已完成 `GET /ingestion/health`，Dashboard 已新增“采集健康运营”视图。
@@ -851,6 +851,7 @@ Agent 能力：
 - collector-gateway 短暂不可用时员工端可以本地缓冲：第一版已完成，collector-sdk 支持 `.aimetric/outbox`，CLI adapter 和 Cursor adapter 已接入。
 - 员工端可恢复投递：第一版已完成，`aimetric status` 展示 `outboxDepth`，`aimetric doctor` 对待 flush 批次降级提醒，`aimetric flush` 可手动发送本地 outbox。
 - ingestion worker 可以恢复消费：第一版已满足，队列模式下 flush 后可恢复投递；文件队列支持服务重启后继续 flush。
+- 失败批次可以运营恢复：第一版已满足，支持 `GET /ingestion/dead-letter` 查看和 `POST /ingestion/dead-letter/replay` 重放。
 - 管理者能看到采集链路状态：第一版已满足，可查看投递模式、队列后端、queue depth、DLQ depth、forwarded total 和 failed forward total。
 - 重复事件不会重复计入指标：已有 ingestion key 幂等基础，E5 后续需要把队列重放场景纳入专项测试。
 
@@ -862,11 +863,11 @@ Agent 能力：
 
 交付：
 
-- PostgreSQL 组织模型。
+- PostgreSQL 组织模型：待落地；第一版已完成内存组织治理目录与 HTTP API。
 - `collector_identity`。
 - RBAC 基础权限。
 - 管理端 API 鉴权升级。
-- Dashboard 按角色展示不同视图。
+- Dashboard 按角色展示不同视图：第一版已新增“组织治理概览”目录视图。
 - 审计事件增强。
 - 数据保留与隐私策略。
 

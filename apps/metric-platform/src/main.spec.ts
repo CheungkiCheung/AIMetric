@@ -180,6 +180,38 @@ describe('bootstrap', () => {
     });
   });
 
+  it('serves the organization governance directory over HTTP', async () => {
+    const app = await bootstrap({
+      port: 0,
+      metricEventRepository: createEmptyRepository(),
+    });
+    servers.push(app);
+
+    const response = await fetch(`${app.baseUrl}/governance/directory`);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      organization: {
+        key: 'aimetric-enterprise',
+      },
+      teams: [
+        expect.objectContaining({
+          key: 'platform-engineering',
+        }),
+      ],
+      projects: [
+        expect.objectContaining({
+          key: 'aimetric',
+        }),
+      ],
+      members: [
+        expect.objectContaining({
+          memberId: 'alice',
+        }),
+      ],
+    });
+  });
+
   it('serves enterprise metrics filtered by dimension over HTTP', async () => {
     const app = await bootstrap({
       port: 0,

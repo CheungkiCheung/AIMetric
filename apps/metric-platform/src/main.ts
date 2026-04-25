@@ -273,6 +273,11 @@ const handleRequest = async (
     return;
   }
 
+  if (method === 'GET' && url.pathname === '/governance/directory') {
+    writeJson(response, 200, appModule.getOrganizationDirectory());
+    return;
+  }
+
   if (method === 'GET' && url.pathname === '/enterprise-metrics/values') {
     const filters = getMetricSnapshotFilters(url);
 

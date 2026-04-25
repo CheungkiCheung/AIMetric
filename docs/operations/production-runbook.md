@@ -126,10 +126,22 @@ curl http://127.0.0.1:3000/ingestion/health
 curl -X POST http://127.0.0.1:3000/ingestion/flush
 ```
 
+查看 DLQ 批次：
+
+```bash
+curl http://127.0.0.1:3000/ingestion/dead-letter
+```
+
+手动重放 DLQ：
+
+```bash
+curl -X POST http://127.0.0.1:3000/ingestion/dead-letter/replay
+```
+
 排障判断：
 
 - `queueDepth` 持续增长：检查 `METRIC_PLATFORM_URL`、网络连通性和 `metric-platform /events/import`。
-- `deadLetterDepth` 大于 0：说明批次多次投递失败，应先修复下游，再基于 DLQ 内容设计重放工具。
+- `deadLetterDepth` 大于 0：说明批次多次投递失败，应先修复下游，再通过 `GET /ingestion/dead-letter` 查看失败批次，并在下游恢复后执行 `POST /ingestion/dead-letter/replay`。
 - `failedForwardTotal` 增长：说明存在下游不可用、HTTP 非 2xx 或网络异常。
 - `queueBackend=memory` 时服务重启会丢失队列，只适合开发和演示。
 - `queueBackend=file` 时 pending / dead-letter 批次会保存在 `INGESTION_QUEUE_DIR`，适合单实例准生产试点。

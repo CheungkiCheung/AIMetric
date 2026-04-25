@@ -165,6 +165,40 @@ describe('createDashboardClient', () => {
         );
       }
 
+      if (url.endsWith('/governance/directory')) {
+        return new Response(
+          JSON.stringify({
+            organization: {
+              key: 'aimetric-enterprise',
+              name: 'AIMetric Enterprise',
+            },
+            teams: [
+              {
+                key: 'platform-engineering',
+                name: '平台工程团队',
+                organizationKey: 'aimetric-enterprise',
+              },
+            ],
+            projects: [
+              {
+                key: 'aimetric',
+                name: 'AIMetric',
+                teamKey: 'platform-engineering',
+              },
+            ],
+            members: [
+              {
+                memberId: 'alice',
+                displayName: 'Alice',
+                teamKey: 'platform-engineering',
+                role: 'developer',
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+
       return new Response(
         JSON.stringify({
           memberCount: 3,
@@ -237,6 +271,12 @@ describe('createDashboardClient', () => {
       queueDepth: 3,
       deadLetterDepth: 1,
       failedForwardTotal: 2,
+    });
+    await expect(client.getGovernanceDirectory()).resolves.toMatchObject({
+      organization: {
+        key: 'aimetric-enterprise',
+      },
+      teams: [expect.objectContaining({ key: 'platform-engineering' })],
     });
     await expect(
       client.updateRuleRollout({
@@ -356,6 +396,15 @@ describe('createDashboardClient', () => {
       enqueuedTotal: 0,
       forwardedTotal: 0,
       failedForwardTotal: 0,
+    });
+    await expect(client.getGovernanceDirectory()).resolves.toEqual({
+      organization: {
+        key: 'aimetric-enterprise',
+        name: 'AIMetric Enterprise',
+      },
+      teams: [],
+      projects: [],
+      members: [],
     });
   });
 

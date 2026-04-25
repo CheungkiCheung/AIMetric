@@ -198,6 +198,34 @@ const createClient = (
     forwardedTotal: 7,
     failedForwardTotal: 2,
   }),
+  getGovernanceDirectory: async () => ({
+    organization: {
+      key: 'aimetric-enterprise',
+      name: 'AIMetric Enterprise',
+    },
+    teams: [
+      {
+        key: 'platform-engineering',
+        name: '平台工程团队',
+        organizationKey: 'aimetric-enterprise',
+      },
+    ],
+    projects: [
+      {
+        key: 'aimetric',
+        name: 'AIMetric',
+        teamKey: 'platform-engineering',
+      },
+    ],
+    members: [
+      {
+        memberId: 'alice',
+        displayName: 'Alice',
+        teamKey: 'platform-engineering',
+        role: 'developer',
+      },
+    ],
+  }),
   updateRuleRollout: async (input: RuleRollout) => input,
   ...overrides,
 });
@@ -250,6 +278,8 @@ describe('App', () => {
 
     expect(await screen.findByText('个人出码视图')).toBeInTheDocument();
     expect(screen.getByText('团队出码视图')).toBeInTheDocument();
+    expect(screen.getByText('组织治理概览')).toBeInTheDocument();
+    expect(screen.getByText('平台工程团队')).toBeInTheDocument();
     expect(screen.getByText('MCP 采集质量')).toBeInTheDocument();
     expect(screen.getByText('采集健康运营')).toBeInTheDocument();
     expect(screen.getByText('队列模式')).toBeInTheDocument();
@@ -342,6 +372,9 @@ describe('App', () => {
     const getCollectorIngestionHealth = vi.fn(
       createClient().getCollectorIngestionHealth,
     );
+    const getGovernanceDirectory = vi.fn(
+      createClient().getGovernanceDirectory,
+    );
 
     render(
       <App
@@ -358,6 +391,7 @@ describe('App', () => {
           getEnterpriseMetricCatalog,
           getEnterpriseMetricValues,
           getCollectorIngestionHealth,
+          getGovernanceDirectory,
         })}
       />,
     );
@@ -394,6 +428,7 @@ describe('App', () => {
         expect.objectContaining({ projectKey: 'navigation' }),
       );
       expect(getCollectorIngestionHealth).toHaveBeenCalledTimes(2);
+      expect(getGovernanceDirectory).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -462,6 +497,9 @@ describe('App', () => {
     const getCollectorIngestionHealth = vi.fn(
       createClient().getCollectorIngestionHealth,
     );
+    const getGovernanceDirectory = vi.fn(
+      createClient().getGovernanceDirectory,
+    );
 
     try {
       render(
@@ -480,6 +518,7 @@ describe('App', () => {
             getEnterpriseMetricCatalog,
             getEnterpriseMetricValues,
             getCollectorIngestionHealth,
+            getGovernanceDirectory,
           })}
         />,
       );
@@ -506,6 +545,7 @@ describe('App', () => {
       expect(getEnterpriseMetricCatalog).toHaveBeenCalledTimes(1);
       expect(getEnterpriseMetricValues).toHaveBeenCalledTimes(2);
       expect(getCollectorIngestionHealth).toHaveBeenCalledTimes(2);
+      expect(getGovernanceDirectory).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }

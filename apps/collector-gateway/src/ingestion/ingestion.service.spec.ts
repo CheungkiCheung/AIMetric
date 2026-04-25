@@ -195,6 +195,42 @@ describe('IngestionService', () => {
       deadLetterDepth: 1,
     });
   });
+
+  it('lists and replays dead-lettered batches back to the pending queue', async () => {
+    const queueDir = mkdtempSync(join(tmpdir(), 'aimetric-ingestion-replay-'));
+    temporaryDirectories.push(queueDir);
+    globalThis.fetch = vi.fn(async () => new Response('', { status: 503 })) as typeof fetch;
+    const service = new IngestionService({
+      deliveryMode: 'queue',
+      queue: new FileBackedIngestionQueue({
+        queueDir,
+        maxDeliveryAttempts: 1,
+      }),
+    });
+
+    await service.ingest(createIngestionBatch());
+    await service.flushQueuedBatches();
+
+    expect(service.listDeadLetterBatches()).toEqual([
+      expect.objectContaining({
+        attempts: 1,
+        eventCount: 1,
+        source: 'cursor',
+      }),
+    ]);
+
+    const replayResult = service.replayDeadLetterBatches();
+
+    expect(replayResult).toEqual({
+      replayed: 1,
+      remainingDeadLetterDepth: 0,
+      queueDepth: 1,
+    });
+    expect(service.getHealth()).toMatchObject({
+      queueDepth: 1,
+      deadLetterDepth: 0,
+    });
+  });
 });
 
 const createIngestionBatch = () => ({

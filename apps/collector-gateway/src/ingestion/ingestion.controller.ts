@@ -14,4 +14,12 @@ export class IngestionController {
   flushQueuedBatches() {
     return this.ingestionService.flushQueuedBatches();
   }
+
+  listDeadLetterBatches() {
+    return this.ingestionService.listDeadLetterBatches();
+  }
+
+  replayDeadLetterBatches() {
+    return this.ingestionService.replayDeadLetterBatches();
+  }
 }

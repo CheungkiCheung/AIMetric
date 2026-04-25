@@ -24,6 +24,37 @@ describe('AppModule', () => {
     );
   });
 
+  it('exposes the organization governance directory', () => {
+    const appModule = new AppModule(createEmptyRepository());
+    const directory = appModule.getOrganizationDirectory();
+
+    expect(directory).toMatchObject({
+      organization: {
+        key: 'aimetric-enterprise',
+        name: 'AIMetric Enterprise',
+      },
+      teams: [
+        expect.objectContaining({
+          key: 'platform-engineering',
+          name: '平台工程团队',
+        }),
+      ],
+      projects: [
+        expect.objectContaining({
+          key: 'aimetric',
+          teamKey: 'platform-engineering',
+        }),
+      ],
+      members: [
+        expect.objectContaining({
+          memberId: 'alice',
+          teamKey: 'platform-engineering',
+          role: 'developer',
+        }),
+      ],
+    });
+  });
+
   it('filters enterprise metrics by dimension', () => {
     const appModule = new AppModule(createEmptyRepository());
     const metrics = appModule.listEnterpriseMetricsByDimension('quality-risk');

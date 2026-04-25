@@ -125,6 +125,37 @@ export interface CollectorIngestionHealth {
   failedForwardTotal: number;
 }
 
+export interface GovernanceOrganization {
+  key: string;
+  name: string;
+}
+
+export interface GovernanceTeam {
+  key: string;
+  name: string;
+  organizationKey: string;
+}
+
+export interface GovernanceProject {
+  key: string;
+  name: string;
+  teamKey: string;
+}
+
+export interface GovernanceMember {
+  memberId: string;
+  displayName: string;
+  teamKey: string;
+  role: 'developer' | 'engineering-manager' | 'effectiveness-manager' | 'platform-admin';
+}
+
+export interface GovernanceDirectory {
+  organization: GovernanceOrganization;
+  teams: GovernanceTeam[];
+  projects: GovernanceProject[];
+  members: GovernanceMember[];
+}
+
 export interface DashboardClient {
   getPersonalSnapshot(filters?: DashboardFilters): Promise<PersonalSnapshot>;
   getTeamSnapshot(filters?: DashboardFilters): Promise<TeamSnapshot>;
@@ -146,6 +177,7 @@ export interface DashboardClient {
     metricKeys?: string[],
   ): Promise<MetricCalculationResult[]>;
   getCollectorIngestionHealth(): Promise<CollectorIngestionHealth>;
+  getGovernanceDirectory(): Promise<GovernanceDirectory>;
   updateRuleRollout(input: RuleRollout): Promise<RuleRollout>;
 }
 
@@ -226,6 +258,16 @@ const fallbackCollectorIngestionHealth: CollectorIngestionHealth = {
   enqueuedTotal: 0,
   forwardedTotal: 0,
   failedForwardTotal: 0,
+};
+
+const fallbackGovernanceDirectory: GovernanceDirectory = {
+  organization: {
+    key: 'aimetric-enterprise',
+    name: 'AIMetric Enterprise',
+  },
+  teams: [],
+  projects: [],
+  members: [],
 };
 
 const fetchJson = async <T>(url: string, fallback: T): Promise<T> => {
@@ -390,6 +432,11 @@ export const createDashboardClient = (
     fetchJson<CollectorIngestionHealth>(
       new URL('/ingestion/health', collectorGatewayBaseUrl).toString(),
       fallbackCollectorIngestionHealth,
+    ),
+  getGovernanceDirectory: () =>
+    fetchJson<GovernanceDirectory>(
+      new URL('/governance/directory', baseUrl).toString(),
+      fallbackGovernanceDirectory,
     ),
   updateRuleRollout: (input) =>
     sendJson<RuleRollout>(

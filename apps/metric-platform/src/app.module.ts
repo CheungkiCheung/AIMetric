@@ -15,6 +15,7 @@ import {
   type MetricSnapshotFilters,
   type RecordedMetricEvent,
 } from './database/postgres-event.repository.js';
+import { GovernanceDirectoryService } from './governance/governance-directory.service.js';
 import { KnowledgeSearchService } from './knowledge/knowledge-search.service.js';
 import { MetricsController } from './metrics/metrics.controller.js';
 import { MetricsService } from './metrics/metrics.service.js';
@@ -25,6 +26,7 @@ export class AppModule {
   readonly metricEventRepository: MetricEventRepository;
   readonly ruleCenterService: RuleCenterService;
   readonly knowledgeSearchService: KnowledgeSearchService;
+  readonly governanceDirectoryService: GovernanceDirectoryService;
 
   constructor(
     metricEventRepository: MetricEventRepository =
@@ -41,6 +43,7 @@ export class AppModule {
       catalogRoot: options.ruleCatalogRoot,
     });
     this.knowledgeSearchService = new KnowledgeSearchService(options.docsRoot);
+    this.governanceDirectoryService = new GovernanceDirectoryService();
   }
 
   async importEvents(batch: IngestionBatch) {
@@ -164,6 +167,10 @@ export class AppModule {
 
   getEnterpriseMetricCatalog() {
     return getEnterpriseMetricCatalog();
+  }
+
+  getOrganizationDirectory() {
+    return this.governanceDirectoryService.getDirectory();
   }
 
   listEnterpriseMetricsByDimension(dimension: EnterpriseMetricDimensionKey) {

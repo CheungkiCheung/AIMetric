@@ -19,6 +19,7 @@ export interface BootstrapOptions {
   ingestionDeliveryMode?: IngestionDeliveryMode;
   ingestionQueueBackend?: IngestionQueueBackend;
   ingestionQueueDir?: string;
+  maxDeliveryAttempts?: number;
 }
 
 const readJsonBody = async (request: IncomingMessage): Promise<unknown> =>
@@ -121,6 +122,26 @@ const handleRequest = async (
     return;
   }
 
+  if (method === 'GET' && url === '/ingestion/dead-letter') {
+    if (!isAuthorizedIngestionRequest(request, collectorToken)) {
+      writeJson(response, 401, { message: 'Unauthorized ingestion request' });
+      return;
+    }
+
+    writeJson(response, 200, appModule.ingestionController.listDeadLetterBatches());
+    return;
+  }
+
+  if (method === 'POST' && url === '/ingestion/dead-letter/replay') {
+    if (!isAuthorizedIngestionRequest(request, collectorToken)) {
+      writeJson(response, 401, { message: 'Unauthorized ingestion request' });
+      return;
+    }
+
+    writeJson(response, 200, appModule.ingestionController.replayDeadLetterBatches());
+    return;
+  }
+
   if (method === 'POST' && url === '/ingestion/flush') {
     if (!isAuthorizedIngestionRequest(request, collectorToken)) {
       writeJson(response, 401, { message: 'Unauthorized ingestion request' });
@@ -187,6 +208,7 @@ export async function bootstrap(
     deliveryMode: options.ingestionDeliveryMode,
     queueBackend: options.ingestionQueueBackend,
     queueDir: options.ingestionQueueDir,
+    maxDeliveryAttempts: options.maxDeliveryAttempts,
   });
   const metrics = {
     startedAt: Date.now(),

@@ -48,6 +48,21 @@ export interface IngestionHealthSnapshot {
   failedForwardTotal: number;
 }
 
+export interface IngestionDeadLetterSummary {
+  id: string;
+  attempts: number;
+  enqueuedAt: string;
+  source: string;
+  eventCount: number;
+  firstEventType?: string;
+}
+
+export interface IngestionDeadLetterReplayResult {
+  replayed: number;
+  remainingDeadLetterDepth: number;
+  queueDepth: number;
+}
+
 export interface IngestionQueueItem {
   id: string;
   batch: IngestionBatch;
@@ -66,6 +81,8 @@ export interface IngestionQueue {
   peek: () => IngestionQueueItem | undefined;
   ack: (itemId: string) => void;
   fail: (itemId: string) => void;
+  listDeadLetters: () => IngestionQueueItem[];
+  replayDeadLetters: () => number;
   snapshot: () => IngestionQueueSnapshot;
 }
 
@@ -126,6 +143,24 @@ export class InMemoryIngestionQueue implements IngestionQueue {
       depth: this.items.length,
       deadLetterDepth: this.deadLetters.length,
     };
+  }
+
+  listDeadLetters(): IngestionQueueItem[] {
+    return [...this.deadLetters];
+  }
+
+  replayDeadLetters(): number {
+    const replayed = this.deadLetters.length;
+    const replayItems = this.deadLetters.splice(0, this.deadLetters.length).map(
+      (item) => ({
+        ...item,
+        attempts: 0,
+      }),
+    );
+
+    this.items.push(...replayItems);
+
+    return replayed;
   }
 
   private remove(itemId: string): void {
@@ -231,6 +266,33 @@ export class FileBackedIngestionQueue implements IngestionQueue {
       deadLetterDepth: this.listDeadLetterFiles().length,
     };
   }
+
+  listDeadLetters(): IngestionQueueItem[] {
+    return this.listDeadLetterFiles()
+      .map((file) => this.readItem(join(this.deadLetterDir, file)))
+      .filter((item): item is IngestionQueueItem => item !== undefined);
+  }
+
+  replayDeadLetters(): number {
+    const items = this.listDeadLetters();
+
+    items.forEach((item) => {
+      const replayItem = {
+        ...item,
+        attempts: 0,
+      };
+
+      writeFileSync(
+        this.getPendingPath(replayItem.id),
+        JSON.stringify(replayItem),
+        'utf8',
+      );
+      rmSync(this.getDeadLetterPath(item.id), { force: true });
+    });
+
+    return items.length;
+  }
+
 
   private readItem(path: string): IngestionQueueItem | undefined {
     try {
@@ -353,6 +415,28 @@ export class IngestionService {
       enqueuedTotal: this.enqueuedTotal,
       forwardedTotal: this.forwardedTotal,
       failedForwardTotal: this.failedForwardTotal,
+    };
+  }
+
+  listDeadLetterBatches(): IngestionDeadLetterSummary[] {
+    return this.queue.listDeadLetters().map((item) => ({
+      id: item.id,
+      attempts: item.attempts,
+      enqueuedAt: item.enqueuedAt,
+      source: item.batch.source,
+      eventCount: item.batch.events.length,
+      firstEventType: item.batch.events[0]?.eventType,
+    }));
+  }
+
+  replayDeadLetterBatches(): IngestionDeadLetterReplayResult {
+    const replayed = this.queue.replayDeadLetters();
+    const snapshot = this.queue.snapshot();
+
+    return {
+      replayed,
+      remainingDeadLetterDepth: snapshot.deadLetterDepth,
+      queueDepth: snapshot.depth,
     };
   }
 

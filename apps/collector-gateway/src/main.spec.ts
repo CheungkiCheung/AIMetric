@@ -191,6 +191,63 @@ describe('collector gateway bootstrap', () => {
       queueDepth: 1,
     });
   });
+
+  it('lists and replays dead-letter batches over authorized HTTP endpoints', async () => {
+    const queueDir = mkdtempSync(join(tmpdir(), 'aimetric-http-dlq-'));
+    temporaryDirectories.push(queueDir);
+    const app = await bootstrap({
+      port: 0,
+      collectorToken: 'secret-token',
+      ingestionDeliveryMode: 'queue',
+      ingestionQueueBackend: 'file',
+      ingestionQueueDir: queueDir,
+      maxDeliveryAttempts: 1,
+    });
+    servers.push(app);
+
+    await fetch(`${app.baseUrl}/ingestion`, {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer secret-token',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(createIngestionBatch()),
+    });
+    await fetch(`${app.baseUrl}/ingestion/flush`, {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer secret-token',
+      },
+    });
+
+    const unauthorizedListResponse = await fetch(`${app.baseUrl}/ingestion/dead-letter`);
+    const listResponse = await fetch(`${app.baseUrl}/ingestion/dead-letter`, {
+      headers: {
+        authorization: 'Bearer secret-token',
+      },
+    });
+    const replayResponse = await fetch(`${app.baseUrl}/ingestion/dead-letter/replay`, {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer secret-token',
+      },
+    });
+
+    expect(unauthorizedListResponse.status).toBe(401);
+    await expect(listResponse.json()).resolves.toEqual([
+      expect.objectContaining({
+        attempts: 1,
+        eventCount: 1,
+        source: 'cursor',
+        firstEventType: 'session.started',
+      }),
+    ]);
+    await expect(replayResponse.json()).resolves.toEqual({
+      replayed: 1,
+      remainingDeadLetterDepth: 0,
+      queueDepth: 1,
+    });
+  });
 });
 
 const createIngestionBatch = () => ({
