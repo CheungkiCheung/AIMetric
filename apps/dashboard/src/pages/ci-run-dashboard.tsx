@@ -131,7 +131,7 @@ export const CiRunDashboard = ({ summary, rows }: CiRunDashboardProps) => (
             }}
           >
             <strong style={{ color: '#24344f' }}>
-              {row.repoName} #{row.runId} {row.workflowName}
+              [{row.provider.toUpperCase()}] {row.repoName} #{row.runId} {row.workflowName}
             </strong>
             <span style={{ color: '#56709d' }}>
               {statusLabelMap[row.status]}

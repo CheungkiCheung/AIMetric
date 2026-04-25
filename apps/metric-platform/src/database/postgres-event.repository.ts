@@ -169,7 +169,7 @@ export interface RequirementSummary {
 }
 
 export interface CiRunRecord {
-  provider: 'github-actions';
+  provider: 'github-actions' | 'gitlab-ci';
   projectKey: string;
   repoName: string;
   runId: number;

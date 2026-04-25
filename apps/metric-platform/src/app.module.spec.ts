@@ -791,7 +791,7 @@ describe('AppModule', () => {
       ]),
       listCiRuns: vi.fn(async () => [
         {
-          provider: 'github-actions' as const,
+          provider: 'gitlab-ci' as const,
           projectKey: 'navigation',
           repoName: 'AIMetric',
           runId: 501,

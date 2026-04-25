@@ -87,7 +87,7 @@ const createClient = (
   }),
   getCiRuns: async (): Promise<CiRunRecord[]> => [
     {
-      provider: 'github-actions',
+      provider: 'gitlab-ci',
       projectKey: 'aimetric',
       repoName: 'AIMetric',
       runId: 501,
@@ -493,7 +493,7 @@ describe('App', () => {
     expect(screen.getByText('Jira AIM-101 Build management dashboard')).toBeInTheDocument();
     expect(screen.getAllByText('75.0%').length).toBeGreaterThan(0);
     expect(screen.getByText('12.0 分钟')).toBeInTheDocument();
-    expect(screen.getByText('AIMetric #501 ci')).toBeInTheDocument();
+    expect(screen.getByText('[GITLAB-CI] AIMetric #501 ci')).toBeInTheDocument();
     expect(screen.getAllByText('25.0%').length).toBeGreaterThan(0);
     expect(screen.getByText('16.0 分钟')).toBeInTheDocument();
     expect(screen.getByText('AIMetric deploy-1')).toBeInTheDocument();

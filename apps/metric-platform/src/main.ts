@@ -404,7 +404,7 @@ const getCiRunsFromBody = (body: unknown): CiRunRecord[] | undefined => {
     const payload = item as Record<string, unknown>;
 
     if (
-      payload.provider !== 'github-actions' ||
+      (payload.provider !== 'github-actions' && payload.provider !== 'gitlab-ci') ||
       typeof payload.projectKey !== 'string' ||
       typeof payload.repoName !== 'string' ||
       typeof payload.runId !== 'number' ||
@@ -418,7 +418,7 @@ const getCiRunsFromBody = (body: unknown): CiRunRecord[] | undefined => {
 
     return [
       {
-        provider: 'github-actions' as const,
+        provider: payload.provider as CiRunRecord['provider'],
         projectKey: payload.projectKey,
         repoName: payload.repoName,
         runId: payload.runId,

@@ -293,7 +293,7 @@ describe('createDashboardClient', () => {
         return new Response(
           JSON.stringify([
             {
-              provider: 'github-actions',
+              provider: 'gitlab-ci',
               projectKey: 'aimetric',
               repoName: 'AIMetric',
               runId: 501,
@@ -549,7 +549,7 @@ describe('createDashboardClient', () => {
     });
     await expect(client.getCiRuns()).resolves.toEqual([
       expect.objectContaining({
-        provider: 'github-actions',
+        provider: 'gitlab-ci',
         runId: 501,
         conclusion: 'success',
       }),

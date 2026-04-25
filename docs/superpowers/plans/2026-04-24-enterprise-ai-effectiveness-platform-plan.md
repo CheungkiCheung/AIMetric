@@ -889,6 +889,7 @@ Agent 能力：
 - PR 集成：第二版已补齐 `pr_cycle_time` 与 `review_rejection_rate` 的真实指标计算，已接入统一企业指标语义层。
 - CI/CD 集成：第一版已完成 CI 运行事实模型，已支持 `POST /integrations/ci/runs/import` 导入、`GET /integrations/ci/runs` 查询、`GET /integrations/ci/runs/summary` 汇总，以及 Dashboard“CI 质量概览”展示。
 - CI/CD 集成：第二版已补齐 `ci_pass_rate` 的真实指标计算，已接入统一企业指标语义层。
+- CI/CD 集成：第三版已把 CI provider 扩展到 `github-actions / gitlab-ci`，多平台质量链路已和 PR provider 同步。
 - 发布系统集成：第一版已完成部署事实模型，已支持 `POST /integrations/deployments/import` 导入、`GET /integrations/deployments` 查询、`GET /integrations/deployments/summary` 汇总，以及 Dashboard“发布质量概览”展示。
 - 发布系统集成：第二版已补齐 `deployment_frequency`、`change_failure_rate` 与 `rollback_rate` 的真实指标计算，已接入统一企业指标语义层。
 - 缺陷/事故系统集成：第一版已完成事故事实模型，已支持 `POST /integrations/incidents/import` 导入、`GET /integrations/incidents` 查询、`GET /integrations/incidents/summary` 汇总，以及 Dashboard“事故风险概览”展示。

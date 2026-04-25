@@ -1107,6 +1107,97 @@ describe('bootstrap', () => {
     ]);
   });
 
+  it('imports and serves multi-provider ci run data over HTTP', async () => {
+    const importedCiRuns: unknown[] = [];
+    const metricEventRepository: MetricEventRepository = {
+      ...createEmptyRepository(),
+      async importCiRuns(ciRuns) {
+        importedCiRuns.push(...ciRuns);
+      },
+      async listCiRuns(filters) {
+        expect(filters).toEqual({ projectKey: 'aimetric' });
+
+        return [
+          {
+            provider: 'gitlab-ci' as const,
+            projectKey: 'aimetric',
+            repoName: 'AIMetric',
+            runId: 601,
+            workflowName: 'pipeline',
+            status: 'completed' as const,
+            conclusion: 'success' as const,
+            createdAt: '2026-04-26T00:00:00.000Z',
+            completedAt: '2026-04-26T00:11:00.000Z',
+            updatedAt: '2026-04-26T00:11:00.000Z',
+          },
+        ];
+      },
+      async buildCiRunSummary() {
+        return {
+          totalRunCount: 1,
+          completedRunCount: 1,
+          successfulRunCount: 1,
+          failedRunCount: 0,
+          passRate: 1,
+          averageDurationMinutes: 11,
+        };
+      },
+    };
+    const app = await bootstrap({
+      port: 0,
+      adminToken: 'admin-secret',
+      metricEventRepository,
+    });
+    servers.push(app);
+
+    const importResponse = await fetch(`${app.baseUrl}/integrations/ci/runs/import`, {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer admin-secret',
+        'content-type': 'application/json',
+        'x-aimetric-actor': 'platform-admin',
+      },
+      body: JSON.stringify({
+        ciRuns: [
+          {
+            provider: 'gitlab-ci',
+            projectKey: 'aimetric',
+            repoName: 'AIMetric',
+            runId: 601,
+            workflowName: 'pipeline',
+            status: 'completed',
+            conclusion: 'success',
+            createdAt: '2026-04-26T00:00:00.000Z',
+            completedAt: '2026-04-26T00:11:00.000Z',
+            updatedAt: '2026-04-26T00:11:00.000Z',
+          },
+        ],
+      }),
+    });
+    const listResponse = await fetch(`${app.baseUrl}/integrations/ci/runs?projectKey=aimetric`);
+    const summaryResponse = await fetch(
+      `${app.baseUrl}/integrations/ci/runs/summary?projectKey=aimetric`,
+    );
+
+    expect(importResponse.status).toBe(200);
+    await expect(importResponse.json()).resolves.toEqual({ importedCiRuns: 1 });
+    expect(importedCiRuns).toHaveLength(1);
+    await expect(listResponse.json()).resolves.toEqual([
+      expect.objectContaining({
+        provider: 'gitlab-ci',
+        runId: 601,
+      }),
+    ]);
+    await expect(summaryResponse.json()).resolves.toEqual({
+      totalRunCount: 1,
+      completedRunCount: 1,
+      successfulRunCount: 1,
+      failedRunCount: 0,
+      passRate: 1,
+      averageDurationMinutes: 11,
+    });
+  });
+
   it('imports and serves incident data over HTTP', async () => {
     const importedIncidents: unknown[] = [];
     const metricEventRepository: MetricEventRepository = {
