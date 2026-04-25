@@ -464,6 +464,7 @@ export class AppModule {
       ciRuns,
       deployments,
       incidents,
+      defects,
     ] =
       await Promise.all([
         this.metricEventRepository.listRecordedMetricEvents(filters),
@@ -474,6 +475,7 @@ export class AppModule {
         this.listCiRuns(filters),
         this.listDeployments(filters),
         this.listIncidents(filters),
+        this.listDefects(filters),
       ]);
 
     return calculateEnterpriseMetrics({
@@ -494,6 +496,7 @@ export class AppModule {
         pullRequestSummary: buildPullRequestCalculationSummary(pullRequests),
         ciSummary: buildCiCalculationSummary(ciRuns),
         deploymentSummary: buildDeploymentCalculationSummary(deployments, incidents),
+        defectSummary: buildDefectCalculationSummary(defects, requirements),
       },
     });
   }
@@ -729,5 +732,29 @@ const buildDeploymentCalculationSummary = (
       deployments.length === 0 ? 0 : failedDeployments.length / deployments.length,
     rollbackRate:
       deployments.length === 0 ? 0 : rolledBackDeployments.length / deployments.length,
+  };
+};
+
+const buildDefectCalculationSummary = (
+  defects: DefectRecord[],
+  requirements: RequirementRecord[],
+) => {
+  const completedRequirementCount = requirements.filter(
+    (requirement) => requirement.status === 'done' || requirement.status === 'closed',
+  ).length;
+  const productionDefectCount = defects.filter(
+    (defect) => defect.foundInPhase === 'production',
+  ).length;
+
+  return {
+    totalDefectCount: defects.length,
+    openDefectCount: defects.filter((defect) => defect.status === 'open').length,
+    resolvedDefectCount: defects.filter((defect) => defect.status === 'resolved').length,
+    productionDefectCount,
+    completedRequirementCount,
+    defectRate:
+      completedRequirementCount === 0 ? 0 : defects.length / completedRequirementCount,
+    escapedDefectRate:
+      defects.length === 0 ? 0 : productionDefectCount / defects.length,
   };
 };

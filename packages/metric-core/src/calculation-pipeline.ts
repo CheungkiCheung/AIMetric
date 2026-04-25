@@ -17,7 +17,8 @@ export type MetricDataRequirement =
   | 'requirement-summary'
   | 'pull-request-summary'
   | 'ci-summary'
-  | 'deployment-summary';
+  | 'deployment-summary'
+  | 'defect-summary';
 
 export interface MetricCalculationContext {
   scope: EnterpriseMetricScope;
@@ -86,6 +87,16 @@ export interface CalculationDeploymentSummary {
   rollbackRate: number;
 }
 
+export interface CalculationDefectSummary {
+  totalDefectCount: number;
+  openDefectCount: number;
+  resolvedDefectCount: number;
+  productionDefectCount: number;
+  completedRequirementCount: number;
+  defectRate: number;
+  escapedDefectRate: number;
+}
+
 export interface MetricCalculationInput {
   recordedMetricEvents?: CalculationRecordedMetricEvent[];
   analysisSummary?: CalculationAnalysisSummary;
@@ -94,6 +105,7 @@ export interface MetricCalculationInput {
   pullRequestSummary?: CalculationPullRequestSummary;
   ciSummary?: CalculationCiSummary;
   deploymentSummary?: CalculationDeploymentSummary;
+  defectSummary?: CalculationDefectSummary;
 }
 
 export interface MetricCalculationResult {
@@ -378,6 +390,46 @@ const defaultCalculators: MetricCalculator[] = [
       return {
         value: ciSummary.passRate,
         confidence: 'high' as const,
+      };
+    },
+  ),
+  createCalculator(
+    'defect_rate',
+    'ratio',
+    ['defect-summary'],
+    (input) => {
+      const defectSummary = input.defectSummary;
+
+      if (!defectSummary || defectSummary.completedRequirementCount === 0) {
+        return {
+          value: 0,
+          confidence: 'low' as const,
+        };
+      }
+
+      return {
+        value: defectSummary.defectRate,
+        confidence: 'medium' as const,
+      };
+    },
+  ),
+  createCalculator(
+    'escaped_defect_rate',
+    'ratio',
+    ['defect-summary'],
+    (input) => {
+      const defectSummary = input.defectSummary;
+
+      if (!defectSummary || defectSummary.totalDefectCount === 0) {
+        return {
+          value: 0,
+          confidence: 'low' as const,
+        };
+      }
+
+      return {
+        value: defectSummary.escapedDefectRate,
+        confidence: 'medium' as const,
       };
     },
   ),

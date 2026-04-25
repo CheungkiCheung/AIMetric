@@ -18,6 +18,8 @@ describe('enterprise metric calculation pipeline', () => {
       'deployment_frequency',
       'review_rejection_rate',
       'ci_pass_rate',
+      'defect_rate',
+      'escaped_defect_rate',
       'change_failure_rate',
       'rollback_rate',
     ]);
@@ -106,6 +108,15 @@ describe('enterprise metric calculation pipeline', () => {
           changeFailureRate: 0.5,
           rollbackRate: 0.25,
         },
+        defectSummary: {
+          totalDefectCount: 3,
+          openDefectCount: 1,
+          resolvedDefectCount: 2,
+          productionDefectCount: 1,
+          completedRequirementCount: 2,
+          defectRate: 1.5,
+          escapedDefectRate: 1 / 3,
+        },
       },
     });
 
@@ -179,6 +190,20 @@ describe('enterprise metric calculation pipeline', () => {
         unit: 'ratio',
         confidence: 'high',
         dataRequirements: ['ci-summary'],
+      }),
+      expect.objectContaining({
+        metricKey: 'defect_rate',
+        value: 1.5,
+        unit: 'ratio',
+        confidence: 'medium',
+        dataRequirements: ['defect-summary'],
+      }),
+      expect.objectContaining({
+        metricKey: 'escaped_defect_rate',
+        value: 1 / 3,
+        unit: 'ratio',
+        confidence: 'medium',
+        dataRequirements: ['defect-summary'],
       }),
       expect.objectContaining({
         metricKey: 'change_failure_rate',

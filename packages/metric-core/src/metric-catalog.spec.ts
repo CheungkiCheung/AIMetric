@@ -50,7 +50,7 @@ describe('enterprise metric catalog', () => {
   it('defines governance metadata for every metric', () => {
     const catalog = getEnterpriseMetricCatalog();
 
-    expect(catalog.metrics.length).toBeGreaterThanOrEqual(19);
+    expect(catalog.metrics.length).toBeGreaterThanOrEqual(21);
     expect(catalog.metrics).toContainEqual(
       expect.objectContaining({
         key: 'ai_ide_user_ratio',
@@ -79,6 +79,14 @@ describe('enterprise metric catalog', () => {
         name: '回滚率',
         dimension: 'quality-risk',
         dashboardPlacement: 'engineering-management',
+      }),
+    );
+    expect(catalog.metrics).toContainEqual(
+      expect.objectContaining({
+        key: 'defect_rate',
+        name: '缺陷率',
+        dimension: 'quality-risk',
+        dataSources: ['defect-tracker', 'delivery-tracker'],
       }),
     );
 

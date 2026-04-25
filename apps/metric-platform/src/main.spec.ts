@@ -1517,6 +1517,37 @@ describe('bootstrap', () => {
           },
         ];
       },
+      async listDefects() {
+        return [
+          {
+            provider: 'jira' as const,
+            projectKey: 'navigation',
+            defectKey: 'BUG-7',
+            title: 'Production issue',
+            severity: 'sev2' as const,
+            status: 'resolved' as const,
+            foundInPhase: 'production' as const,
+            linkedRequirementKeys: ['AIM-101'],
+            linkedPullRequestNumbers: [101],
+            createdAt: '2026-04-23T01:00:00.000Z',
+            resolvedAt: '2026-04-23T03:00:00.000Z',
+            updatedAt: '2026-04-23T03:00:00.000Z',
+          },
+          {
+            provider: 'jira' as const,
+            projectKey: 'navigation',
+            defectKey: 'BUG-8',
+            title: 'Test issue',
+            severity: 'sev3' as const,
+            status: 'open' as const,
+            foundInPhase: 'testing' as const,
+            linkedRequirementKeys: ['AIM-102'],
+            linkedPullRequestNumbers: [102],
+            createdAt: '2026-04-23T04:00:00.000Z',
+            updatedAt: '2026-04-23T04:00:00.000Z',
+          },
+        ];
+      },
     };
     const app = await bootstrap({ port: 0, metricEventRepository });
     servers.push(app);
@@ -1571,6 +1602,16 @@ describe('bootstrap', () => {
       }),
       expect.objectContaining({
         metricKey: 'ci_pass_rate',
+        value: 0.5,
+        unit: 'ratio',
+      }),
+      expect.objectContaining({
+        metricKey: 'defect_rate',
+        value: 1,
+        unit: 'ratio',
+      }),
+      expect.objectContaining({
+        metricKey: 'escaped_defect_rate',
         value: 0.5,
         unit: 'ratio',
       }),
