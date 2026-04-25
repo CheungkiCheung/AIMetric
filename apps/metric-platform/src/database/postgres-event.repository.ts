@@ -191,6 +191,33 @@ export interface CiRunSummary {
   averageDurationMinutes: number;
 }
 
+export interface DeploymentRecord {
+  provider: 'github-actions' | 'argo-cd';
+  projectKey: string;
+  repoName: string;
+  deploymentId: string;
+  environment: 'production' | 'staging';
+  status: 'success' | 'failed' | 'cancelled';
+  aiTouched: boolean;
+  rolledBack: boolean;
+  incidentKey?: string;
+  createdAt: string;
+  finishedAt?: string;
+  durationMinutes?: number;
+  updatedAt: string;
+}
+
+export interface DeploymentSummary {
+  totalDeploymentCount: number;
+  successfulDeploymentCount: number;
+  failedDeploymentCount: number;
+  rolledBackDeploymentCount: number;
+  aiTouchedDeploymentCount: number;
+  changeFailureRate: number;
+  rollbackRate: number;
+  averageDurationMinutes: number;
+}
+
 export interface CollectorIdentityRecord {
   identityKey: string;
   memberId: string;
@@ -252,6 +279,13 @@ export interface MetricEventRepository {
   buildCiRunSummary?(
     filters?: MetricSnapshotFilters,
   ): Promise<CiRunSummary>;
+  importDeployments?(deployments: DeploymentRecord[]): Promise<void>;
+  listDeployments?(
+    filters?: MetricSnapshotFilters,
+  ): Promise<DeploymentRecord[]>;
+  buildDeploymentSummary?(
+    filters?: MetricSnapshotFilters,
+  ): Promise<DeploymentSummary>;
   listSessionAnalysisRows?(
     filters?: MetricSnapshotFilters,
   ): Promise<SessionAnalysisRow[]>;
@@ -438,6 +472,24 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
             completed_at TIMESTAMPTZ,
             updated_at TIMESTAMPTZ NOT NULL,
             UNIQUE (provider, project_key, repo_name, run_id)
+          )
+        `);
+        await this.database.query(`
+          CREATE TABLE IF NOT EXISTS deployment_runs (
+            id BIGSERIAL PRIMARY KEY,
+            provider TEXT NOT NULL,
+            project_key TEXT NOT NULL,
+            repo_name TEXT NOT NULL,
+            deployment_id TEXT NOT NULL,
+            environment TEXT NOT NULL,
+            status TEXT NOT NULL,
+            ai_touched BOOLEAN NOT NULL DEFAULT FALSE,
+            rolled_back BOOLEAN NOT NULL DEFAULT FALSE,
+            incident_key TEXT,
+            created_at TIMESTAMPTZ NOT NULL,
+            finished_at TIMESTAMPTZ,
+            updated_at TIMESTAMPTZ NOT NULL,
+            UNIQUE (provider, project_key, repo_name, deployment_id)
           )
         `);
         await this.database.query(`
@@ -1504,6 +1556,185 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
       failedRunCount: failedRuns.length,
       passRate:
         completedRuns.length === 0 ? 0 : successfulRuns.length / completedRuns.length,
+      averageDurationMinutes:
+        durationValues.length === 0
+          ? 0
+          : durationValues.reduce((sum, value) => sum + value, 0) /
+            durationValues.length,
+    };
+  }
+
+  async importDeployments(deployments: DeploymentRecord[]): Promise<void> {
+    if (deployments.length === 0) {
+      return;
+    }
+
+    await this.ensureSchema();
+
+    await Promise.all(
+      deployments.map((deployment) =>
+        this.database.query(
+          `
+            INSERT INTO deployment_runs (
+              provider,
+              project_key,
+              repo_name,
+              deployment_id,
+              environment,
+              status,
+              ai_touched,
+              rolled_back,
+              incident_key,
+              created_at,
+              finished_at,
+              updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            ON CONFLICT (provider, project_key, repo_name, deployment_id)
+            DO UPDATE SET
+              environment = EXCLUDED.environment,
+              status = EXCLUDED.status,
+              ai_touched = EXCLUDED.ai_touched,
+              rolled_back = EXCLUDED.rolled_back,
+              incident_key = EXCLUDED.incident_key,
+              created_at = EXCLUDED.created_at,
+              finished_at = EXCLUDED.finished_at,
+              updated_at = EXCLUDED.updated_at
+          `,
+          [
+            deployment.provider,
+            deployment.projectKey,
+            deployment.repoName,
+            deployment.deploymentId,
+            deployment.environment,
+            deployment.status,
+            deployment.aiTouched,
+            deployment.rolledBack,
+            deployment.incidentKey ?? null,
+            deployment.createdAt,
+            deployment.finishedAt ?? null,
+            deployment.updatedAt,
+          ],
+        ),
+      ),
+    );
+  }
+
+  async listDeployments(
+    filters: MetricSnapshotFilters = {},
+  ): Promise<DeploymentRecord[]> {
+    await this.ensureSchema();
+
+    const values: Array<string | string[]> = [];
+    const whereClauses: string[] = [];
+
+    appendProjectFilterClauses(values, whereClauses, filters, 'project_key');
+
+    if (filters.from) {
+      values.push(filters.from);
+      whereClauses.push(`created_at >= $${values.length}`);
+    }
+
+    if (filters.to) {
+      values.push(filters.to);
+      whereClauses.push(`created_at <= $${values.length}`);
+    }
+
+    const result = await this.database.query<{
+      provider: DeploymentRecord['provider'];
+      project_key: string;
+      repo_name: string;
+      deployment_id: string;
+      environment: DeploymentRecord['environment'];
+      status: DeploymentRecord['status'];
+      ai_touched: boolean;
+      rolled_back: boolean;
+      incident_key: string | null;
+      created_at: Date | string;
+      finished_at: Date | string | null;
+      updated_at: Date | string;
+    }>(
+      `
+        SELECT
+          provider,
+          project_key,
+          repo_name,
+          deployment_id,
+          environment,
+          status,
+          ai_touched,
+          rolled_back,
+          incident_key,
+          created_at,
+          finished_at,
+          updated_at
+        FROM deployment_runs
+        ${whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : ''}
+        ORDER BY updated_at DESC, deployment_id DESC
+      `,
+      values,
+    );
+
+    return result.rows.map((row) => ({
+      provider: row.provider,
+      projectKey: row.project_key,
+      repoName: row.repo_name,
+      deploymentId: row.deployment_id,
+      environment: row.environment,
+      status: row.status,
+      aiTouched: row.ai_touched,
+      rolledBack: row.rolled_back,
+      ...(row.incident_key ? { incidentKey: row.incident_key } : {}),
+      createdAt: toIsoString(row.created_at),
+      ...(row.finished_at ? { finishedAt: toIsoString(row.finished_at) } : {}),
+      ...(row.finished_at
+        ? {
+            durationMinutes:
+              calculateCycleTimeHours(
+                toIsoString(row.created_at),
+                toIsoString(row.finished_at),
+              ) * 60,
+          }
+        : {}),
+      updatedAt: toIsoString(row.updated_at),
+    }));
+  }
+
+  async buildDeploymentSummary(
+    filters: MetricSnapshotFilters = {},
+  ): Promise<DeploymentSummary> {
+    const deployments = await this.listDeployments(filters);
+    const successfulDeployments = deployments.filter(
+      (deployment) => deployment.status === 'success',
+    );
+    const failedDeployments = deployments.filter(
+      (deployment) =>
+        deployment.status === 'failed' ||
+        deployment.rolledBack ||
+        typeof deployment.incidentKey === 'string',
+    );
+    const rolledBackDeployments = deployments.filter(
+      (deployment) => deployment.rolledBack,
+    );
+    const aiTouchedDeployments = deployments.filter(
+      (deployment) => deployment.aiTouched,
+    );
+    const durationValues = deployments
+      .map((deployment) => deployment.durationMinutes)
+      .filter((value): value is number => typeof value === 'number');
+
+    return {
+      totalDeploymentCount: deployments.length,
+      successfulDeploymentCount: successfulDeployments.length,
+      failedDeploymentCount: failedDeployments.length,
+      rolledBackDeploymentCount: rolledBackDeployments.length,
+      aiTouchedDeploymentCount: aiTouchedDeployments.length,
+      changeFailureRate:
+        deployments.length === 0 ? 0 : failedDeployments.length / deployments.length,
+      rollbackRate:
+        deployments.length === 0
+          ? 0
+          : rolledBackDeployments.length / deployments.length,
       averageDurationMinutes:
         durationValues.length === 0
           ? 0

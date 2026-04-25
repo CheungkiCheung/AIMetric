@@ -7,6 +7,7 @@ import { AppModule } from './app.module.js';
 import type {
   CiRunRecord,
   CollectorIdentityRecord,
+  DeploymentRecord,
   EditEvidenceFilters,
   MetricEventRepository,
   MetricSnapshotFilters,
@@ -436,6 +437,64 @@ const getCiRunsFromBody = (body: unknown): CiRunRecord[] | undefined => {
   return normalized.length === ciRuns.length ? normalized : undefined;
 };
 
+const getDeploymentsFromBody = (body: unknown): DeploymentRecord[] | undefined => {
+  if (!body || typeof body !== 'object') {
+    return undefined;
+  }
+
+  const deployments = (body as Record<string, unknown>).deployments;
+
+  if (!Array.isArray(deployments)) {
+    return undefined;
+  }
+
+  const normalized = deployments.flatMap((item) => {
+    if (!item || typeof item !== 'object') {
+      return [];
+    }
+
+    const payload = item as Record<string, unknown>;
+
+    if (
+      (payload.provider !== 'github-actions' && payload.provider !== 'argo-cd') ||
+      typeof payload.projectKey !== 'string' ||
+      typeof payload.repoName !== 'string' ||
+      typeof payload.deploymentId !== 'string' ||
+      typeof payload.environment !== 'string' ||
+      typeof payload.status !== 'string' ||
+      typeof payload.aiTouched !== 'boolean' ||
+      typeof payload.rolledBack !== 'boolean' ||
+      typeof payload.createdAt !== 'string' ||
+      typeof payload.updatedAt !== 'string'
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        provider: payload.provider as DeploymentRecord['provider'],
+        projectKey: payload.projectKey,
+        repoName: payload.repoName,
+        deploymentId: payload.deploymentId,
+        environment: payload.environment as DeploymentRecord['environment'],
+        status: payload.status as DeploymentRecord['status'],
+        aiTouched: payload.aiTouched,
+        rolledBack: payload.rolledBack,
+        ...(typeof payload.incidentKey === 'string'
+          ? { incidentKey: payload.incidentKey }
+          : {}),
+        createdAt: payload.createdAt,
+        ...(typeof payload.finishedAt === 'string'
+          ? { finishedAt: payload.finishedAt }
+          : {}),
+        updatedAt: payload.updatedAt,
+      },
+    ];
+  });
+
+  return normalized.length === deployments.length ? normalized : undefined;
+};
+
 const applyViewerScopeToFilters = <T extends MetricSnapshotFilters>(
   filters: T,
   viewerScope?: GovernanceViewerScope,
@@ -779,6 +838,40 @@ const handleRequest = async (
     }
 
     writeJson(response, 200, await appModule.buildCiRunSummary(scoped.filters));
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/integrations/deployments') {
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
+    writeJson(response, 200, await appModule.listDeployments(scoped.filters));
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/integrations/deployments/summary') {
+    const scoped = applyViewerScopeToFilters(
+      getMetricSnapshotFilters(url),
+      viewerScope,
+    );
+
+    if (scoped.denied) {
+      writeJson(response, 403, { message: 'Project or member is outside viewer scope' });
+      return;
+    }
+
+    writeJson(
+      response,
+      200,
+      await appModule.buildDeploymentSummary(scoped.filters),
+    );
     return;
   }
 
@@ -1212,6 +1305,27 @@ const handleRequest = async (
 
     writeJson(response, 200, await appModule.importCiRuns(ciRuns));
     recordAdminAudit(runtime, request, 'ci-runs.import');
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/integrations/deployments/import') {
+    if (!isAuthorizedAdminRequest(request, runtime.adminToken)) {
+      writeJson(response, 401, { message: 'Unauthorized admin request' });
+      return;
+    }
+
+    const body = await readJsonBody(request);
+    const deployments = getDeploymentsFromBody(body);
+
+    if (!deployments) {
+      writeJson(response, 400, {
+        message: 'deployments is required and must contain valid deployment records',
+      });
+      return;
+    }
+
+    writeJson(response, 200, await appModule.importDeployments(deployments));
+    recordAdminAudit(runtime, request, 'deployments.import');
     return;
   }
 

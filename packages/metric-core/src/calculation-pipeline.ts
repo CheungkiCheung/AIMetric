@@ -16,7 +16,8 @@ export type MetricDataRequirement =
   | 'mcp-audit-metrics'
   | 'requirement-summary'
   | 'pull-request-summary'
-  | 'ci-summary';
+  | 'ci-summary'
+  | 'deployment-summary';
 
 export interface MetricCalculationContext {
   scope: EnterpriseMetricScope;
@@ -75,6 +76,16 @@ export interface CalculationCiSummary {
   passRate: number;
 }
 
+export interface CalculationDeploymentSummary {
+  totalDeploymentCount: number;
+  successfulDeploymentCount: number;
+  failedDeploymentCount: number;
+  rolledBackDeploymentCount: number;
+  aiTouchedDeploymentCount: number;
+  changeFailureRate: number;
+  rollbackRate: number;
+}
+
 export interface MetricCalculationInput {
   recordedMetricEvents?: CalculationRecordedMetricEvent[];
   analysisSummary?: CalculationAnalysisSummary;
@@ -82,6 +93,7 @@ export interface MetricCalculationInput {
   requirementSummary?: CalculationRequirementSummary;
   pullRequestSummary?: CalculationPullRequestSummary;
   ciSummary?: CalculationCiSummary;
+  deploymentSummary?: CalculationDeploymentSummary;
 }
 
 export interface MetricCalculationResult {
@@ -305,6 +317,29 @@ const defaultCalculators: MetricCalculator[] = [
     },
   ),
   createCalculator(
+    'deployment_frequency',
+    'count',
+    ['deployment-summary'],
+    (input) => {
+      const deploymentSummary = input.deploymentSummary;
+
+      if (!deploymentSummary) {
+        return {
+          value: 0,
+          confidence: 'low' as const,
+        };
+      }
+
+      return {
+        value: deploymentSummary.totalDeploymentCount,
+        confidence:
+          deploymentSummary.totalDeploymentCount > 0
+            ? ('high' as const)
+            : ('low' as const),
+      };
+    },
+  ),
+  createCalculator(
     'review_rejection_rate',
     'ratio',
     ['pull-request-summary'],
@@ -343,6 +378,46 @@ const defaultCalculators: MetricCalculator[] = [
       return {
         value: ciSummary.passRate,
         confidence: 'high' as const,
+      };
+    },
+  ),
+  createCalculator(
+    'change_failure_rate',
+    'ratio',
+    ['deployment-summary'],
+    (input) => {
+      const deploymentSummary = input.deploymentSummary;
+
+      if (!deploymentSummary || deploymentSummary.totalDeploymentCount === 0) {
+        return {
+          value: 0,
+          confidence: 'low' as const,
+        };
+      }
+
+      return {
+        value: deploymentSummary.changeFailureRate,
+        confidence: 'medium' as const,
+      };
+    },
+  ),
+  createCalculator(
+    'rollback_rate',
+    'ratio',
+    ['deployment-summary'],
+    (input) => {
+      const deploymentSummary = input.deploymentSummary;
+
+      if (!deploymentSummary || deploymentSummary.totalDeploymentCount === 0) {
+        return {
+          value: 0,
+          confidence: 'low' as const,
+        };
+      }
+
+      return {
+        value: deploymentSummary.rollbackRate,
+        confidence: 'medium' as const,
       };
     },
   ),

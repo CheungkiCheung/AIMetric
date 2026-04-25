@@ -238,6 +238,33 @@ export interface CiRunSummary {
   averageDurationMinutes: number;
 }
 
+export interface DeploymentRecord {
+  provider: 'github-actions' | 'argo-cd';
+  projectKey: string;
+  repoName: string;
+  deploymentId: string;
+  environment: 'production' | 'staging';
+  status: 'success' | 'failed' | 'cancelled';
+  aiTouched: boolean;
+  rolledBack: boolean;
+  incidentKey?: string;
+  createdAt: string;
+  finishedAt?: string;
+  durationMinutes?: number;
+  updatedAt: string;
+}
+
+export interface DeploymentSummary {
+  totalDeploymentCount: number;
+  successfulDeploymentCount: number;
+  failedDeploymentCount: number;
+  rolledBackDeploymentCount: number;
+  aiTouchedDeploymentCount: number;
+  changeFailureRate: number;
+  rollbackRate: number;
+  averageDurationMinutes: number;
+}
+
 export interface DashboardClient {
   getPersonalSnapshot(filters?: DashboardFilters): Promise<PersonalSnapshot>;
   getTeamSnapshot(filters?: DashboardFilters): Promise<TeamSnapshot>;
@@ -268,6 +295,8 @@ export interface DashboardClient {
   getRequirements(filters?: DashboardFilters): Promise<RequirementRecord[]>;
   getCiRunSummary(filters?: DashboardFilters): Promise<CiRunSummary>;
   getCiRuns(filters?: DashboardFilters): Promise<CiRunRecord[]>;
+  getDeploymentSummary(filters?: DashboardFilters): Promise<DeploymentSummary>;
+  getDeployments(filters?: DashboardFilters): Promise<DeploymentRecord[]>;
   updateRuleRollout(input: RuleRollout): Promise<RuleRollout>;
 }
 
@@ -389,6 +418,17 @@ const fallbackCiRunSummary: CiRunSummary = {
   successfulRunCount: 0,
   failedRunCount: 0,
   passRate: 0,
+  averageDurationMinutes: 0,
+};
+
+const fallbackDeploymentSummary: DeploymentSummary = {
+  totalDeploymentCount: 0,
+  successfulDeploymentCount: 0,
+  failedDeploymentCount: 0,
+  rolledBackDeploymentCount: 0,
+  aiTouchedDeploymentCount: 0,
+  changeFailureRate: 0,
+  rollbackRate: 0,
   averageDurationMinutes: 0,
 };
 
@@ -654,6 +694,20 @@ export const createDashboardClient = (
   getCiRuns: (filters) =>
     fetchJson<CiRunRecord[]>(
       buildMetricUrl(baseUrl, '/integrations/ci/runs', filters),
+      [],
+      viewerId,
+      adminToken,
+    ),
+  getDeploymentSummary: (filters) =>
+    fetchJson<DeploymentSummary>(
+      buildMetricUrl(baseUrl, '/integrations/deployments/summary', filters),
+      fallbackDeploymentSummary,
+      viewerId,
+      adminToken,
+    ),
+  getDeployments: (filters) =>
+    fetchJson<DeploymentRecord[]>(
+      buildMetricUrl(baseUrl, '/integrations/deployments', filters),
       [],
       viewerId,
       adminToken,

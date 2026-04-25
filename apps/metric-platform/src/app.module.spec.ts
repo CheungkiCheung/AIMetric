@@ -498,6 +498,87 @@ describe('AppModule', () => {
     });
   });
 
+  it('imports deployments and builds a deployment summary through the repository', async () => {
+    const repository = {
+      ...createEmptyRepository(),
+      importDeployments: vi.fn(async () => undefined),
+      listDeployments: vi.fn(async () => [
+        {
+          provider: 'github-actions' as const,
+          projectKey: 'aimetric',
+          repoName: 'AIMetric',
+          deploymentId: 'deploy-1',
+          environment: 'production' as const,
+          status: 'success' as const,
+          aiTouched: true,
+          rolledBack: false,
+          durationMinutes: 18,
+          createdAt: '2026-04-26T02:00:00.000Z',
+          finishedAt: '2026-04-26T02:18:00.000Z',
+          updatedAt: '2026-04-26T02:18:00.000Z',
+        },
+        {
+          provider: 'github-actions' as const,
+          projectKey: 'aimetric',
+          repoName: 'AIMetric',
+          deploymentId: 'deploy-2',
+          environment: 'production' as const,
+          status: 'failed' as const,
+          aiTouched: true,
+          rolledBack: true,
+          incidentKey: 'INC-7',
+          durationMinutes: 12,
+          createdAt: '2026-04-26T03:00:00.000Z',
+          finishedAt: '2026-04-26T03:12:00.000Z',
+          updatedAt: '2026-04-26T03:12:00.000Z',
+        },
+      ]),
+      buildDeploymentSummary: vi.fn(async () => ({
+        totalDeploymentCount: 2,
+        successfulDeploymentCount: 1,
+        failedDeploymentCount: 1,
+        rolledBackDeploymentCount: 1,
+        aiTouchedDeploymentCount: 2,
+        changeFailureRate: 0.5,
+        rollbackRate: 0.5,
+        averageDurationMinutes: 15,
+      })),
+    };
+    const appModule = new AppModule(repository);
+
+    const importResult = await appModule.importDeployments([
+      {
+        provider: 'github-actions',
+        projectKey: 'aimetric',
+        repoName: 'AIMetric',
+        deploymentId: 'deploy-1',
+        environment: 'production',
+        status: 'success',
+        aiTouched: true,
+        rolledBack: false,
+        createdAt: '2026-04-26T02:00:00.000Z',
+        finishedAt: '2026-04-26T02:18:00.000Z',
+        updatedAt: '2026-04-26T02:18:00.000Z',
+      },
+    ]);
+    const summary = await appModule.buildDeploymentSummary({
+      projectKey: 'aimetric',
+    });
+
+    expect(importResult).toEqual({ importedDeployments: 1 });
+    expect(repository.importDeployments).toHaveBeenCalledTimes(1);
+    expect(summary).toEqual({
+      totalDeploymentCount: 2,
+      successfulDeploymentCount: 1,
+      failedDeploymentCount: 1,
+      rolledBackDeploymentCount: 1,
+      aiTouchedDeploymentCount: 2,
+      changeFailureRate: 0.5,
+      rollbackRate: 0.5,
+      averageDurationMinutes: 15,
+    });
+  });
+
   it('filters enterprise metrics by dimension', () => {
     const appModule = new AppModule(createEmptyRepository());
     const metrics = appModule.listEnterpriseMetricsByDimension('quality-risk');
@@ -618,6 +699,37 @@ describe('AppModule', () => {
           updatedAt: '2026-04-23T01:10:00.000Z',
         },
       ]),
+      listDeployments: vi.fn(async () => [
+        {
+          provider: 'github-actions' as const,
+          projectKey: 'navigation',
+          repoName: 'AIMetric',
+          deploymentId: 'deploy-1',
+          environment: 'production' as const,
+          status: 'success' as const,
+          aiTouched: true,
+          rolledBack: false,
+          durationMinutes: 18,
+          createdAt: '2026-04-23T02:00:00.000Z',
+          finishedAt: '2026-04-23T02:18:00.000Z',
+          updatedAt: '2026-04-23T02:18:00.000Z',
+        },
+        {
+          provider: 'github-actions' as const,
+          projectKey: 'navigation',
+          repoName: 'AIMetric',
+          deploymentId: 'deploy-2',
+          environment: 'production' as const,
+          status: 'failed' as const,
+          aiTouched: false,
+          rolledBack: true,
+          incidentKey: 'INC-9',
+          durationMinutes: 12,
+          createdAt: '2026-04-23T04:00:00.000Z',
+          finishedAt: '2026-04-23T04:12:00.000Z',
+          updatedAt: '2026-04-23T04:12:00.000Z',
+        },
+      ]),
     };
     const filters = {
       projectKey: 'navigation',
@@ -636,6 +748,7 @@ describe('AppModule', () => {
     expect(repository.listRequirements).toHaveBeenCalledWith(filters);
     expect(repository.listPullRequests).toHaveBeenCalledWith(filters);
     expect(repository.listCiRuns).toHaveBeenCalledWith(filters);
+    expect(repository.listDeployments).toHaveBeenCalledWith(filters);
     expect(result).toEqual([
       expect.objectContaining({
         metricKey: 'ai_output_rate',
@@ -670,12 +783,27 @@ describe('AppModule', () => {
         unit: 'hours',
       }),
       expect.objectContaining({
+        metricKey: 'deployment_frequency',
+        value: 2,
+        unit: 'count',
+      }),
+      expect.objectContaining({
         metricKey: 'review_rejection_rate',
         value: 0.5,
         unit: 'ratio',
       }),
       expect.objectContaining({
         metricKey: 'ci_pass_rate',
+        value: 0.5,
+        unit: 'ratio',
+      }),
+      expect.objectContaining({
+        metricKey: 'change_failure_rate',
+        value: 0.5,
+        unit: 'ratio',
+      }),
+      expect.objectContaining({
+        metricKey: 'rollback_rate',
         value: 0.5,
         unit: 'ratio',
       }),

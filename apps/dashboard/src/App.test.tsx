@@ -9,6 +9,8 @@ import type {
   CiRunSummary,
   DashboardClient,
   DashboardFilters,
+  DeploymentRecord,
+  DeploymentSummary,
   PullRequestRecord,
   PullRequestSummary,
   RequirementRecord,
@@ -92,6 +94,32 @@ const createClient = (
       createdAt: '2026-04-24T00:00:00.000Z',
       completedAt: '2026-04-24T00:14:00.000Z',
       updatedAt: '2026-04-24T00:14:00.000Z',
+    },
+  ],
+  getDeploymentSummary: async (): Promise<DeploymentSummary> => ({
+    totalDeploymentCount: 4,
+    successfulDeploymentCount: 3,
+    failedDeploymentCount: 1,
+    rolledBackDeploymentCount: 1,
+    aiTouchedDeploymentCount: 3,
+    changeFailureRate: 0.25,
+    rollbackRate: 0.25,
+    averageDurationMinutes: 16,
+  }),
+  getDeployments: async (): Promise<DeploymentRecord[]> => [
+    {
+      provider: 'github-actions',
+      projectKey: 'aimetric',
+      repoName: 'AIMetric',
+      deploymentId: 'deploy-1',
+      environment: 'production',
+      status: 'success',
+      aiTouched: true,
+      rolledBack: false,
+      durationMinutes: 18,
+      createdAt: '2026-04-24T02:00:00.000Z',
+      finishedAt: '2026-04-24T02:18:00.000Z',
+      updatedAt: '2026-04-24T02:18:00.000Z',
     },
   ],
   getPersonalSnapshot: async () => ({
@@ -405,6 +433,7 @@ describe('App', () => {
     expect(screen.getByText('MCP 采集质量')).toBeInTheDocument();
     expect(screen.getByText('采集健康运营')).toBeInTheDocument();
     expect(screen.getByText('CI 质量概览')).toBeInTheDocument();
+    expect(screen.getByText('发布质量概览')).toBeInTheDocument();
     expect(screen.getByText('需求交付概览')).toBeInTheDocument();
     expect(screen.getByText('GitHub PR 交付概览')).toBeInTheDocument();
     expect(screen.getByText('队列模式')).toBeInTheDocument();
@@ -415,6 +444,9 @@ describe('App', () => {
     expect(screen.getAllByText('75.0%').length).toBeGreaterThan(0);
     expect(screen.getByText('12.0 分钟')).toBeInTheDocument();
     expect(screen.getByText('AIMetric #501 ci')).toBeInTheDocument();
+    expect(screen.getAllByText('25.0%').length).toBeGreaterThan(0);
+    expect(screen.getByText('16.0 分钟')).toBeInTheDocument();
+    expect(screen.getByText('AIMetric deploy-1')).toBeInTheDocument();
     expect(screen.getByText(/关联 PR：2/)).toBeInTheDocument();
     expect(screen.getByText(/PR 编号：101, 103/)).toBeInTheDocument();
     expect(screen.getByText('AI 触达 PR 占比')).toBeInTheDocument();

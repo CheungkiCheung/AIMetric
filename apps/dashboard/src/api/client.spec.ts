@@ -310,6 +310,43 @@ describe('createDashboardClient', () => {
         );
       }
 
+      if (url.endsWith('/integrations/deployments/summary')) {
+        return new Response(
+          JSON.stringify({
+            totalDeploymentCount: 4,
+            successfulDeploymentCount: 3,
+            failedDeploymentCount: 1,
+            rolledBackDeploymentCount: 1,
+            aiTouchedDeploymentCount: 3,
+            changeFailureRate: 0.25,
+            rollbackRate: 0.25,
+            averageDurationMinutes: 16,
+          }),
+          { status: 200 },
+        );
+      }
+
+      if (url.endsWith('/integrations/deployments')) {
+        return new Response(
+          JSON.stringify([
+            {
+              provider: 'github-actions',
+              projectKey: 'aimetric',
+              repoName: 'AIMetric',
+              deploymentId: 'deploy-1',
+              environment: 'production',
+              status: 'success',
+              aiTouched: true,
+              rolledBack: false,
+              createdAt: '2026-04-24T02:00:00.000Z',
+              finishedAt: '2026-04-24T02:18:00.000Z',
+              updatedAt: '2026-04-24T02:18:00.000Z',
+            },
+          ]),
+          { status: 200 },
+        );
+      }
+
       if (url.includes('/governance/viewer-scopes')) {
         return new Response(
           JSON.stringify({
@@ -449,6 +486,17 @@ describe('createDashboardClient', () => {
         conclusion: 'success',
       }),
     ]);
+    await expect(client.getDeploymentSummary()).resolves.toMatchObject({
+      totalDeploymentCount: 4,
+      changeFailureRate: 0.25,
+      rollbackRate: 0.25,
+    });
+    await expect(client.getDeployments()).resolves.toEqual([
+      expect.objectContaining({
+        deploymentId: 'deploy-1',
+        status: 'success',
+      }),
+    ]);
     await expect(client.getViewerScopeAssignment('manager-1')).resolves.toMatchObject({
       viewerId: 'manager-1',
       teamKeys: ['platform-engineering'],
@@ -508,6 +556,8 @@ describe('createDashboardClient', () => {
     await client.getRequirements(filters);
     await client.getCiRunSummary(filters);
     await client.getCiRuns(filters);
+    await client.getDeploymentSummary(filters);
+    await client.getDeployments(filters);
 
     expect(requestedUrls[0]).toBe(
       'http://127.0.0.1:3001/metrics/personal?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
@@ -547,6 +597,12 @@ describe('createDashboardClient', () => {
     );
     expect(requestedUrls[12]).toBe(
       'http://127.0.0.1:3001/integrations/ci/runs?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+    );
+    expect(requestedUrls[13]).toBe(
+      'http://127.0.0.1:3001/integrations/deployments/summary?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
+    );
+    expect(requestedUrls[14]).toBe(
+      'http://127.0.0.1:3001/integrations/deployments?projectKey=navigation&memberId=alice&from=2026-04-23T00%3A00%3A00.000Z&to=2026-04-24T00%3A00%3A00.000Z',
     );
   });
 

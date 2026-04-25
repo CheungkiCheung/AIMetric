@@ -969,6 +969,144 @@ describe('bootstrap', () => {
     ]);
   });
 
+  it('imports and serves deployment data over HTTP', async () => {
+    const importedDeployments: unknown[] = [];
+    const metricEventRepository: MetricEventRepository = {
+      ...createEmptyRepository(),
+      async importDeployments(deployments) {
+        importedDeployments.push(...deployments);
+      },
+      async listDeployments(filters) {
+        expect(filters).toEqual({ projectKey: 'aimetric' });
+
+        return [
+          {
+            provider: 'github-actions' as const,
+            projectKey: 'aimetric',
+            repoName: 'AIMetric',
+            deploymentId: 'deploy-1',
+            environment: 'production' as const,
+            status: 'success' as const,
+            aiTouched: true,
+            rolledBack: false,
+            durationMinutes: 18,
+            createdAt: '2026-04-26T02:00:00.000Z',
+            finishedAt: '2026-04-26T02:18:00.000Z',
+            updatedAt: '2026-04-26T02:18:00.000Z',
+          },
+          {
+            provider: 'github-actions' as const,
+            projectKey: 'aimetric',
+            repoName: 'AIMetric',
+            deploymentId: 'deploy-2',
+            environment: 'production' as const,
+            status: 'failed' as const,
+            aiTouched: false,
+            rolledBack: true,
+            incidentKey: 'INC-7',
+            durationMinutes: 12,
+            createdAt: '2026-04-26T03:00:00.000Z',
+            finishedAt: '2026-04-26T03:12:00.000Z',
+            updatedAt: '2026-04-26T03:12:00.000Z',
+          },
+        ];
+      },
+      async buildDeploymentSummary() {
+        return {
+          totalDeploymentCount: 2,
+          successfulDeploymentCount: 1,
+          failedDeploymentCount: 1,
+          rolledBackDeploymentCount: 1,
+          aiTouchedDeploymentCount: 1,
+          changeFailureRate: 0.5,
+          rollbackRate: 0.5,
+          averageDurationMinutes: 15,
+        };
+      },
+    };
+    const app = await bootstrap({
+      port: 0,
+      adminToken: 'admin-secret',
+      metricEventRepository,
+    });
+    servers.push(app);
+
+    const importResponse = await fetch(
+      `${app.baseUrl}/integrations/deployments/import`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer admin-secret',
+          'content-type': 'application/json',
+          'x-aimetric-actor': 'platform-admin',
+        },
+        body: JSON.stringify({
+          deployments: [
+            {
+              provider: 'github-actions',
+              projectKey: 'aimetric',
+              repoName: 'AIMetric',
+              deploymentId: 'deploy-1',
+              environment: 'production',
+              status: 'success',
+              aiTouched: true,
+              rolledBack: false,
+              createdAt: '2026-04-26T02:00:00.000Z',
+              finishedAt: '2026-04-26T02:18:00.000Z',
+              updatedAt: '2026-04-26T02:18:00.000Z',
+            },
+          ],
+        }),
+      },
+    );
+    const listResponse = await fetch(
+      `${app.baseUrl}/integrations/deployments?projectKey=aimetric`,
+    );
+    const summaryResponse = await fetch(
+      `${app.baseUrl}/integrations/deployments/summary?projectKey=aimetric`,
+    );
+    const auditResponse = await fetch(`${app.baseUrl}/admin/audit`, {
+      headers: {
+        authorization: 'Bearer admin-secret',
+      },
+    });
+
+    expect(importResponse.status).toBe(200);
+    await expect(importResponse.json()).resolves.toEqual({
+      importedDeployments: 1,
+    });
+    expect(importedDeployments).toHaveLength(1);
+    expect(listResponse.status).toBe(200);
+    await expect(listResponse.json()).resolves.toEqual([
+      expect.objectContaining({
+        deploymentId: 'deploy-1',
+        status: 'success',
+      }),
+      expect.objectContaining({
+        deploymentId: 'deploy-2',
+        status: 'failed',
+        rolledBack: true,
+      }),
+    ]);
+    expect(summaryResponse.status).toBe(200);
+    await expect(summaryResponse.json()).resolves.toEqual({
+      totalDeploymentCount: 2,
+      successfulDeploymentCount: 1,
+      failedDeploymentCount: 1,
+      rolledBackDeploymentCount: 1,
+      aiTouchedDeploymentCount: 1,
+      changeFailureRate: 0.5,
+      rollbackRate: 0.5,
+      averageDurationMinutes: 15,
+    });
+    await expect(auditResponse.json()).resolves.toEqual([
+      expect.objectContaining({
+        action: 'deployments.import',
+        actor: 'platform-admin',
+      }),
+    ]);
+  });
+
   it('serves enterprise metrics filtered by dimension over HTTP', async () => {
     const app = await bootstrap({
       port: 0,
@@ -1116,6 +1254,37 @@ describe('bootstrap', () => {
           },
         ];
       },
+      async listDeployments() {
+        return [
+          {
+            provider: 'github-actions' as const,
+            projectKey: 'navigation',
+            repoName: 'AIMetric',
+            deploymentId: 'deploy-1',
+            environment: 'production' as const,
+            status: 'success' as const,
+            aiTouched: true,
+            rolledBack: false,
+            createdAt: '2026-04-23T02:00:00.000Z',
+            finishedAt: '2026-04-23T02:18:00.000Z',
+            updatedAt: '2026-04-23T02:18:00.000Z',
+          },
+          {
+            provider: 'github-actions' as const,
+            projectKey: 'navigation',
+            repoName: 'AIMetric',
+            deploymentId: 'deploy-2',
+            environment: 'production' as const,
+            status: 'failed' as const,
+            aiTouched: false,
+            rolledBack: true,
+            incidentKey: 'INC-9',
+            createdAt: '2026-04-23T04:00:00.000Z',
+            finishedAt: '2026-04-23T04:12:00.000Z',
+            updatedAt: '2026-04-23T04:12:00.000Z',
+          },
+        ];
+      },
     };
     const app = await bootstrap({ port: 0, metricEventRepository });
     servers.push(app);
@@ -1159,12 +1328,27 @@ describe('bootstrap', () => {
         unit: 'hours',
       }),
       expect.objectContaining({
+        metricKey: 'deployment_frequency',
+        value: 2,
+        unit: 'count',
+      }),
+      expect.objectContaining({
         metricKey: 'review_rejection_rate',
         value: 0.5,
         unit: 'ratio',
       }),
       expect.objectContaining({
         metricKey: 'ci_pass_rate',
+        value: 0.5,
+        unit: 'ratio',
+      }),
+      expect.objectContaining({
+        metricKey: 'change_failure_rate',
+        value: 0.5,
+        unit: 'ratio',
+      }),
+      expect.objectContaining({
+        metricKey: 'rollback_rate',
         value: 0.5,
         unit: 'ratio',
       }),

@@ -50,7 +50,7 @@ describe('enterprise metric catalog', () => {
   it('defines governance metadata for every metric', () => {
     const catalog = getEnterpriseMetricCatalog();
 
-    expect(catalog.metrics.length).toBeGreaterThanOrEqual(18);
+    expect(catalog.metrics.length).toBeGreaterThanOrEqual(19);
     expect(catalog.metrics).toContainEqual(
       expect.objectContaining({
         key: 'ai_ide_user_ratio',
@@ -71,6 +71,14 @@ describe('enterprise metric catalog', () => {
         automationLevel: 'medium',
         dashboardPlacement: 'engineering-management',
         assessmentUsage: 'team-improvement',
+      }),
+    );
+    expect(catalog.metrics).toContainEqual(
+      expect.objectContaining({
+        key: 'rollback_rate',
+        name: '回滚率',
+        dimension: 'quality-risk',
+        dashboardPlacement: 'engineering-management',
       }),
     );
 

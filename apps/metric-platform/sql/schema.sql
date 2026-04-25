@@ -114,6 +114,23 @@ CREATE TABLE IF NOT EXISTS ci_runs (
   UNIQUE (provider, project_key, repo_name, run_id)
 );
 
+CREATE TABLE IF NOT EXISTS deployment_runs (
+  id BIGSERIAL PRIMARY KEY,
+  provider TEXT NOT NULL,
+  project_key TEXT NOT NULL,
+  repo_name TEXT NOT NULL,
+  deployment_id TEXT NOT NULL,
+  environment TEXT NOT NULL,
+  status TEXT NOT NULL,
+  ai_touched BOOLEAN NOT NULL DEFAULT FALSE,
+  rolled_back BOOLEAN NOT NULL DEFAULT FALSE,
+  incident_key TEXT,
+  created_at TIMESTAMPTZ NOT NULL,
+  finished_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL,
+  UNIQUE (provider, project_key, repo_name, deployment_id)
+);
+
 CREATE TABLE IF NOT EXISTS governance_organizations (
   id BIGSERIAL PRIMARY KEY,
   organization_key TEXT NOT NULL UNIQUE,

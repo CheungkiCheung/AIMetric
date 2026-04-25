@@ -7,6 +7,8 @@ import {
   type CollectorIngestionHealth,
   type DashboardClient,
   type DashboardFilters,
+  type DeploymentRecord,
+  type DeploymentSummary,
   type EnterpriseMetricCatalog,
   type GovernanceDirectory,
   type MetricCalculationResult,
@@ -26,6 +28,7 @@ import {
 import { AnalysisSummarySection } from './pages/analysis-summary.js';
 import { CiRunDashboard } from './pages/ci-run-dashboard.js';
 import { CollectorHealthDashboard } from './pages/collector-health-dashboard.js';
+import { DeploymentDashboard } from './pages/deployment-dashboard.js';
 import { EnterpriseMetricCatalogPanel } from './pages/enterprise-metric-catalog.js';
 import { GovernanceDirectoryDashboard } from './pages/governance-directory-dashboard.js';
 import { McpAuditDashboard } from './pages/mcp-audit-dashboard.js';
@@ -116,6 +119,9 @@ export const App = ({
     useState<CollectorIngestionHealth | null>(null);
   const [ciRunSummary, setCiRunSummary] = useState<CiRunSummary | null>(null);
   const [ciRuns, setCiRuns] = useState<CiRunRecord[]>([]);
+  const [deploymentSummary, setDeploymentSummary] =
+    useState<DeploymentSummary | null>(null);
+  const [deployments, setDeployments] = useState<DeploymentRecord[]>([]);
   const [governanceDirectory, setGovernanceDirectory] =
     useState<GovernanceDirectory | null>(null);
   const [pullRequestSummary, setPullRequestSummary] =
@@ -147,6 +153,8 @@ export const App = ({
       collectorIngestionHealth,
       ciSummary,
       ciRows,
+      deploymentSummary,
+      deploymentRows,
       directory,
       prSummary,
       prRows,
@@ -166,6 +174,8 @@ export const App = ({
       client.getCollectorIngestionHealth(),
       client.getCiRunSummary(nextFilters),
       client.getCiRuns(nextFilters),
+      client.getDeploymentSummary(nextFilters),
+      client.getDeployments(nextFilters),
       client.getGovernanceDirectory(),
       client.getPullRequestSummary(nextFilters),
       client.getPullRequests(nextFilters),
@@ -187,6 +197,8 @@ export const App = ({
       collectorIngestionHealth,
       ciSummary,
       ciRows,
+      deploymentSummary,
+      deploymentRows,
       directory,
       prSummary,
       prRows,
@@ -213,6 +225,8 @@ export const App = ({
         collectorIngestionHealth,
         ciSummary,
         ciRows,
+        deploymentSummary,
+        deploymentRows,
         directory,
         prSummary,
         prRows,
@@ -237,6 +251,8 @@ export const App = ({
       setCollectorHealth(collectorIngestionHealth);
       setCiRunSummary(ciSummary);
       setCiRuns(ciRows);
+      setDeploymentSummary(deploymentSummary);
+      setDeployments(deploymentRows);
       setGovernanceDirectory(directory);
       setPullRequestSummary(prSummary);
       setPullRequests(prRows);
@@ -306,6 +322,8 @@ export const App = ({
         collectorIngestionHealth,
         ciSummary,
         ciRows,
+        deploymentSummary,
+        deploymentRows,
         directory,
         prSummary,
         prRows,
@@ -326,6 +344,8 @@ export const App = ({
       setCollectorHealth(collectorIngestionHealth);
       setCiRunSummary(ciSummary);
       setCiRuns(ciRows);
+      setDeploymentSummary(deploymentSummary);
+      setDeployments(deploymentRows);
       setGovernanceDirectory(directory);
       setPullRequestSummary(prSummary);
       setPullRequests(prRows);
@@ -409,6 +429,7 @@ export const App = ({
     !mcpAuditMetrics ||
     !collectorHealth ||
     !ciRunSummary ||
+    !deploymentSummary ||
     !governanceDirectory ||
     !pullRequestSummary ||
     !requirementSummary ||
@@ -471,6 +492,7 @@ export const App = ({
         <AnalysisSummarySection summary={analysisSummary} />
         <CollectorHealthDashboard health={collectorHealth} />
         <CiRunDashboard summary={ciRunSummary} rows={ciRuns} />
+        <DeploymentDashboard summary={deploymentSummary} rows={deployments} />
         <RequirementDashboard summary={requirementSummary} rows={requirements} />
         <PullRequestDashboard summary={pullRequestSummary} rows={pullRequests} />
         <SessionAnalysisTable rows={sessionAnalysisRows} />

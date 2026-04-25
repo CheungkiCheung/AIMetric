@@ -15,8 +15,11 @@ describe('enterprise metric calculation pipeline', () => {
       'mcp_tool_success_rate',
       'lead_time_ai_vs_non_ai',
       'pr_cycle_time',
+      'deployment_frequency',
       'review_rejection_rate',
       'ci_pass_rate',
+      'change_failure_rate',
+      'rollback_rate',
     ]);
     expect(registry.getDefinition('ai_output_rate')).toMatchObject({
       key: 'ai_output_rate',
@@ -94,6 +97,15 @@ describe('enterprise metric calculation pipeline', () => {
           failedRunCount: 1,
           passRate: 0.8,
         },
+        deploymentSummary: {
+          totalDeploymentCount: 4,
+          successfulDeploymentCount: 2,
+          failedDeploymentCount: 1,
+          rolledBackDeploymentCount: 1,
+          aiTouchedDeploymentCount: 3,
+          changeFailureRate: 0.5,
+          rollbackRate: 0.25,
+        },
       },
     });
 
@@ -148,6 +160,13 @@ describe('enterprise metric calculation pipeline', () => {
         dataRequirements: ['pull-request-summary'],
       }),
       expect.objectContaining({
+        metricKey: 'deployment_frequency',
+        value: 4,
+        unit: 'count',
+        confidence: 'high',
+        dataRequirements: ['deployment-summary'],
+      }),
+      expect.objectContaining({
         metricKey: 'review_rejection_rate',
         value: 0.25,
         unit: 'ratio',
@@ -160,6 +179,20 @@ describe('enterprise metric calculation pipeline', () => {
         unit: 'ratio',
         confidence: 'high',
         dataRequirements: ['ci-summary'],
+      }),
+      expect.objectContaining({
+        metricKey: 'change_failure_rate',
+        value: 0.5,
+        unit: 'ratio',
+        confidence: 'medium',
+        dataRequirements: ['deployment-summary'],
+      }),
+      expect.objectContaining({
+        metricKey: 'rollback_rate',
+        value: 0.25,
+        unit: 'ratio',
+        confidence: 'medium',
+        dataRequirements: ['deployment-summary'],
       }),
     ]);
   });
