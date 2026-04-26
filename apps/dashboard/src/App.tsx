@@ -39,6 +39,11 @@ import { DefectDashboard } from './pages/defect-dashboard.js';
 import { DefectAttributionDashboard } from './pages/defect-attribution-dashboard.js';
 import { EnterpriseMetricCatalogPanel } from './pages/enterprise-metric-catalog.js';
 import { EffectivenessManagerCockpit } from './pages/effectiveness-manager-cockpit.js';
+import {
+  DeliveryDetailPage,
+  deliverySectionConfigs,
+  type DeliverySectionKey,
+} from './pages/delivery-detail-page.js';
 import { GovernanceDirectoryDashboard } from './pages/governance-directory-dashboard.js';
 import { IncidentDashboard } from './pages/incident-dashboard.js';
 import { MetricDimensionDetailPage } from './pages/metric-dimension-detail-page.js';
@@ -129,6 +134,7 @@ type AppPage = 'cockpit' | 'metrics' | 'governance' | 'delivery' | 'evidence';
 
 interface AppRoute {
   page: AppPage;
+  deliverySectionKey?: DeliverySectionKey;
   metricDimensionKey?: string;
   toolKey?: string;
 }
@@ -176,6 +182,7 @@ const appPages: Array<{
 const parseRoute = (pathname: string): AppRoute => {
   const toolMatch = pathname.match(/^\/tools\/([^/]+)$/);
   const metricDimensionMatch = pathname.match(/^\/metrics\/([^/]+)$/);
+  const deliverySectionMatch = pathname.match(/^\/delivery\/([^/]+)$/);
 
   if (toolMatch?.[1]) {
     return {
@@ -188,6 +195,15 @@ const parseRoute = (pathname: string): AppRoute => {
     return {
       page: 'metrics',
       metricDimensionKey: decodeURIComponent(metricDimensionMatch[1]),
+    };
+  }
+
+  if (deliverySectionMatch?.[1]) {
+    return {
+      page: 'delivery',
+      deliverySectionKey: decodeURIComponent(
+        deliverySectionMatch[1],
+      ) as DeliverySectionKey,
     };
   }
 
@@ -260,6 +276,7 @@ export const App = ({
   const activePage = route.page;
   const isToolDetailPage = route.toolKey !== undefined;
   const isMetricDimensionPage = route.metricDimensionKey !== undefined;
+  const isDeliveryDetailPage = route.deliverySectionKey !== undefined;
 
   const navigateTo = (pathname: string) => {
     window.history.pushState({}, '', pathname);
@@ -689,12 +706,18 @@ export const App = ({
               key={page.key}
               type="button"
               className={
-                page.key === activePage && !isToolDetailPage && !isMetricDimensionPage
+                page.key === activePage &&
+                !isToolDetailPage &&
+                !isMetricDimensionPage &&
+                !isDeliveryDetailPage
                   ? 'is-active'
                   : undefined
               }
               aria-current={
-                page.key === activePage && !isToolDetailPage && !isMetricDimensionPage
+                page.key === activePage &&
+                !isToolDetailPage &&
+                !isMetricDimensionPage &&
+                !isDeliveryDetailPage
                   ? 'page'
                   : undefined
               }
@@ -706,7 +729,10 @@ export const App = ({
           ))}
         </nav>
 
-        {activePage !== 'cockpit' && !isToolDetailPage && !isMetricDimensionPage
+        {activePage !== 'cockpit' &&
+        !isToolDetailPage &&
+        !isMetricDimensionPage &&
+        !isDeliveryDetailPage
           ? filterControls
           : null}
 
@@ -806,8 +832,92 @@ export const App = ({
           </>
         ) : null}
 
-        {activePage === 'delivery' && !isToolDetailPage ? (
+        {isDeliveryDetailPage ? (
+          <DeliveryDetailPage
+            sectionKey={route.deliverySectionKey ?? 'requirements'}
+            onBack={() => navigateTo('/delivery')}
+          >
+            {route.deliverySectionKey === 'pull-requests' ? (
+              <PullRequestDashboard summary={pullRequestSummary} rows={pullRequests} />
+            ) : null}
+            {route.deliverySectionKey === 'ci' ? (
+              <CiRunDashboard summary={ciRunSummary} rows={ciRuns} />
+            ) : null}
+            {route.deliverySectionKey === 'deployments' ? (
+              <DeploymentDashboard summary={deploymentSummary} rows={deployments} />
+            ) : null}
+            {route.deliverySectionKey === 'incidents' ? (
+              <IncidentDashboard summary={incidentSummary} rows={incidents} />
+            ) : null}
+            {route.deliverySectionKey === 'defects' ? (
+              <DefectDashboard summary={defectSummary} rows={defects} />
+            ) : null}
+            {route.deliverySectionKey === 'defect-attribution' ? (
+              <DefectAttributionDashboard
+                summary={defectAttributionSummary}
+                rows={defectAttributionRows}
+              />
+            ) : null}
+            {(route.deliverySectionKey ?? 'requirements') === 'requirements' ? (
+              <RequirementDashboard summary={requirementSummary} rows={requirements} />
+            ) : null}
+          </DeliveryDetailPage>
+        ) : null}
+
+        {activePage === 'delivery' && !isToolDetailPage && !isDeliveryDetailPage ? (
           <>
+            <section style={filterPanelStyle}>
+              <div style={{ display: 'grid', gap: '8px' }}>
+                <p
+                  style={{
+                    margin: 0,
+                    color: '#6b523c',
+                    fontSize: '13px',
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Delivery Drilldowns
+                </p>
+                <h2 style={{ margin: 0, fontSize: '28px' }}>交付质量二级视图</h2>
+                <p style={{ margin: 0, color: '#6b523c', lineHeight: 1.7 }}>
+                  从需求、PR、CI、发布、事故、缺陷和缺陷归因进入详情，避免交付质量页变成不可操作的长报表。
+                </p>
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                  gap: '12px',
+                  marginTop: '18px',
+                }}
+              >
+                {deliverySectionConfigs.map((section) => (
+                  <button
+                    key={section.key}
+                    type="button"
+                    onClick={() => navigateTo(`/delivery/${section.key}`)}
+                    style={{
+                      border: '1px solid rgba(138, 104, 70, 0.16)',
+                      borderRadius: '18px',
+                      padding: '16px',
+                      background: 'rgba(255, 253, 250, 0.76)',
+                      color: '#2e241b',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      font: 'inherit',
+                    }}
+                  >
+                    <strong style={{ display: 'block', fontSize: '17px' }}>
+                      进入 {section.label}
+                    </strong>
+                    <span style={{ display: 'block', marginTop: '8px', color: '#6b523c' }}>
+                      {section.question}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
             <RequirementDashboard summary={requirementSummary} rows={requirements} />
             <PullRequestDashboard summary={pullRequestSummary} rows={pullRequests} />
             <CiRunDashboard summary={ciRunSummary} rows={ciRuns} />

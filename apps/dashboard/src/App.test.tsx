@@ -572,6 +572,30 @@ describe('App', () => {
     expect(screen.getByText('AI 参与需求缺陷率')).toBeInTheDocument();
   });
 
+  it('opens a delivery detail page from the delivery quality page', async () => {
+    render(<App client={createClient()} refreshIntervalMs={0} />);
+
+    expect(await screen.findByText('提效管理者 AI 提效经营驾驶舱')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /交付质量/ }));
+    fireEvent.click(screen.getByRole('button', { name: /需求交付概览/ }));
+
+    expect(await screen.findByText('需求交付详情')).toBeInTheDocument();
+    expect(screen.getByText('从需求进入到首个 PR、完成交付和 AI 触达覆盖的链路视角。')).toBeInTheDocument();
+    expect(screen.getByText('Jira AIM-101 Build management dashboard')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/delivery/requirements');
+  });
+
+  it('renders a delivery detail page from a direct URL', async () => {
+    window.history.pushState({}, '', '/delivery/defect-attribution');
+
+    render(<App client={createClient()} refreshIntervalMs={0} />);
+
+    expect(await screen.findByText('缺陷归因详情')).toBeInTheDocument();
+    expect(screen.getByText('AI 触达 PR 逃逸缺陷率')).toBeInTheDocument();
+    expect(screen.getByText('发布失败关联缺陷')).toBeInTheDocument();
+  });
+
   it('opens metric semantics page from navigation', async () => {
     render(<App client={createClient()} refreshIntervalMs={0} />);
 
