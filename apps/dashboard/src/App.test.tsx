@@ -558,6 +558,30 @@ describe('App', () => {
     expect(screen.getByText('规则中心管理')).toBeInTheDocument();
   });
 
+  it('opens a governance detail page from the governance page', async () => {
+    render(<App client={createClient()} refreshIntervalMs={0} />);
+
+    expect(await screen.findByText('提效管理者 AI 提效经营驾驶舱')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /治理与采集/ }));
+    fireEvent.click(screen.getByRole('button', { name: /采集健康运营/ }));
+
+    expect(await screen.findByText('采集健康详情')).toBeInTheDocument();
+    expect(screen.getByText('观察采集入口、队列、转发、失败和死信，保证管理者看到的数据可信。')).toBeInTheDocument();
+    expect(screen.getByText('Collector Gateway')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/governance/collector-health');
+  });
+
+  it('renders a governance detail page from a direct URL', async () => {
+    window.history.pushState({}, '', '/governance/mcp-audit');
+
+    render(<App client={createClient()} refreshIntervalMs={0} />);
+
+    expect(await screen.findByText('MCP 审计详情')).toBeInTheDocument();
+    expect(screen.getByText('统一审计 MCP 工具调用成功率、失败率和平均耗时。')).toBeInTheDocument();
+    expect(screen.getByText('MCP 工具审计')).toBeInTheDocument();
+  });
+
   it('opens delivery quality page from navigation', async () => {
     render(<App client={createClient()} refreshIntervalMs={0} />);
 

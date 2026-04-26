@@ -44,6 +44,11 @@ import {
   deliverySectionConfigs,
   type DeliverySectionKey,
 } from './pages/delivery-detail-page.js';
+import {
+  GovernanceDetailPage,
+  governanceSectionConfigs,
+  type GovernanceSectionKey,
+} from './pages/governance-detail-page.js';
 import { GovernanceDirectoryDashboard } from './pages/governance-directory-dashboard.js';
 import { IncidentDashboard } from './pages/incident-dashboard.js';
 import { MetricDimensionDetailPage } from './pages/metric-dimension-detail-page.js';
@@ -135,6 +140,7 @@ type AppPage = 'cockpit' | 'metrics' | 'governance' | 'delivery' | 'evidence';
 interface AppRoute {
   page: AppPage;
   deliverySectionKey?: DeliverySectionKey;
+  governanceSectionKey?: GovernanceSectionKey;
   metricDimensionKey?: string;
   toolKey?: string;
 }
@@ -183,6 +189,7 @@ const parseRoute = (pathname: string): AppRoute => {
   const toolMatch = pathname.match(/^\/tools\/([^/]+)$/);
   const metricDimensionMatch = pathname.match(/^\/metrics\/([^/]+)$/);
   const deliverySectionMatch = pathname.match(/^\/delivery\/([^/]+)$/);
+  const governanceSectionMatch = pathname.match(/^\/governance\/([^/]+)$/);
 
   if (toolMatch?.[1]) {
     return {
@@ -204,6 +211,15 @@ const parseRoute = (pathname: string): AppRoute => {
       deliverySectionKey: decodeURIComponent(
         deliverySectionMatch[1],
       ) as DeliverySectionKey,
+    };
+  }
+
+  if (governanceSectionMatch?.[1]) {
+    return {
+      page: 'governance',
+      governanceSectionKey: decodeURIComponent(
+        governanceSectionMatch[1],
+      ) as GovernanceSectionKey,
     };
   }
 
@@ -277,6 +293,7 @@ export const App = ({
   const isToolDetailPage = route.toolKey !== undefined;
   const isMetricDimensionPage = route.metricDimensionKey !== undefined;
   const isDeliveryDetailPage = route.deliverySectionKey !== undefined;
+  const isGovernanceDetailPage = route.governanceSectionKey !== undefined;
 
   const navigateTo = (pathname: string) => {
     window.history.pushState({}, '', pathname);
@@ -709,7 +726,8 @@ export const App = ({
                 page.key === activePage &&
                 !isToolDetailPage &&
                 !isMetricDimensionPage &&
-                !isDeliveryDetailPage
+                !isDeliveryDetailPage &&
+                !isGovernanceDetailPage
                   ? 'is-active'
                   : undefined
               }
@@ -717,7 +735,8 @@ export const App = ({
                 page.key === activePage &&
                 !isToolDetailPage &&
                 !isMetricDimensionPage &&
-                !isDeliveryDetailPage
+                !isDeliveryDetailPage &&
+                !isGovernanceDetailPage
                   ? 'page'
                   : undefined
               }
@@ -732,7 +751,8 @@ export const App = ({
         {activePage !== 'cockpit' &&
         !isToolDetailPage &&
         !isMetricDimensionPage &&
-        !isDeliveryDetailPage
+        !isDeliveryDetailPage &&
+        !isGovernanceDetailPage
           ? filterControls
           : null}
 
@@ -812,8 +832,121 @@ export const App = ({
           </>
         ) : null}
 
-        {activePage === 'governance' && !isToolDetailPage ? (
+        {isGovernanceDetailPage ? (
+          <GovernanceDetailPage
+            sectionKey={route.governanceSectionKey ?? 'directory'}
+            onBack={() => navigateTo('/governance')}
+          >
+            {route.governanceSectionKey === 'viewer-scope' ? (
+              <ViewerScopeDashboard
+                directory={governanceDirectory}
+                loadAssignment={(viewerId) => client.getViewerScopeAssignment(viewerId)}
+                saveAssignment={(input) => saveViewerScope(input)}
+              />
+            ) : null}
+            {route.governanceSectionKey === 'collector-health' ? (
+              <>
+                <p
+                  style={{
+                    margin: 0,
+                    borderRadius: '18px',
+                    padding: '16px',
+                    background: 'rgba(255, 253, 250, 0.82)',
+                    color: '#2e241b',
+                    fontWeight: 900,
+                  }}
+                >
+                  Collector Gateway
+                </p>
+                <CollectorHealthDashboard health={collectorHealth} />
+              </>
+            ) : null}
+            {route.governanceSectionKey === 'mcp-audit' ? (
+              <>
+                <p
+                  style={{
+                    margin: 0,
+                    borderRadius: '18px',
+                    padding: '16px',
+                    background: 'rgba(255, 253, 250, 0.82)',
+                    color: '#2e241b',
+                    fontWeight: 900,
+                  }}
+                >
+                  MCP 工具审计
+                </p>
+                <McpAuditDashboard metrics={mcpAuditMetrics} />
+              </>
+            ) : null}
+            {route.governanceSectionKey === 'rule-center' ? (
+              <RuleCenterDashboard
+                versions={ruleVersions}
+                rollout={ruleRollout}
+                evaluation={ruleRolloutEvaluation}
+                saving={savingRuleRollout}
+                onSave={saveRuleRollout}
+              />
+            ) : null}
+            {(route.governanceSectionKey ?? 'directory') === 'directory' ? (
+              <GovernanceDirectoryDashboard directory={governanceDirectory} />
+            ) : null}
+          </GovernanceDetailPage>
+        ) : null}
+
+        {activePage === 'governance' && !isToolDetailPage && !isGovernanceDetailPage ? (
           <>
+            <section style={filterPanelStyle}>
+              <div style={{ display: 'grid', gap: '8px' }}>
+                <p
+                  style={{
+                    margin: 0,
+                    color: '#6b523c',
+                    fontSize: '13px',
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Governance Drilldowns
+                </p>
+                <h2 style={{ margin: 0, fontSize: '28px' }}>治理与采集二级视图</h2>
+                <p style={{ margin: 0, color: '#6b523c', lineHeight: 1.7 }}>
+                  从组织目录、权限范围、采集健康、MCP 审计和规则中心进入详情，保证平台治理可解释、可审计、可运营。
+                </p>
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                  gap: '12px',
+                  marginTop: '18px',
+                }}
+              >
+                {governanceSectionConfigs.map((section) => (
+                  <button
+                    key={section.key}
+                    type="button"
+                    onClick={() => navigateTo(`/governance/${section.key}`)}
+                    style={{
+                      border: '1px solid rgba(138, 104, 70, 0.16)',
+                      borderRadius: '18px',
+                      padding: '16px',
+                      background: 'rgba(255, 253, 250, 0.76)',
+                      color: '#2e241b',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      font: 'inherit',
+                    }}
+                  >
+                    <strong style={{ display: 'block', fontSize: '17px' }}>
+                      进入 {section.label}
+                    </strong>
+                    <span style={{ display: 'block', marginTop: '8px', color: '#6b523c' }}>
+                      {section.question}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
             <GovernanceDirectoryDashboard directory={governanceDirectory} />
             <ViewerScopeDashboard
               directory={governanceDirectory}
