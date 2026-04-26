@@ -123,6 +123,40 @@ const trendMetricKeys = [
   'critical_requirement_cycle_time',
 ];
 
+type AppPage = 'cockpit' | 'metrics' | 'governance' | 'delivery' | 'evidence';
+
+const appPages: Array<{
+  key: AppPage;
+  label: string;
+  summary: string;
+}> = [
+  {
+    key: 'cockpit',
+    label: '经营驾驶舱',
+    summary: '给提效管理者看的 AI-IDE、SDD、代码采纳与人效目标总览',
+  },
+  {
+    key: 'metrics',
+    label: '指标语义层',
+    summary: '查看指标目录、计算口径、趋势快照和六类核心维度',
+  },
+  {
+    key: 'governance',
+    label: '治理与采集',
+    summary: '查看组织权限、采集健康、MCP 审计和规则中心',
+  },
+  {
+    key: 'delivery',
+    label: '交付质量',
+    summary: '查看需求、PR、CI、发布、事故、缺陷和质量护栏',
+  },
+  {
+    key: 'evidence',
+    label: '证据分析',
+    summary: '查看会话、出码、个人、团队和编辑证据',
+  },
+];
+
 export interface AppProps {
   client?: DashboardClient;
   refreshIntervalMs?: number;
@@ -182,6 +216,7 @@ export const App = ({
   const [selectedWindowDays, setSelectedWindowDays] = useState(30);
   const [filters, setFilters] = useState<DashboardFilters>(getDefaultFilters(30));
   const [savingRuleRollout, setSavingRuleRollout] = useState(false);
+  const [activePage, setActivePage] = useState<AppPage>('cockpit');
 
   const loadDashboard = async (nextFilters: DashboardFilters) => {
     const projectKey = nextFilters.projectKey ?? 'aimetric';
@@ -588,76 +623,114 @@ export const App = ({
             让提效管理者从经营视角观察 AI-IDE、SDD、代码采纳、批次推进与人效目标。
           </p>
         </header>
-        <EffectivenessManagerCockpit
-          filters={filters}
-          selectedWindowDays={selectedWindowDays}
-          onSelectWindow={selectWindow}
-          metricValues={enterpriseMetricValues}
-          metricSnapshots={enterpriseMetricSnapshots}
-          teamSnapshot={teamSnapshot}
-          analysisSummary={analysisSummary}
-          requirementSummary={requirementSummary}
-          pullRequestSummary={pullRequestSummary}
-          deploymentSummary={deploymentSummary}
-          defectAttributionSummary={defectAttributionSummary}
-          collectorHealth={collectorHealth}
-          governanceDirectory={governanceDirectory}
-          mcpAuditMetrics={mcpAuditMetrics}
-        />
-        {filterControls}
-        <section style={filterPanelStyle}>
-          <div style={{ display: 'grid', gap: '8px' }}>
-            <p
-              style={{
-                margin: 0,
-                color: '#6b523c',
-                fontSize: '13px',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-              }}
+        <nav className="aimetric-page-nav" aria-label="AIMetric 页面导航">
+          {appPages.map((page) => (
+            <button
+              key={page.key}
+              type="button"
+              className={page.key === activePage ? 'is-active' : undefined}
+              aria-current={page.key === activePage ? 'page' : undefined}
+              onClick={() => setActivePage(page.key)}
             >
-              Deep Dive Views
-            </p>
-            <h2 style={{ margin: 0, fontSize: '28px' }}>专题分析与治理页</h2>
-            <p style={{ margin: 0, color: '#6b523c', lineHeight: 1.7 }}>
-              首页先给提效管理者一个 AI 提效经营驾驶舱，再把需求、PR、CI、发布、缺陷归因、采集健康和权限治理作为专题页继续下钻。
-            </p>
-          </div>
-        </section>
-        <EnterpriseMetricCatalogPanel
-          catalog={enterpriseMetricCatalog}
-          metricValues={enterpriseMetricValues}
-        />
-        <GovernanceDirectoryDashboard directory={governanceDirectory} />
-        <ViewerScopeDashboard
-          directory={governanceDirectory}
-          loadAssignment={(viewerId) => client.getViewerScopeAssignment(viewerId)}
-          saveAssignment={(input) => saveViewerScope(input)}
-        />
-        <AnalysisSummarySection summary={analysisSummary} />
-        <CollectorHealthDashboard health={collectorHealth} />
-        <CiRunDashboard summary={ciRunSummary} rows={ciRuns} />
-        <DeploymentDashboard summary={deploymentSummary} rows={deployments} />
-        <IncidentDashboard summary={incidentSummary} rows={incidents} />
-        <DefectDashboard summary={defectSummary} rows={defects} />
-        <DefectAttributionDashboard
-          summary={defectAttributionSummary}
-          rows={defectAttributionRows}
-        />
-        <RequirementDashboard summary={requirementSummary} rows={requirements} />
-        <PullRequestDashboard summary={pullRequestSummary} rows={pullRequests} />
-        <SessionAnalysisTable rows={sessionAnalysisRows} />
-        <OutputAnalysisTable rows={outputAnalysisRows} />
-        <PersonalDashboard snapshot={personalSnapshot} />
-        <TeamDashboard snapshot={teamSnapshot} />
-        <McpAuditDashboard metrics={mcpAuditMetrics} />
-        <RuleCenterDashboard
-          versions={ruleVersions}
-          rollout={ruleRollout}
-          evaluation={ruleRolloutEvaluation}
-          saving={savingRuleRollout}
-          onSave={saveRuleRollout}
-        />
+              <strong>{page.label}</strong>
+              <span>{page.summary}</span>
+            </button>
+          ))}
+        </nav>
+
+        {activePage !== 'cockpit' ? filterControls : null}
+
+        {activePage === 'cockpit' ? (
+          <EffectivenessManagerCockpit
+            filters={filters}
+            selectedWindowDays={selectedWindowDays}
+            onSelectWindow={selectWindow}
+            metricValues={enterpriseMetricValues}
+            metricSnapshots={enterpriseMetricSnapshots}
+            teamSnapshot={teamSnapshot}
+            analysisSummary={analysisSummary}
+            requirementSummary={requirementSummary}
+            pullRequestSummary={pullRequestSummary}
+            deploymentSummary={deploymentSummary}
+            defectAttributionSummary={defectAttributionSummary}
+            collectorHealth={collectorHealth}
+            governanceDirectory={governanceDirectory}
+            mcpAuditMetrics={mcpAuditMetrics}
+          />
+        ) : null}
+
+        {activePage === 'metrics' ? (
+          <>
+            <section style={filterPanelStyle}>
+              <div style={{ display: 'grid', gap: '8px' }}>
+                <p
+                  style={{
+                    margin: 0,
+                    color: '#6b523c',
+                    fontSize: '13px',
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Metric Semantics
+                </p>
+                <h2 style={{ margin: 0, fontSize: '28px' }}>指标语义层</h2>
+                <p style={{ margin: 0, color: '#6b523c', lineHeight: 1.7 }}>
+                  这里集中查看指标目录、计算口径、六类核心维度和分析摘要，避免管理者在一个长页面里迷路。
+                </p>
+              </div>
+            </section>
+            <EnterpriseMetricCatalogPanel
+              catalog={enterpriseMetricCatalog}
+              metricValues={enterpriseMetricValues}
+            />
+            <AnalysisSummarySection summary={analysisSummary} />
+          </>
+        ) : null}
+
+        {activePage === 'governance' ? (
+          <>
+            <GovernanceDirectoryDashboard directory={governanceDirectory} />
+            <ViewerScopeDashboard
+              directory={governanceDirectory}
+              loadAssignment={(viewerId) => client.getViewerScopeAssignment(viewerId)}
+              saveAssignment={(input) => saveViewerScope(input)}
+            />
+            <CollectorHealthDashboard health={collectorHealth} />
+            <McpAuditDashboard metrics={mcpAuditMetrics} />
+            <RuleCenterDashboard
+              versions={ruleVersions}
+              rollout={ruleRollout}
+              evaluation={ruleRolloutEvaluation}
+              saving={savingRuleRollout}
+              onSave={saveRuleRollout}
+            />
+          </>
+        ) : null}
+
+        {activePage === 'delivery' ? (
+          <>
+            <RequirementDashboard summary={requirementSummary} rows={requirements} />
+            <PullRequestDashboard summary={pullRequestSummary} rows={pullRequests} />
+            <CiRunDashboard summary={ciRunSummary} rows={ciRuns} />
+            <DeploymentDashboard summary={deploymentSummary} rows={deployments} />
+            <IncidentDashboard summary={incidentSummary} rows={incidents} />
+            <DefectDashboard summary={defectSummary} rows={defects} />
+            <DefectAttributionDashboard
+              summary={defectAttributionSummary}
+              rows={defectAttributionRows}
+            />
+          </>
+        ) : null}
+
+        {activePage === 'evidence' ? (
+          <>
+            <SessionAnalysisTable rows={sessionAnalysisRows} />
+            <OutputAnalysisTable rows={outputAnalysisRows} />
+            <PersonalDashboard snapshot={personalSnapshot} />
+            <TeamDashboard snapshot={teamSnapshot} />
+          </>
+        ) : null}
       </div>
     </main>
   );

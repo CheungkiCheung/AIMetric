@@ -49,6 +49,73 @@
   opacity: 0.8;
 }
 
+.aimetric-page-nav {
+  position: sticky;
+  top: 12px;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(8, 22, 38, 0.12);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 18px 45px rgba(8, 22, 38, 0.12);
+  backdrop-filter: blur(20px);
+}
+
+.aimetric-page-nav button {
+  min-height: 74px;
+  border: 1px solid transparent;
+  border-radius: 18px;
+  padding: 12px 14px;
+  background: transparent;
+  color: #3f3b34;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform var(--emc-fast),
+    background var(--emc-fast),
+    border-color var(--emc-fast),
+    box-shadow var(--emc-fast);
+}
+
+.aimetric-page-nav button:hover {
+  transform: translateY(-1px);
+  background: rgba(8, 22, 38, 0.05);
+}
+
+.aimetric-page-nav button:focus-visible {
+  outline: 3px solid rgba(25, 211, 197, 0.52);
+  outline-offset: 3px;
+}
+
+.aimetric-page-nav button.is-active {
+  background: linear-gradient(135deg, #081626, #10233d);
+  border-color: rgba(25, 211, 197, 0.28);
+  color: #eefbff;
+  box-shadow: 0 18px 34px rgba(8, 22, 38, 0.22);
+}
+
+.aimetric-page-nav strong,
+.aimetric-page-nav span {
+  display: block;
+}
+
+.aimetric-page-nav strong {
+  font-size: 15px;
+  letter-spacing: -0.02em;
+}
+
+.aimetric-page-nav span {
+  margin-top: 6px;
+  color: inherit;
+  opacity: 0.72;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .emc {
   position: relative;
   overflow: hidden;
@@ -252,6 +319,11 @@
   .emc > section > div,
   .emc > section > div[style*="grid-template-columns"] {
     grid-template-columns: 1fr !important;
+  }
+
+  .aimetric-page-nav {
+    position: static;
+    grid-template-columns: 1fr;
   }
 
   .emc > section:nth-of-type(5) article {

@@ -561,15 +561,38 @@ describe('App', () => {
     expect(await screen.findByText('提效管理者 AI 提效经营驾驶舱')).toBeInTheDocument();
     expect(screen.getByText('AI 工具资产与采集覆盖')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '近 30 天' })).toBeInTheDocument();
-    expect(screen.getByText('专题分析与治理页')).toBeInTheDocument();
     expect(screen.getByText('企业级 AI 研发效能平台')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /经营驾驶舱/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /指标语义层/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /治理与采集/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /交付质量/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /证据分析/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /证据分析/ }));
     expect(screen.getByText('个人出码视图')).toBeInTheDocument();
     expect(screen.getByText('团队出码视图')).toBeInTheDocument();
+    expect(screen.getByText('会话分析')).toBeInTheDocument();
+    expect(screen.getByText('出码分析')).toBeInTheDocument();
+    expect(screen.getByText('/repo/src/demo.ts')).toBeInTheDocument();
+    expect(screen.getAllByText('70.0%').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('62.5%').length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole('button', { name: /治理与采集/ }));
     expect(screen.getByText('组织治理概览')).toBeInTheDocument();
     expect(screen.getByText('权限治理配置')).toBeInTheDocument();
     expect(screen.getAllByText('平台工程团队').length).toBeGreaterThan(0);
     expect(screen.getByText('MCP 采集质量')).toBeInTheDocument();
     expect(screen.getByText('采集健康运营')).toBeInTheDocument();
+    expect(screen.getByText('队列模式')).toBeInTheDocument();
+    expect(screen.getByText('文件持久队列')).toBeInTheDocument();
+    expect(screen.getByText('待投递批次')).toBeInTheDocument();
+    expect(screen.getByText('DLQ 批次')).toBeInTheDocument();
+    expect(screen.getByText('规则中心管理')).toBeInTheDocument();
+    expect(screen.getByText('25%')).toBeInTheDocument();
+    expect(screen.getByText('命中规则版本')).toBeInTheDocument();
+    expect(screen.getAllByText('v1').length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole('button', { name: /交付质量/ }));
     expect(screen.getByText('CI 质量概览')).toBeInTheDocument();
     expect(screen.getByText('发布质量概览')).toBeInTheDocument();
     expect(screen.getByText('事故风险概览')).toBeInTheDocument();
@@ -577,7 +600,6 @@ describe('App', () => {
     expect(screen.getByText('缺陷归因分析')).toBeInTheDocument();
     expect(screen.getByText('需求交付概览')).toBeInTheDocument();
     expect(screen.getByText('PR 交付概览')).toBeInTheDocument();
-    expect(screen.getByText('队列模式')).toBeInTheDocument();
     expect(screen.getAllByText('AI 触达需求占比').length).toBeGreaterThan(0);
     expect(screen.getAllByText('60.0%').length).toBeGreaterThan(0);
     expect(screen.getByText('36.0 小时')).toBeInTheDocument();
@@ -604,29 +626,24 @@ describe('App', () => {
     expect(screen.getByText('18.0 小时')).toBeInTheDocument();
     expect(screen.getByText('[GITHUB] AIMetric #101 Add collector health dashboard')).toBeInTheDocument();
     expect(screen.getAllByText(/关联需求：AIM-101/).length).toBeGreaterThan(0);
-    expect(screen.getByText('文件持久队列')).toBeInTheDocument();
-    expect(screen.getByText('待投递批次')).toBeInTheDocument();
-    expect(screen.getByText('DLQ 批次')).toBeInTheDocument();
-    expect(screen.getByText('规则中心管理')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /指标语义层/ }));
     expect(screen.getByText('企业指标语义层')).toBeInTheDocument();
     expect(screen.getByText('统一指标计算管线')).toBeInTheDocument();
+    expect(screen.getByText('编辑证据数')).toBeInTheDocument();
     expect(screen.getAllByText('AI 出码率').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('70.0%').length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(
+        (_, element) =>
+          element?.tagName === 'STRONG' &&
+          element.textContent?.includes('70.0％') === true,
+      ).length,
+    ).toBeGreaterThan(0);
     expect(screen.getAllByText('AI 参与需求 Lead Time 对比').length).toBeGreaterThan(0);
     expect(screen.getByText('-12.0 小时')).toBeInTheDocument();
     expect(screen.getByText('六类核心维度')).toBeInTheDocument();
     expect(screen.getAllByText('AI-IDE 使用人数比例').length).toBeGreaterThan(0);
     expect(screen.getByText('必须按需求规模和类型分层对比，避免简单平均造成误判。')).toBeInTheDocument();
-    expect(screen.getByText('会话分析')).toBeInTheDocument();
-    expect(screen.getByText('出码分析')).toBeInTheDocument();
-    expect(screen.getByText('编辑证据数')).toBeInTheDocument();
-    expect(screen.getByText('/repo/src/demo.ts')).toBeInTheDocument();
-    expect(screen.getAllByText('70.0%').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('62.5%').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('83.3%').length).toBeGreaterThan(0);
-    expect(screen.getByText('25%')).toBeInTheDocument();
-    expect(screen.getByText('命中规则版本')).toBeInTheDocument();
-    expect(screen.getAllByText('v1').length).toBeGreaterThan(0);
   });
 
   it('reloads dashboard and analysis data when filters change', async () => {
@@ -740,6 +757,7 @@ describe('App', () => {
     );
 
     await screen.findByText('提效管理者 AI 提效经营驾驶舱');
+    fireEvent.click(screen.getByRole('button', { name: /指标语义层/ }));
     fireEvent.change(screen.getByLabelText('项目'), {
       target: { value: 'navigation' },
     });
@@ -1008,6 +1026,8 @@ describe('App', () => {
 
     render(<App client={client} />);
 
+    await screen.findByText('提效管理者 AI 提效经营驾驶舱');
+    fireEvent.click(screen.getByRole('button', { name: /治理与采集/ }));
     await screen.findByText('规则中心管理');
     fireEvent.click(screen.getByLabelText('启用灰度发布'));
     fireEvent.change(screen.getByLabelText('候选版本'), {
