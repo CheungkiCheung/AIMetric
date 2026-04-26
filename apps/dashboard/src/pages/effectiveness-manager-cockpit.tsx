@@ -51,6 +51,13 @@ interface ToolFocusDetail {
   relatedMetrics: Array<{ label: string; value: string }>;
 }
 
+interface CollectionSourceInsight {
+  title: string;
+  role: string;
+  metrics: string;
+  note: string;
+}
+
 interface TrendCard {
   metricKey: string;
   name: string;
@@ -87,6 +94,39 @@ const heroMetricGridStyle = {
   gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
   marginTop: '24px',
 };
+
+const collectionSourceInsights: CollectionSourceInsight[] = [
+  {
+    title: 'MCP 是主采集入口',
+    role: '员工侧 AI 使用、工具调用和编辑证据的统一入口',
+    metrics: '会话数、工具调用成功率、编辑证据数、AI 触达 PR 的证据基础',
+    note: '用于证明 AI 是否被真实使用，并为后续 Git / PR / 缺陷归因提供证据链。',
+  },
+  {
+    title: 'Cursor / IDE Adapter',
+    role: '补齐 IDE 热路径和补全类行为',
+    metrics: 'Tab 接受行数、AI-IDE 使用人数比例、AI 代码生成行数补充证据',
+    note: '用于看 AI-IDE 是否进入日常编码，不同 IDE 的建议次数口径需要标注置信度。',
+  },
+  {
+    title: 'CLI Adapter',
+    role: '承接 Codex、Claude Code、内部 CLI Agent 等命令行场景',
+    metrics: 'CLI AI 会话数、多工具活跃人数、AI 工具覆盖率',
+    note: '适合把非 IDE 工具纳入统一 onboarding、identity 和 outbox 链路。',
+  },
+  {
+    title: 'Git / PR',
+    role: '证明 AI 修改是否进入正式工程交付',
+    metrics: 'AI 触达 PR 占比、PR 周转时间、总代码变更行数、AI 出码率',
+    note: 'MCP 提供编辑证据，Git / PR 提供正式代码变更和评审结果。',
+  },
+  {
+    title: '需求 / CI / 发布 / 缺陷',
+    role: '补齐价值流、质量和风险结果',
+    metrics: 'SDD 需求覆盖率、CI 通过率、变更失败率、缺陷率、逃逸缺陷率',
+    note: '用于判断提效是否进入真实需求，并避免“局部更快、整体更差”。',
+  },
+];
 
 const toolGridStyle = {
   ...gridStyle,
@@ -875,6 +915,99 @@ export const EffectivenessManagerCockpit = ({
             <span style={{ color: '#475569', fontSize: '14px', fontWeight: 700 }}>
               当前显示 {filteredToolCards.length} / {toolCards.length} 个工具
             </span>
+          </div>
+        </div>
+
+        <div
+          style={{
+            marginTop: '20px',
+            display: 'grid',
+            gridTemplateColumns: 'minmax(260px, 0.95fr) minmax(0, 1.55fr)',
+            gap: '16px',
+          }}
+        >
+          <article
+            style={{
+              ...cardStyle,
+              background:
+                'linear-gradient(145deg, rgba(15, 23, 42, 0.96), rgba(30, 64, 175, 0.88))',
+              color: '#eff6ff',
+              border: '1px solid rgba(125, 211, 252, 0.28)',
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                color: '#7dd3fc',
+                fontSize: '12px',
+                fontWeight: 800,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+              }}
+            >
+              Collection Strategy
+            </p>
+            <h3 style={{ margin: '10px 0 0', color: '#ffffff', fontSize: '28px' }}>
+              MCP 是主采集入口
+            </h3>
+            <p style={{ margin: '12px 0 0', color: '#dbeafe', lineHeight: 1.75 }}>
+              先用 MCP 统一采集员工侧 AI 会话、工具调用、规则执行和编辑证据，
+              再用 IDE / CLI / Git / PR / 需求 / CI / 发布 / 缺陷数据补齐效果验证。
+            </p>
+            <div
+              style={{
+                display: 'grid',
+                gap: '8px',
+                marginTop: '16px',
+                color: '#bfdbfe',
+                fontSize: '13px',
+                lineHeight: 1.6,
+              }}
+            >
+              <span>主链路：MCP 证据 + collector-gateway + PostgreSQL</span>
+              <span>扩展链路：工具适配器 + 外部工程系统导入</span>
+              <span>管理目标：从“用了 AI”走到“进入交付并可归因”</span>
+            </div>
+          </article>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '12px',
+            }}
+          >
+            {collectionSourceInsights.map((source) => (
+              <article
+                key={source.title}
+                style={{
+                  borderRadius: '20px',
+                  padding: '16px',
+                  background: 'rgba(255, 255, 255, 0.88)',
+                  border: '1px solid rgba(15, 23, 42, 0.08)',
+                }}
+              >
+                <h4 style={{ margin: 0, color: '#0f172a', fontSize: '17px' }}>
+                  {source.title}
+                </h4>
+                <p style={{ margin: '8px 0 0', color: '#475569', lineHeight: 1.65 }}>
+                  {source.role}
+                </p>
+                <p
+                  style={{
+                    margin: '10px 0 0',
+                    color: '#0f172a',
+                    lineHeight: 1.65,
+                    fontWeight: 800,
+                  }}
+                >
+                  {source.metrics}
+                </p>
+                <p style={{ margin: '8px 0 0', color: '#64748b', lineHeight: 1.6, fontSize: '13px' }}>
+                  {source.note}
+                </p>
+              </article>
+            ))}
           </div>
         </div>
 

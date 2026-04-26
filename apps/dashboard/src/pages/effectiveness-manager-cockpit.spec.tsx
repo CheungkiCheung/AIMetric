@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { EffectivenessManagerCockpitProps } from './effectiveness-manager-cockpit.js';
 import { EffectivenessManagerCockpit } from './effectiveness-manager-cockpit.js';
 
@@ -185,6 +185,10 @@ const createProps = (): EffectivenessManagerCockpitProps => ({
 });
 
 describe('EffectivenessManagerCockpit', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it('filters tool cards by category and integration status', () => {
     render(<EffectivenessManagerCockpit {...createProps()} />);
 
@@ -199,6 +203,19 @@ describe('EffectivenessManagerCockpit', () => {
     fireEvent.click(screen.getByRole('button', { name: '全部状态' }));
     fireEvent.click(screen.getByRole('button', { name: '全部工具' }));
     expect(screen.getByText('当前显示 7 / 7 个工具')).toBeInTheDocument();
+  });
+
+  it('explains MCP as the primary collection path and maps other sources to metrics', () => {
+    render(<EffectivenessManagerCockpit {...createProps()} />);
+
+    expect(screen.getAllByText('MCP 是主采集入口').length).toBeGreaterThan(0);
+    expect(screen.getByText('会话数、工具调用成功率、编辑证据数、AI 触达 PR 的证据基础')).toBeInTheDocument();
+    expect(screen.getByText('Cursor / IDE Adapter')).toBeInTheDocument();
+    expect(screen.getByText('Tab 接受行数、AI-IDE 使用人数比例、AI 代码生成行数补充证据')).toBeInTheDocument();
+    expect(screen.getByText('Git / PR')).toBeInTheDocument();
+    expect(screen.getByText('AI 触达 PR 占比、PR 周转时间、总代码变更行数、AI 出码率')).toBeInTheDocument();
+    expect(screen.getByText('需求 / CI / 发布 / 缺陷')).toBeInTheDocument();
+    expect(screen.getByText('SDD 需求覆盖率、CI 通过率、变更失败率、缺陷率、逃逸缺陷率')).toBeInTheDocument();
   });
 
   it('switches focused tool insights when a tool card is selected', () => {
