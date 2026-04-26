@@ -34,7 +34,7 @@ describe('resolveRuleBundle', () => {
     expect(bundle.onDemandRules).toContain('knowledge.api-doc');
   });
 
-  it('adds article-congruent rules for metric analysis scenes', () => {
+  it('adds enterprise product rules for metric analysis scenes', () => {
     const bundle = resolveRuleBundle({
       projectKey: 'aimetric',
       projectType: 'platform',
@@ -59,7 +59,7 @@ describe('getProjectRulePack', () => {
     expect(rulePack.version).toBe('v2');
     expect(rulePack.mandatoryRules).toContain('core.style');
     expect(rulePack.knowledgeRefs).toContain(
-      'docs/superpowers/specs/2026-04-22-aimetric-article-congruent-design.md',
+      'docs/operations/product-loop-playbook.md',
     );
   });
 });
@@ -97,7 +97,7 @@ describe('getRuleTemplate', () => {
         id: 'architecture',
       }),
     );
-    expect(template.rules.must).toContain('architecture.article-congruent-layering');
+    expect(template.rules.must).toContain('architecture.enterprise-product-layering');
     expect(template.rules.must).toContain('rule.template-versioning');
   });
 

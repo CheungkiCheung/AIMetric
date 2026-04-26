@@ -100,7 +100,7 @@ describe('recordSession', () => {
 });
 
 describe('getProjectRules', () => {
-  it('returns article-congruent project rules for the current project', async () => {
+  it('returns enterprise product project rules for the current project', async () => {
     const result = await getProjectRules({
       projectKey: 'aimetric',
       toolType: 'cursor',
@@ -111,7 +111,7 @@ describe('getProjectRules', () => {
     expect(result.version).toBe('v2');
     expect(result.mandatoryRules).toContain('core.style');
     expect(result.knowledgeRefs).toContain(
-      'docs/superpowers/specs/2026-04-22-aimetric-article-congruent-design.md',
+      'docs/operations/product-loop-playbook.md',
     );
   });
 });

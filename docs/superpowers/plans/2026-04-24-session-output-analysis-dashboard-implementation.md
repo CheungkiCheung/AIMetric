@@ -4,7 +4,7 @@
 
 **Goal:** Build a session analysis and output analysis section inside the existing AIMetric dashboard using already-collected `session.recorded`, `edit.span.recorded`, and `tab.accepted` events.
 
-**Architecture:** Extend `metric-platform` with three read-only aggregation APIs backed by the existing `metric_events` table, then extend the dashboard client and single-page dashboard to render one analysis summary block plus two analysis tables that reuse the current filters and auto-refresh flow. Keep the implementation query-first and UI-lightweight so the feature stays aligned with the current article-congruent architecture.
+**Architecture:** Extend `metric-platform` with three read-only aggregation APIs backed by the existing `metric_events` table, then extend the dashboard client and single-page dashboard to render one analysis summary block plus two analysis tables that reuse the current filters and auto-refresh flow. Keep the implementation query-first and UI-lightweight so the feature stays aligned with the current enterprise product architecture.
 
 **Tech Stack:** TypeScript, Vitest, existing Node HTTP server in `apps/metric-platform`, existing React dashboard, existing AIMetric event schema and PostgreSQL repository abstractions.
 

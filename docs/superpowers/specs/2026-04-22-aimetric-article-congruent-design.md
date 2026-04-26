@@ -1,19 +1,19 @@
-# AIMetric Article-Congruent System Design
+# AIMetric Enterprise Effectiveness Platform Design
 
 **Date:** 2026-04-22
-**Status:** Draft for review
-**Goal:** Reconstruct the architecture described in the article "AI出码率70%+的背后：高德团队如何实现AI研发效率的量化与优化" as a near-production internal platform, preserving the article's module boundaries, terminology, and layered design while using a pragmatic implementation stack.
+**Status:** Historical design note
+**Goal:** Design AIMetric as a near-production enterprise AI effectiveness platform, preserving stable product module boundaries, metric terminology, and layered design while using a pragmatic implementation stack.
 
 ## 1. Design Principles
 
-This design follows six principles that are directly derived from the article and the intended deployment target:
+This design follows six principles derived from enterprise rollout requirements:
 
-1. **Article congruence first**
-   The system keeps the same top-level layers and key terminology from the article: `采集平台层`, `数据采集层`, `平台能力层`, and `指标展示层`.
+1. **Enterprise product layering first**
+   The system keeps clear product layers and key terminology: `采集入口层`, `采集传输层`, `平台能力层`, `证据关联层`, `指标展示层`, and `产品闭环层`.
 2. **Final code submission is the ground truth**
    All core metrics, especially `AI出码率`, are defined against code that actually reaches version control commits, not temporary workspace content.
 3. **MCP-standardized collection is the production mainline**
-   The primary collection path is based on MCP tools and rule injection, matching the article's later-stage direction.
+   The primary collection path is based on MCP tools and rule injection, with adapter-based extensions for richer enterprise signals.
 4. **Richer local collection remains an optional extension**
    Tool-specific local database reverse collection is preserved as a research/enhancement path rather than the platform default.
 5. **Simple employee onboarding**
@@ -21,7 +21,7 @@ This design follows six principles that are directly derived from the article an
 6. **Prepared for engineering rollout**
    Security, isolation, auditability, observability, replay, and extensibility are required from the first implementation plan.
 
-## 2. Reconstruction Scope
+## 2. Product Scope
 
 The target system is not a demo dashboard. It is an internal engineering platform that:
 
@@ -33,7 +33,7 @@ The target system is not a demo dashboard. It is an internal engineering platfor
 - provides dashboards and analysis views for operational improvement
 - supports later expansion to more tools, more metrics, and more collection signals
 
-The system is expected to reproduce the *architecture and operational intent* of the article, not the exact internal implementation details of the original team.
+The system is expected to deliver a productized enterprise measurement loop, not mirror any private internal implementation.
 
 ## 3. Target Architecture
 
@@ -888,22 +888,22 @@ The design is full-scope, but delivery still needs phases.
 
 The article does not publish exact private implementation details. This design makes the following explicit assumptions:
 
-- exact internal storage schema from the original team is unknown and must be reconstructed
+- exact customer-site storage schema is unknown and must be adapted through mappings
 - exact rule text is unknown and must be re-authored from platform requirements
 - exact private IDE implementations are unknown and must be represented via adapter abstractions
-- exact original dashboard visuals are unknown and only the functional view classes are reconstructed
+- exact customer dashboard preferences are unknown and should be adapted through configurable product views
 
-These assumptions do not change the architectural intent of the reconstruction.
+These assumptions do not change the product architecture intent.
 
 ## 20. Final Recommendation
 
-Build AIMetric as an article-congruent internal engineering platform with:
+Build AIMetric as an enterprise AI effectiveness platform with:
 
-- a four-layer article-matching architecture
+- a layered product architecture for collection, evidence, metrics, governance, and management actions
 - MCP-standardized collection as the production mainline
 - optional deeper local collection as a research extension
 - commit-based attribution as the statistical truth foundation
 - lightweight employee onboarding through a single plugin
 - explicit support for security, audit, observability, replay, and future metric expansion
 
-This gives the project the highest fidelity to the article while still making it viable as a system that can be engineered, operated, and expanded over time.
+This keeps the project viable as a system that can be engineered, operated, and expanded across enterprise teams over time.

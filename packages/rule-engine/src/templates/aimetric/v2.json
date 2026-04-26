@@ -14,8 +14,8 @@
   "sections": [
     {
       "id": "architecture",
-      "title": "文章同构架构",
-      "content": "保持采集平台层、数据采集层、平台能力层、指标展示层四层边界，新增模块需优先挂靠现有分层术语。"
+      "title": "企业提效产品架构",
+      "content": "保持采集入口层、采集传输层、平台能力层、证据关联层、指标展示层和产品闭环层边界，新增模块需优先挂靠现有产品分层术语。"
     },
     {
       "id": "metrics",
@@ -38,7 +38,7 @@
       "core.style",
       "core.comments",
       "mcp.before-after-recording",
-      "architecture.article-congruent-layering",
+      "architecture.enterprise-product-layering",
       "rule.template-versioning"
     ],
     "should": [

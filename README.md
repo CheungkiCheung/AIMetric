@@ -213,7 +213,10 @@ cp .env.example .env.local
 - `DATABASE_URL`
 - `METRIC_PLATFORM_URL`
 - `AIMETRIC_COLLECTOR_TOKEN`
+- `METRIC_PLATFORM_COLLECTOR_TOKEN`
 - `METRIC_PLATFORM_ADMIN_TOKEN`
+
+生产或准生产环境还应设置 `AIMETRIC_REQUIRE_AUTH=true`，让采集入口和管理入口在缺少 token 时 fail-closed。Dashboard 不应持有管理端 token，企业部署时建议通过统一网关 / BFF / SSO 登录态代理管理接口。
 
 ### 3. 启动基础依赖
 
@@ -231,6 +234,7 @@ docker compose up -d
 ```bash
 export DATABASE_URL='postgresql://aimetric:aimetric@127.0.0.1:5432/aimetric?sslmode=disable'
 export AIMETRIC_COLLECTOR_TOKEN='local-collector-token'
+export METRIC_PLATFORM_COLLECTOR_TOKEN='local-platform-collector-token'
 export METRIC_PLATFORM_ADMIN_TOKEN='local-admin-token'
 export METRIC_PLATFORM_URL='http://127.0.0.1:3001'
 

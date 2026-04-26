@@ -2,8 +2,9 @@
   "projectKey": "aimetric",
   "activeVersion": "v2",
   "knowledgeRefs": [
-    "docs/superpowers/specs/2026-04-22-aimetric-article-congruent-design.md",
-    "docs/superpowers/plans/2026-04-23-aimetric-中文执行计划.md"
+    "docs/operations/product-loop-playbook.md",
+    "docs/operations/production-runbook.md",
+    "docs/operations/employee-onboarding-guide.md"
   ],
   "sceneMandatoryRules": {
     "metric-analysis": ["metric.snapshot-recalculation"],
@@ -19,13 +20,13 @@
       "version": "v1",
       "status": "deprecated",
       "updatedAt": "2026-04-23",
-      "summary": "文章同构 Phase 1/Phase 2 初始规则模板"
+      "summary": "企业提效平台初始规则模板"
     },
     {
       "version": "v2",
       "status": "active",
       "updatedAt": "2026-04-24",
-      "summary": "文件化模板与版本切换基础版"
+      "summary": "企业指标语义层与规则版本切换基础版"
     }
   ]
 }

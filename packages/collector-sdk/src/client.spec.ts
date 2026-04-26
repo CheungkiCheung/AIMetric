@@ -26,6 +26,7 @@ afterEach(() => {
     rmSync(workspace, { recursive: true, force: true });
   });
   globalThis.fetch = originalFetch;
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -330,6 +331,42 @@ describe('CollectorClient', () => {
     expect(publishedSessionIds).toEqual(['sess_1', 'sess_2']);
     expect(existsSync(join(workspaceDir, '.aimetric', 'outbox'))).toBe(true);
     expect(readdirSync(join(workspaceDir, '.aimetric', 'outbox'))).toHaveLength(0);
+  });
+
+  it('preserves FIFO order for buffered batches written in the same millisecond', async () => {
+    const workspaceDir = createWorkspaceWithConfig();
+    const config = await loadAimMetricConfig({ workspaceDir });
+    const publishedSessionIds: string[] = [];
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-26T05:20:00.000Z'));
+    globalThis.fetch = vi.fn(async () => new Response('', { status: 503 })) as typeof fetch;
+
+    await publishIngestionBatchWithBuffer(
+      config.collector,
+      createBatch('sess_1'),
+      { workspaceDir },
+    );
+    await publishIngestionBatchWithBuffer(
+      config.collector,
+      createBatch('sess_2'),
+      { workspaceDir },
+    );
+
+    vi.useRealTimers();
+    globalThis.fetch = vi.fn(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        const batch = JSON.parse(String(init?.body));
+        publishedSessionIds.push(batch.events[0].payload.sessionId);
+
+        return new Response(JSON.stringify({ accepted: 1 }), { status: 200 });
+      },
+    ) as typeof fetch;
+
+    await flushBufferedIngestionBatches(config.collector, {
+      workspaceDir,
+    });
+
+    expect(publishedSessionIds).toEqual(['sess_1', 'sess_2']);
   });
 });
 

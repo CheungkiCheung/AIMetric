@@ -4,7 +4,7 @@
 
 **Goal:** Build a working Phase 1 closed loop for AIMetric: MCP-based collection, raw event ingestion, Git-linked attribution, core metric computation, and a basic personal/team dashboard.
 
-**Architecture:** Use a pnpm monorepo with four deployable apps (`collector-gateway`, `metric-platform`, `mcp-server`, `dashboard`) and shared packages for schemas, collector SDK, rule resolution, and metric computation. Phase 1 prioritizes the article's MCP-standardized mainline path and leaves local database reverse collection for later phases.
+**Architecture:** Use a pnpm monorepo with four deployable apps (`collector-gateway`, `metric-platform`, `mcp-server`, `dashboard`) and shared packages for schemas, collector SDK, rule resolution, and metric computation. Phase 1 prioritizes the MCP-standardized mainline path and leaves local database reverse collection for later phases.
 
 **Tech Stack:** TypeScript, pnpm workspaces, NestJS, React, PostgreSQL, Redis, BullMQ, Prisma, Jest, React Testing Library, Docker Compose
 
@@ -12,7 +12,7 @@
 
 ## Scope Split
 
-The full article-congruent system spans multiple independent subsystems. To keep implementation testable and shippable, this plan covers the first executable sub-project:
+The full enterprise platform spans multiple independent subsystems. To keep implementation testable and shippable, this plan covers the first executable sub-project:
 
 - monorepo foundation
 - shared domain packages

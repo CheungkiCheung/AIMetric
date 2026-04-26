@@ -4,7 +4,7 @@
 
 **Goal:** Build a cross-platform Cursor enhanced collector that can discover local Cursor session data, incrementally export session mainline records as AIMetric `session.recorded` events, and avoid duplicate ingestion during scheduled scans.
 
-**Architecture:** Add a focused `packages/cursor-db-adapter` package for path discovery, transcript parsing, and sync state; add an `apps/cursor-adapter` CLI to orchestrate dry-run and publish flows; extend `collector-sdk`, `metric-platform`, and `employee-onboarding` so the enhanced collector plugs into the existing article-congruent layers without changing the standard MCP-first rollout path.
+**Architecture:** Add a focused `packages/cursor-db-adapter` package for path discovery, transcript parsing, and sync state; add an `apps/cursor-adapter` CLI to orchestrate dry-run and publish flows; extend `collector-sdk`, `metric-platform`, and `employee-onboarding` so the enhanced collector plugs into the existing enterprise product layers without changing the standard MCP-first rollout path.
 
 **Tech Stack:** TypeScript, Vitest, Node.js fs/path APIs, existing AIMetric collector SDK, PostgreSQL repository, pnpm workspace.
 

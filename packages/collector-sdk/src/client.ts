@@ -61,6 +61,8 @@ export interface TabAcceptedInput {
 
 export type CollectorEvent = IngestionBatch['events'][number];
 
+let outboxSequence = 0;
+
 export class CollectorClient<T = unknown> {
   constructor(private readonly buffer = new LocalEventBuffer<T>()) {}
 
@@ -255,7 +257,10 @@ const writeOutboxBatch = async (
 ): Promise<void> => {
   const outboxDir = getOutboxDir(workspaceDir);
   await mkdir(outboxDir, { recursive: true });
-  const filename = `${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID()}.json`;
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const sequence = String(outboxSequence).padStart(8, '0');
+  outboxSequence = (outboxSequence + 1) % Number.MAX_SAFE_INTEGER;
+  const filename = `${timestamp}-${sequence}-${randomUUID()}.json`;
 
   await writeFile(join(outboxDir, filename), JSON.stringify(batch), 'utf8');
 };

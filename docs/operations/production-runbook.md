@@ -243,7 +243,9 @@ type: Opaque
 stringData:
   DATABASE_URL: postgresql://aimetric:aimetric@postgres:5432/aimetric?schema=public
   AIMETRIC_COLLECTOR_TOKEN: replace-with-collector-token
+  METRIC_PLATFORM_COLLECTOR_TOKEN: replace-with-platform-collector-token
   METRIC_PLATFORM_ADMIN_TOKEN: replace-with-admin-token
+  AIMETRIC_REQUIRE_AUTH: "true"
 ```
 
 示例 Deployment 环境变量：
