@@ -41,6 +41,7 @@ import { EnterpriseMetricCatalogPanel } from './pages/enterprise-metric-catalog.
 import { EffectivenessManagerCockpit } from './pages/effectiveness-manager-cockpit.js';
 import { GovernanceDirectoryDashboard } from './pages/governance-directory-dashboard.js';
 import { IncidentDashboard } from './pages/incident-dashboard.js';
+import { MetricDimensionDetailPage } from './pages/metric-dimension-detail-page.js';
 import { McpAuditDashboard } from './pages/mcp-audit-dashboard.js';
 import { OutputAnalysisTable } from './pages/output-analysis-table.js';
 import { PersonalDashboard } from './pages/personal-dashboard.js';
@@ -128,6 +129,7 @@ type AppPage = 'cockpit' | 'metrics' | 'governance' | 'delivery' | 'evidence';
 
 interface AppRoute {
   page: AppPage;
+  metricDimensionKey?: string;
   toolKey?: string;
 }
 
@@ -173,11 +175,19 @@ const appPages: Array<{
 
 const parseRoute = (pathname: string): AppRoute => {
   const toolMatch = pathname.match(/^\/tools\/([^/]+)$/);
+  const metricDimensionMatch = pathname.match(/^\/metrics\/([^/]+)$/);
 
   if (toolMatch?.[1]) {
     return {
       page: 'cockpit',
       toolKey: decodeURIComponent(toolMatch[1]),
+    };
+  }
+
+  if (metricDimensionMatch?.[1]) {
+    return {
+      page: 'metrics',
+      metricDimensionKey: decodeURIComponent(metricDimensionMatch[1]),
     };
   }
 
@@ -249,6 +259,7 @@ export const App = ({
   const [route, setRoute] = useState<AppRoute>(() => parseRoute(window.location.pathname));
   const activePage = route.page;
   const isToolDetailPage = route.toolKey !== undefined;
+  const isMetricDimensionPage = route.metricDimensionKey !== undefined;
 
   const navigateTo = (pathname: string) => {
     window.history.pushState({}, '', pathname);
@@ -677,8 +688,16 @@ export const App = ({
             <button
               key={page.key}
               type="button"
-              className={page.key === activePage && !isToolDetailPage ? 'is-active' : undefined}
-              aria-current={page.key === activePage && !isToolDetailPage ? 'page' : undefined}
+              className={
+                page.key === activePage && !isToolDetailPage && !isMetricDimensionPage
+                  ? 'is-active'
+                  : undefined
+              }
+              aria-current={
+                page.key === activePage && !isToolDetailPage && !isMetricDimensionPage
+                  ? 'page'
+                  : undefined
+              }
               onClick={() => navigateTo(pagePathByKey[page.key])}
             >
               <strong>{page.label}</strong>
@@ -687,7 +706,9 @@ export const App = ({
           ))}
         </nav>
 
-        {activePage !== 'cockpit' && !isToolDetailPage ? filterControls : null}
+        {activePage !== 'cockpit' && !isToolDetailPage && !isMetricDimensionPage
+          ? filterControls
+          : null}
 
         {activePage === 'cockpit' && !isToolDetailPage ? (
           <EffectivenessManagerCockpit
@@ -724,7 +745,16 @@ export const App = ({
           />
         ) : null}
 
-        {activePage === 'metrics' && !isToolDetailPage ? (
+        {isMetricDimensionPage && enterpriseMetricCatalog ? (
+          <MetricDimensionDetailPage
+            dimensionKey={route.metricDimensionKey ?? 'adoption'}
+            catalog={enterpriseMetricCatalog}
+            metricValues={enterpriseMetricValues}
+            onBack={() => navigateTo('/metrics')}
+          />
+        ) : null}
+
+        {activePage === 'metrics' && !isToolDetailPage && !isMetricDimensionPage ? (
           <>
             <section style={filterPanelStyle}>
               <div style={{ display: 'grid', gap: '8px' }}>
@@ -748,6 +778,9 @@ export const App = ({
             <EnterpriseMetricCatalogPanel
               catalog={enterpriseMetricCatalog}
               metricValues={enterpriseMetricValues}
+              onOpenDimension={(dimensionKey) =>
+                navigateTo(`/metrics/${encodeURIComponent(dimensionKey)}`)
+              }
             />
             <AnalysisSummarySection summary={analysisSummary} />
           </>

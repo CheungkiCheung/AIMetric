@@ -7,6 +7,7 @@ import type {
 export interface EnterpriseMetricCatalogPanelProps {
   catalog: EnterpriseMetricCatalog;
   metricValues?: MetricCalculationResult[];
+  onOpenDimension?: (dimensionKey: string) => void;
 }
 
 const sectionStyle = {
@@ -101,6 +102,7 @@ const confidenceNames: Record<MetricCalculationResult['confidence'], string> = {
 export const EnterpriseMetricCatalogPanel = ({
   catalog,
   metricValues = [],
+  onOpenDimension,
 }: EnterpriseMetricCatalogPanelProps) => {
   const highlightedMetrics = catalog.metrics.slice(0, 6);
 
@@ -138,14 +140,25 @@ export const EnterpriseMetricCatalogPanel = ({
           六类核心维度
         </h3>
         {catalog.dimensions.map((dimension) => (
-          <article key={dimension.key} style={dimensionCardStyle}>
+          <button
+            key={dimension.key}
+            type="button"
+            onClick={() => onOpenDimension?.(dimension.key)}
+            style={{
+              ...dimensionCardStyle,
+              color: '#fff8ee',
+              textAlign: 'left',
+              cursor: onOpenDimension ? 'pointer' : 'default',
+              font: 'inherit',
+            }}
+          >
             <h4 style={{ margin: '0 0 8px', fontSize: '17px' }}>
               {dimension.name}
             </h4>
             <p style={{ margin: 0, color: '#ead7bf', fontSize: '14px' }}>
               {dimension.question}
             </p>
-          </article>
+          </button>
         ))}
       </div>
 

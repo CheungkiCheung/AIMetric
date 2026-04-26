@@ -587,6 +587,30 @@ describe('App', () => {
     expect(screen.getByText('必须按需求规模和类型分层对比，避免简单平均造成误判。')).toBeInTheDocument();
   });
 
+  it('opens a metric dimension detail page from the metric semantics page', async () => {
+    render(<App client={createClient()} refreshIntervalMs={0} />);
+
+    expect(await screen.findByText('提效管理者 AI 提效经营驾驶舱')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /指标语义层/ }));
+    fireEvent.click(screen.getByRole('button', { name: /使用渗透/ }));
+
+    expect(await screen.findByText('使用渗透详情')).toBeInTheDocument();
+    expect(screen.getByText('AI有没有真正被用起来')).toBeInTheDocument();
+    expect(screen.getByText('AI-IDE 使用人数比例')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/metrics/adoption');
+  });
+
+  it('renders a metric dimension detail page from a direct URL', async () => {
+    window.history.pushState({}, '', '/metrics/effective-output');
+
+    render(<App client={createClient()} refreshIntervalMs={0} />);
+
+    expect(await screen.findByText('有效产出详情')).toBeInTheDocument();
+    expect(screen.getByText('AI生成的内容有没有变成正式成果')).toBeInTheDocument();
+    expect(screen.getByText('AI 出码率')).toBeInTheDocument();
+  });
+
   it('opens a tool detail page when a cockpit tool card is clicked', async () => {
     render(<App client={createClient()} refreshIntervalMs={0} />);
 
