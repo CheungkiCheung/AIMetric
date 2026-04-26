@@ -55,6 +55,8 @@ AI 工具资产登记
 
 完整产品口径见 [docs/operations/product-loop-playbook.md](docs/operations/product-loop-playbook.md)。
 
+企业试点交付建议从 [docs/operations/enterprise-pilot-delivery-kit.md](docs/operations/enterprise-pilot-delivery-kit.md) 开始，它把平台部署、员工接入、管理者验收、指标清单和周复盘模板串成一条可执行交付路径。
+
 ## 当前状态
 
 当前版本定位为 `企业试点版 / 准生产基础版`。
@@ -378,6 +380,7 @@ RUN_DB_TESTS=1 \
 ## 文档入口
 
 - 产品闭环：[docs/operations/product-loop-playbook.md](docs/operations/product-loop-playbook.md)
+- 企业试点交付包：[docs/operations/enterprise-pilot-delivery-kit.md](docs/operations/enterprise-pilot-delivery-kit.md)
 - 员工接入：[docs/operations/employee-onboarding-guide.md](docs/operations/employee-onboarding-guide.md)
 - 平台部署：[docs/operations/production-runbook.md](docs/operations/production-runbook.md)
 - 试点推进：[docs/operations/pilot-rollout-guide.md](docs/operations/pilot-rollout-guide.md)

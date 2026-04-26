@@ -14,6 +14,7 @@ docker compose up -d
 ```bash
 export DATABASE_URL='postgresql://aimetric:aimetric@127.0.0.1:5432/aimetric?sslmode=disable'
 export AIMETRIC_COLLECTOR_TOKEN='local-collector-token'
+export METRIC_PLATFORM_COLLECTOR_TOKEN='local-platform-collector-token'
 export METRIC_PLATFORM_ADMIN_TOKEN='local-admin-token'
 export METRIC_PLATFORM_URL='http://127.0.0.1:3001'
 ```
