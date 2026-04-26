@@ -37,6 +37,11 @@ import { CollectorHealthDashboard } from './pages/collector-health-dashboard.js'
 import { DeploymentDashboard } from './pages/deployment-dashboard.js';
 import { DefectDashboard } from './pages/defect-dashboard.js';
 import { DefectAttributionDashboard } from './pages/defect-attribution-dashboard.js';
+import {
+  EvidenceDetailPage,
+  evidenceSectionConfigs,
+  type EvidenceSectionKey,
+} from './pages/evidence-detail-page.js';
 import { EnterpriseMetricCatalogPanel } from './pages/enterprise-metric-catalog.js';
 import { EffectivenessManagerCockpit } from './pages/effectiveness-manager-cockpit.js';
 import {
@@ -140,6 +145,7 @@ type AppPage = 'cockpit' | 'metrics' | 'governance' | 'delivery' | 'evidence';
 interface AppRoute {
   page: AppPage;
   deliverySectionKey?: DeliverySectionKey;
+  evidenceSectionKey?: EvidenceSectionKey;
   governanceSectionKey?: GovernanceSectionKey;
   metricDimensionKey?: string;
   toolKey?: string;
@@ -190,6 +196,7 @@ const parseRoute = (pathname: string): AppRoute => {
   const metricDimensionMatch = pathname.match(/^\/metrics\/([^/]+)$/);
   const deliverySectionMatch = pathname.match(/^\/delivery\/([^/]+)$/);
   const governanceSectionMatch = pathname.match(/^\/governance\/([^/]+)$/);
+  const evidenceSectionMatch = pathname.match(/^\/evidence\/([^/]+)$/);
 
   if (toolMatch?.[1]) {
     return {
@@ -220,6 +227,13 @@ const parseRoute = (pathname: string): AppRoute => {
       governanceSectionKey: decodeURIComponent(
         governanceSectionMatch[1],
       ) as GovernanceSectionKey,
+    };
+  }
+
+  if (evidenceSectionMatch?.[1]) {
+    return {
+      page: 'evidence',
+      evidenceSectionKey: decodeURIComponent(evidenceSectionMatch[1]) as EvidenceSectionKey,
     };
   }
 
@@ -294,6 +308,7 @@ export const App = ({
   const isMetricDimensionPage = route.metricDimensionKey !== undefined;
   const isDeliveryDetailPage = route.deliverySectionKey !== undefined;
   const isGovernanceDetailPage = route.governanceSectionKey !== undefined;
+  const isEvidenceDetailPage = route.evidenceSectionKey !== undefined;
 
   const navigateTo = (pathname: string) => {
     window.history.pushState({}, '', pathname);
@@ -727,7 +742,8 @@ export const App = ({
                 !isToolDetailPage &&
                 !isMetricDimensionPage &&
                 !isDeliveryDetailPage &&
-                !isGovernanceDetailPage
+                !isGovernanceDetailPage &&
+                !isEvidenceDetailPage
                   ? 'is-active'
                   : undefined
               }
@@ -736,7 +752,8 @@ export const App = ({
                 !isToolDetailPage &&
                 !isMetricDimensionPage &&
                 !isDeliveryDetailPage &&
-                !isGovernanceDetailPage
+                !isGovernanceDetailPage &&
+                !isEvidenceDetailPage
                   ? 'page'
                   : undefined
               }
@@ -752,7 +769,8 @@ export const App = ({
         !isToolDetailPage &&
         !isMetricDimensionPage &&
         !isDeliveryDetailPage &&
-        !isGovernanceDetailPage
+        !isGovernanceDetailPage &&
+        !isEvidenceDetailPage
           ? filterControls
           : null}
 
@@ -1064,8 +1082,80 @@ export const App = ({
           </>
         ) : null}
 
-        {activePage === 'evidence' && !isToolDetailPage ? (
+        {isEvidenceDetailPage ? (
+          <EvidenceDetailPage
+            sectionKey={route.evidenceSectionKey ?? 'sessions'}
+            onBack={() => navigateTo('/evidence')}
+          >
+            {route.evidenceSectionKey === 'output' ? (
+              <OutputAnalysisTable rows={outputAnalysisRows} />
+            ) : null}
+            {route.evidenceSectionKey === 'personal' ? (
+              <PersonalDashboard snapshot={personalSnapshot} />
+            ) : null}
+            {route.evidenceSectionKey === 'team' ? (
+              <TeamDashboard snapshot={teamSnapshot} />
+            ) : null}
+            {(route.evidenceSectionKey ?? 'sessions') === 'sessions' ? (
+              <SessionAnalysisTable rows={sessionAnalysisRows} />
+            ) : null}
+          </EvidenceDetailPage>
+        ) : null}
+
+        {activePage === 'evidence' && !isToolDetailPage && !isEvidenceDetailPage ? (
           <>
+            <section style={filterPanelStyle}>
+              <div style={{ display: 'grid', gap: '8px' }}>
+                <p
+                  style={{
+                    margin: 0,
+                    color: '#6b523c',
+                    fontSize: '13px',
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Evidence Drilldowns
+                </p>
+                <h2 style={{ margin: 0, fontSize: '28px' }}>证据分析二级视图</h2>
+                <p style={{ margin: 0, color: '#6b523c', lineHeight: 1.7 }}>
+                  从会话、出码、个人和团队进入详情，把原始证据链与管理指标分层展示。
+                </p>
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                  gap: '12px',
+                  marginTop: '18px',
+                }}
+              >
+                {evidenceSectionConfigs.map((section) => (
+                  <button
+                    key={section.key}
+                    type="button"
+                    onClick={() => navigateTo(`/evidence/${section.key}`)}
+                    style={{
+                      border: '1px solid rgba(138, 104, 70, 0.16)',
+                      borderRadius: '18px',
+                      padding: '16px',
+                      background: 'rgba(255, 253, 250, 0.76)',
+                      color: '#2e241b',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      font: 'inherit',
+                    }}
+                  >
+                    <strong style={{ display: 'block', fontSize: '17px' }}>
+                      进入 {section.label}
+                    </strong>
+                    <span style={{ display: 'block', marginTop: '8px', color: '#6b523c' }}>
+                      {section.question}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
             <SessionAnalysisTable rows={sessionAnalysisRows} />
             <OutputAnalysisTable rows={outputAnalysisRows} />
             <PersonalDashboard snapshot={personalSnapshot} />

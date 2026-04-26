@@ -546,6 +546,30 @@ describe('App', () => {
     expect(screen.getByText('/repo/src/demo.ts')).toBeInTheDocument();
   });
 
+  it('opens an evidence detail page from the evidence analysis page', async () => {
+    render(<App client={createClient()} refreshIntervalMs={0} />);
+
+    expect(await screen.findByText('提效管理者 AI 提效经营驾驶舱')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /证据分析/ }));
+    fireEvent.click(screen.getByRole('button', { name: /会话分析/ }));
+
+    expect(await screen.findByText('会话分析详情')).toBeInTheDocument();
+    expect(screen.getByText('以会话为主轴查看 AI 使用、上下文、消息规模和编辑证据。')).toBeInTheDocument();
+    expect(screen.getByText('sess_1')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/evidence/sessions');
+  });
+
+  it('renders an evidence detail page from a direct URL', async () => {
+    window.history.pushState({}, '', '/evidence/output');
+
+    render(<App client={createClient()} refreshIntervalMs={0} />);
+
+    expect(await screen.findByText('出码分析详情')).toBeInTheDocument();
+    expect(screen.getByText('以文件为粒度查看 AI 编辑证据、Tab 采纳和最近 diff 摘要。')).toBeInTheDocument();
+    expect(screen.getByText('/repo/src/demo.ts')).toBeInTheDocument();
+  });
+
   it('opens governance and collection page from navigation', async () => {
     render(<App client={createClient()} refreshIntervalMs={0} />);
 
