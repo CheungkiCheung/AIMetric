@@ -16,17 +16,48 @@ export interface BootstrapOptions {
   host?: string;
   port?: number;
   collectorToken?: string;
+  collectorTokenRequired?: boolean;
   ingestionDeliveryMode?: IngestionDeliveryMode;
   ingestionQueueBackend?: IngestionQueueBackend;
   ingestionQueueDir?: string;
   maxDeliveryAttempts?: number;
+  maxRequestBodyBytes?: number;
 }
 
-const readJsonBody = async (request: IncomingMessage): Promise<unknown> =>
+class HttpBodyTooLargeError extends Error {
+  constructor(readonly limitBytes: number) {
+    super(`Request body exceeds ${limitBytes} bytes`);
+  }
+}
+
+const defaultMaxRequestBodyBytes = 1_048_576;
+
+const readJsonBody = async (
+  request: IncomingMessage,
+  maxBodyBytes = defaultMaxRequestBodyBytes,
+): Promise<unknown> =>
   new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
+    let receivedBytes = 0;
+    let bodyTooLarge = false;
+
+    const contentLength = Number(request.headers['content-length'] ?? 0);
+    if (contentLength > maxBodyBytes) {
+      reject(new HttpBodyTooLargeError(maxBodyBytes));
+      return;
+    }
 
     request.on('data', (chunk: Buffer) => {
+      if (bodyTooLarge) {
+        return;
+      }
+
+      receivedBytes += chunk.length;
+      if (receivedBytes > maxBodyBytes) {
+        bodyTooLarge = true;
+        reject(new HttpBodyTooLargeError(maxBodyBytes));
+        return;
+      }
       chunks.push(chunk);
     });
     request.on('end', () => {
@@ -67,6 +98,7 @@ const handleRequest = async (
   response: ServerResponse,
   appModule: AppModule,
   collectorToken?: string,
+  maxRequestBodyBytes = defaultMaxRequestBodyBytes,
   metrics: { startedAt: number; requestCount: number } = {
     startedAt: Date.now(),
     requestCount: 0,
@@ -159,9 +191,14 @@ const handleRequest = async (
     }
 
     try {
-      const body = await readJsonBody(request);
+      const body = await readJsonBody(request, maxRequestBodyBytes);
       writeJson(response, 200, await appModule.ingestionController.ingest(body));
-    } catch {
+    } catch (error) {
+      if (error instanceof HttpBodyTooLargeError) {
+        writeJson(response, 413, { message: 'Request body is too large' });
+        return;
+      }
+
       writeJson(response, 400, { message: 'Invalid ingestion payload' });
     }
     return;
@@ -204,6 +241,13 @@ export async function bootstrap(
   const port = options.port ?? 3000;
   const collectorToken =
     options.collectorToken ?? process.env.AIMETRIC_COLLECTOR_TOKEN;
+  const collectorTokenRequired =
+    options.collectorTokenRequired ?? isProductionRuntime();
+
+  if (collectorTokenRequired && !collectorToken) {
+    throw new Error('AIMETRIC_COLLECTOR_TOKEN is required');
+  }
+
   const appModule = new AppModule({
     deliveryMode: options.ingestionDeliveryMode,
     queueBackend: options.ingestionQueueBackend,
@@ -216,7 +260,26 @@ export async function bootstrap(
   };
 
   const server = createServer((request, response) => {
-    void handleRequest(request, response, appModule, collectorToken, metrics);
+    void handleRequest(
+      request,
+      response,
+      appModule,
+      collectorToken,
+      options.maxRequestBodyBytes ?? defaultMaxRequestBodyBytes,
+      metrics,
+    ).catch((error) => {
+      if (response.headersSent) {
+        response.end();
+        return;
+      }
+
+      if (error instanceof HttpBodyTooLargeError) {
+        writeJson(response, 413, { message: 'Request body is too large' });
+        return;
+      }
+
+      writeJson(response, 500, { message: 'Internal Server Error' });
+    });
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -258,3 +321,7 @@ if (isDirectRun) {
     console.log(`collector-gateway listening on ${app.baseUrl}`);
   });
 }
+
+const isProductionRuntime = (): boolean =>
+  process.env.NODE_ENV === 'production' ||
+  process.env.AIMETRIC_REQUIRE_AUTH === 'true';

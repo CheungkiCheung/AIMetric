@@ -873,13 +873,18 @@ describe('createDashboardClient', () => {
       url: string;
       method: string;
       body: string;
+      authorization?: string;
+      credentials?: RequestCredentials;
     }> = [];
 
     globalThis.fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
       requests.push({
         url: String(input),
         method: init?.method ?? 'GET',
         body: typeof init?.body === 'string' ? init.body : '',
+        authorization: headers.get('authorization') ?? undefined,
+        credentials: init?.credentials,
       });
       return new Response(
         JSON.stringify({
@@ -914,6 +919,8 @@ describe('createDashboardClient', () => {
         percentage: 40,
         includedMembers: ['alice', 'bob'],
       }),
+      authorization: undefined,
+      credentials: 'include',
     });
   });
 
@@ -922,13 +929,18 @@ describe('createDashboardClient', () => {
       url: string;
       method: string;
       body: string;
+      authorization?: string;
+      credentials?: RequestCredentials;
     }> = [];
 
     globalThis.fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
       requests.push({
         url: String(input),
         method: init?.method ?? 'GET',
         body: typeof init?.body === 'string' ? init.body : '',
+        authorization: headers.get('authorization') ?? undefined,
+        credentials: init?.credentials,
       });
       return new Response(
         JSON.stringify({
@@ -957,6 +969,8 @@ describe('createDashboardClient', () => {
         teamKeys: ['platform-engineering'],
         projectKeys: ['aimetric'],
       }),
+      authorization: undefined,
+      credentials: 'include',
     });
   });
 
@@ -1064,6 +1078,7 @@ describe('createDashboardClient', () => {
         headers: {
           'x-aimetric-viewer-id': 'manager-1',
         },
+        credentials: 'include',
       },
     });
   });

@@ -83,6 +83,36 @@ describe('collector gateway bootstrap', () => {
     });
   });
 
+  it('fails closed when ingestion auth is required without a token', async () => {
+    await expect(
+      bootstrap({
+        port: 0,
+        collectorTokenRequired: true,
+      }),
+    ).rejects.toThrow('AIMETRIC_COLLECTOR_TOKEN is required');
+  });
+
+  it('rejects ingestion payloads over the configured body limit', async () => {
+    const app = await bootstrap({
+      port: 0,
+      maxRequestBodyBytes: 32,
+    });
+    servers.push(app);
+
+    const response = await fetch(`${app.baseUrl}/ingestion`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(createIngestionBatch()),
+    });
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({
+      message: 'Request body is too large',
+    });
+  });
+
   it('serves readiness and prometheus metrics endpoints', async () => {
     const app = await bootstrap({ port: 0 });
     servers.push(app);

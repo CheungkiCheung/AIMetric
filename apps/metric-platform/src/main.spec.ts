@@ -130,6 +130,79 @@ describe('bootstrap', () => {
     expect(teamSnapshot.memberCount).toBe(2);
   });
 
+  it('requires collector bearer auth for event imports when configured', async () => {
+    const app = await bootstrap({
+      port: 0,
+      collectorToken: 'collector-secret',
+      metricEventRepository: createEmptyRepository(),
+    });
+    servers.push(app);
+
+    const unauthorizedResponse = await fetch(`${app.baseUrl}/events/import`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(createIngestionBatch()),
+    });
+    const authorizedResponse = await fetch(`${app.baseUrl}/events/import`, {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer collector-secret',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(createIngestionBatch()),
+    });
+
+    expect(unauthorizedResponse.status).toBe(401);
+    await expect(unauthorizedResponse.json()).resolves.toEqual({
+      message: 'Unauthorized ingestion batch',
+    });
+    expect(authorizedResponse.status).toBe(200);
+  });
+
+  it('fails closed when production auth is required without tokens', async () => {
+    await expect(
+      bootstrap({
+        port: 0,
+        adminTokenRequired: true,
+        collectorTokenRequired: false,
+        metricEventRepository: createEmptyRepository(),
+      }),
+    ).rejects.toThrow('METRIC_PLATFORM_ADMIN_TOKEN is required');
+
+    await expect(
+      bootstrap({
+        port: 0,
+        adminToken: 'admin-secret',
+        collectorTokenRequired: true,
+        metricEventRepository: createEmptyRepository(),
+      }),
+    ).rejects.toThrow('METRIC_PLATFORM_COLLECTOR_TOKEN is required');
+  });
+
+  it('rejects oversized JSON request bodies', async () => {
+    const app = await bootstrap({
+      port: 0,
+      maxRequestBodyBytes: 32,
+      metricEventRepository: createEmptyRepository(),
+    });
+    servers.push(app);
+
+    const response = await fetch(`${app.baseUrl}/events/import`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(createIngestionBatch()),
+    });
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({
+      message: 'Request body is too large',
+    });
+  });
+
   it('serves the enterprise metric catalog over HTTP', async () => {
     const app = await bootstrap({
       port: 0,
@@ -2739,6 +2812,22 @@ const emptyAnalysisSummary = (): AnalysisSummaryRecord => ({
   editSpanCount: 0,
   tabAcceptedCount: 0,
   tabAcceptedLines: 0,
+});
+
+const createIngestionBatch = () => ({
+  schemaVersion: 'v1',
+  source: 'cursor',
+  events: [
+    {
+      eventType: 'session.started',
+      occurredAt: '2026-04-23T00:00:00.000Z',
+      payload: {
+        sessionId: 'sess_1',
+        projectKey: 'proj',
+        repoName: 'repo',
+      },
+    },
+  ],
 });
 
 const createEmptyRepository = (): MetricEventRepository => ({

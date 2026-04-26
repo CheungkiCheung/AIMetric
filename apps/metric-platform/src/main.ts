@@ -33,7 +33,11 @@ export interface MetricPlatformServer {
 export interface BootstrapOptions {
   host?: string;
   adminToken?: string;
+  adminTokenRequired?: boolean;
+  collectorToken?: string;
+  collectorTokenRequired?: boolean;
   metricEventRepository?: MetricEventRepository;
+  maxRequestBodyBytes?: number;
   port?: number;
   ruleCatalogRoot?: string;
   docsRoot?: string;
@@ -47,6 +51,14 @@ interface AdminAuditEvent {
   occurredAt: string;
   status: 'success';
 }
+
+class HttpBodyTooLargeError extends Error {
+  constructor(readonly limitBytes: number) {
+    super(`Request body exceeds ${limitBytes} bytes`);
+  }
+}
+
+const defaultMaxRequestBodyBytes = 1_048_576;
 
 const writeJson = (
   response: ServerResponse,
@@ -70,11 +82,45 @@ const writeText = (
   response.end(body);
 };
 
-const readJsonBody = async (request: IncomingMessage): Promise<unknown> =>
+const writeJsonBodyError = (
+  response: ServerResponse,
+  error: unknown,
+  fallbackMessage: string,
+): void => {
+  if (error instanceof HttpBodyTooLargeError) {
+    writeJson(response, 413, { message: 'Request body is too large' });
+    return;
+  }
+
+  writeJson(response, 400, { message: fallbackMessage });
+};
+
+const readJsonBody = async (
+  request: IncomingMessage,
+  maxBodyBytes = defaultMaxRequestBodyBytes,
+): Promise<unknown> =>
   new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
+    let receivedBytes = 0;
+    let bodyTooLarge = false;
+
+    const contentLength = Number(request.headers['content-length'] ?? 0);
+    if (contentLength > maxBodyBytes) {
+      reject(new HttpBodyTooLargeError(maxBodyBytes));
+      return;
+    }
 
     request.on('data', (chunk: Buffer) => {
+      if (bodyTooLarge) {
+        return;
+      }
+
+      receivedBytes += chunk.length;
+      if (receivedBytes > maxBodyBytes) {
+        bodyTooLarge = true;
+        reject(new HttpBodyTooLargeError(maxBodyBytes));
+        return;
+      }
       chunks.push(chunk);
     });
     request.on('end', () => {
@@ -682,9 +728,11 @@ const handleRequest = async (
   appModule: AppModule,
   runtime: {
     adminToken?: string;
+    collectorToken?: string;
     adminAuditEvents: AdminAuditEvent[];
     startedAt: number;
     requestCount: number;
+    maxRequestBodyBytes: number;
     now: () => string;
   },
 ): Promise<void> => {
@@ -1286,7 +1334,7 @@ const handleRequest = async (
     }
 
     try {
-      const body = await readJsonBody(request);
+      const body = await readJsonBody(request, runtime.maxRequestBodyBytes);
       const payload = body as Record<string, unknown>;
 
       if (typeof payload.version !== 'string') {
@@ -1303,8 +1351,8 @@ const handleRequest = async (
         });
       recordAdminAudit(runtime, request, 'rules.active.set');
       writeJson(response, 200, result);
-    } catch {
-      writeJson(response, 400, { message: 'Invalid rule activation request' });
+    } catch (error) {
+      writeJsonBodyError(response, error, 'Invalid rule activation request');
     }
     return;
   }
@@ -1337,7 +1385,7 @@ const handleRequest = async (
     }
 
     try {
-      const body = await readJsonBody(request);
+      const body = await readJsonBody(request, runtime.maxRequestBodyBytes);
       const payload = body as Record<string, unknown>;
 
       if (typeof payload.enabled !== 'boolean') {
@@ -1367,8 +1415,8 @@ const handleRequest = async (
         });
       recordAdminAudit(runtime, request, 'rules.rollout.set');
       writeJson(response, 200, result);
-    } catch {
-      writeJson(response, 400, { message: 'Invalid rule rollout request' });
+    } catch (error) {
+      writeJsonBodyError(response, error, 'Invalid rule rollout request');
     }
     return;
   }
@@ -1392,15 +1440,15 @@ const handleRequest = async (
     }
 
     try {
-      const body = await readJsonBody(request);
+      const body = await readJsonBody(request, runtime.maxRequestBodyBytes);
 
       const result = await appModule.recalculateMetricSnapshots(
         getMetricSnapshotFiltersFromBody(body),
       );
       recordAdminAudit(runtime, request, 'metrics.recalculate');
       writeJson(response, 200, result);
-    } catch {
-      writeJson(response, 400, { message: 'Invalid recalculation request' });
+    } catch (error) {
+      writeJsonBodyError(response, error, 'Invalid recalculation request');
     }
     return;
   }
@@ -1412,7 +1460,7 @@ const handleRequest = async (
     }
 
     try {
-      const body = await readJsonBody(request);
+      const body = await readJsonBody(request, runtime.maxRequestBodyBytes);
       const filters = getMetricSnapshotFiltersFromBody(body);
 
       const result = await appModule.recalculateEnterpriseMetricSnapshots(
@@ -1423,50 +1471,71 @@ const handleRequest = async (
       );
       recordAdminAudit(runtime, request, 'enterprise-metrics.recalculate');
       writeJson(response, 200, result);
-    } catch {
-      writeJson(response, 400, {
-        message: 'Invalid enterprise metric recalculation request',
-      });
+    } catch (error) {
+      writeJsonBodyError(
+        response,
+        error,
+        'Invalid enterprise metric recalculation request',
+      );
     }
     return;
   }
 
   if (method === 'POST' && url.pathname === '/events/import') {
+    if (!isAuthorizedTokenRequest(request, runtime.collectorToken)) {
+      writeJson(response, 401, { message: 'Unauthorized ingestion batch' });
+      return;
+    }
+
     try {
-      const body = await readJsonBody(request);
+      const body = await readJsonBody(request, runtime.maxRequestBodyBytes);
       const batch = IngestionBatchSchema.parse(body);
 
       writeJson(response, 200, await appModule.importEvents(batch));
-    } catch {
+    } catch (error) {
+      if (error instanceof HttpBodyTooLargeError) {
+        writeJson(response, 413, { message: 'Request body is too large' });
+        return;
+      }
+
       writeJson(response, 400, { message: 'Invalid ingestion batch' });
     }
     return;
   }
 
-  if (method === 'POST' && url.pathname === '/governance/collector-identities/register') {
-    const body = await readJsonBody(request);
-    const registrationInput = getCollectorIdentityInputFromBody(body);
+  try {
+    if (method === 'POST' && url.pathname === '/governance/collector-identities/register') {
+      const body = await readJsonBody(request, runtime.maxRequestBodyBytes);
+      const registrationInput = getCollectorIdentityInputFromBody(body);
 
-    if (!registrationInput) {
-      writeJson(response, 400, {
-        message:
-          'identityKey, memberId, projectKey, repoName, and toolProfile are required',
-      });
+      if (!registrationInput) {
+        writeJson(response, 400, {
+          message:
+            'identityKey, memberId, projectKey, repoName, and toolProfile are required',
+        });
+        return;
+      }
+
+      try {
+        writeJson(
+          response,
+          200,
+          await appModule.registerCollectorIdentity(registrationInput),
+        );
+      } catch (error) {
+        writeJson(response, 400, {
+          message:
+            error instanceof Error ? error.message : 'Failed to register collector identity',
+        });
+      }
       return;
     }
-
-    try {
-      writeJson(
-        response,
-        200,
-        await appModule.registerCollectorIdentity(registrationInput),
-      );
-    } catch (error) {
-      writeJson(response, 400, {
-        message:
-          error instanceof Error ? error.message : 'Failed to register collector identity',
-      });
-    }
+  } catch (error) {
+    writeJsonBodyError(
+      response,
+      error,
+      'Invalid collector identity registration request',
+    );
     return;
   }
 
@@ -1476,7 +1545,7 @@ const handleRequest = async (
       return;
     }
 
-    const body = await readJsonBody(request);
+    const body = await readJsonBody(request, runtime.maxRequestBodyBytes);
     const assignmentInput = getViewerScopeAssignmentInputFromBody(body);
 
     if (!assignmentInput) {
@@ -1501,7 +1570,7 @@ const handleRequest = async (
       return;
     }
 
-    const body = await readJsonBody(request);
+    const body = await readJsonBody(request, runtime.maxRequestBodyBytes);
     const pullRequests = getPullRequestsFromBody(body);
 
     if (!pullRequests) {
@@ -1522,7 +1591,7 @@ const handleRequest = async (
       return;
     }
 
-    const body = await readJsonBody(request);
+    const body = await readJsonBody(request, runtime.maxRequestBodyBytes);
     const requirements = getRequirementsFromBody(body);
 
     if (!requirements) {
@@ -1543,7 +1612,7 @@ const handleRequest = async (
       return;
     }
 
-    const body = await readJsonBody(request);
+    const body = await readJsonBody(request, runtime.maxRequestBodyBytes);
     const ciRuns = getCiRunsFromBody(body);
 
     if (!ciRuns) {
@@ -1564,7 +1633,7 @@ const handleRequest = async (
       return;
     }
 
-    const body = await readJsonBody(request);
+    const body = await readJsonBody(request, runtime.maxRequestBodyBytes);
     const deployments = getDeploymentsFromBody(body);
 
     if (!deployments) {
@@ -1585,7 +1654,7 @@ const handleRequest = async (
       return;
     }
 
-    const body = await readJsonBody(request);
+    const body = await readJsonBody(request, runtime.maxRequestBodyBytes);
     const incidents = getIncidentsFromBody(body);
 
     if (!incidents) {
@@ -1606,7 +1675,7 @@ const handleRequest = async (
       return;
     }
 
-    const body = await readJsonBody(request);
+    const body = await readJsonBody(request, runtime.maxRequestBodyBytes);
     const defects = getDefectsFromBody(body);
 
     if (!defects) {
@@ -1638,17 +1707,23 @@ const isAuthorizedAdminRequest = (
   request: IncomingMessage,
   adminToken?: string,
 ): boolean => {
-  if (!adminToken) {
+  return isAuthorizedTokenRequest(request, adminToken);
+};
+
+const isAuthorizedTokenRequest = (
+  request: IncomingMessage,
+  expectedToken?: string,
+): boolean => {
+  if (!expectedToken) {
     return true;
   }
-
   const authorization = request.headers.authorization;
   const token =
     typeof authorization === 'string' && authorization.startsWith('Bearer ')
       ? authorization.slice('Bearer '.length)
       : '';
 
-  return compareTokens(token, adminToken);
+  return compareTokens(token, expectedToken);
 };
 
 const compareTokens = (candidate: string, expected: string): boolean => {
@@ -1688,6 +1763,23 @@ export async function bootstrap(
   const host = options.host ?? '127.0.0.1';
   const port = options.port ?? 3001;
   const adminToken = options.adminToken ?? process.env.METRIC_PLATFORM_ADMIN_TOKEN;
+  const collectorToken =
+    options.collectorToken ??
+    process.env.METRIC_PLATFORM_COLLECTOR_TOKEN ??
+    process.env.AIMETRIC_COLLECTOR_TOKEN;
+  const adminTokenRequired =
+    options.adminTokenRequired ?? isProductionRuntime();
+  const collectorTokenRequired =
+    options.collectorTokenRequired ?? isProductionRuntime();
+
+  if (adminTokenRequired && !adminToken) {
+    throw new Error('METRIC_PLATFORM_ADMIN_TOKEN is required');
+  }
+
+  if (collectorTokenRequired && !collectorToken) {
+    throw new Error('METRIC_PLATFORM_COLLECTOR_TOKEN is required');
+  }
+
   const appModule = new AppModule(options.metricEventRepository, {
     ruleCatalogRoot: options.ruleCatalogRoot,
     docsRoot: options.docsRoot,
@@ -1695,14 +1787,28 @@ export async function bootstrap(
   let snapshotScheduler: SnapshotRecalculationScheduler | undefined;
   const runtime = {
     adminToken,
+    collectorToken,
     adminAuditEvents: [] as AdminAuditEvent[],
     startedAt: Date.now(),
     requestCount: 0,
+    maxRequestBodyBytes: options.maxRequestBodyBytes ?? defaultMaxRequestBodyBytes,
     now: () => new Date().toISOString(),
   };
 
   const server = createServer((request, response) => {
-    void handleRequest(request, response, appModule, runtime);
+    void handleRequest(request, response, appModule, runtime).catch((error) => {
+      if (response.headersSent) {
+        response.end();
+        return;
+      }
+
+      if (error instanceof HttpBodyTooLargeError) {
+        writeJson(response, 413, { message: 'Request body is too large' });
+        return;
+      }
+
+      writeJson(response, 500, { message: 'Internal Server Error' });
+    });
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -1747,6 +1853,10 @@ export async function bootstrap(
       }),
   };
 }
+
+const isProductionRuntime = (): boolean =>
+  process.env.NODE_ENV === 'production' ||
+  process.env.AIMETRIC_REQUIRE_AUTH === 'true';
 
 const isDirectRun =
   process.argv[1] !== undefined &&

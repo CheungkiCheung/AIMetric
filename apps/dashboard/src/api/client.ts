@@ -559,17 +559,12 @@ const buildViewerHeaders = (viewerId?: string): HeadersInit | undefined =>
 
 const buildAdminHeaders = (
   viewerId?: string,
-  adminToken?: string,
   includeJsonContentType = false,
 ): HeadersInit | undefined => {
   const headers: Record<string, string> = {};
 
   if (viewerId) {
     headers['x-aimetric-viewer-id'] = viewerId;
-  }
-
-  if (adminToken) {
-    headers.authorization = `Bearer ${adminToken}`;
   }
 
   if (includeJsonContentType) {
@@ -583,7 +578,6 @@ const fetchJson = async <T>(
   url: string,
   fallback: T,
   viewerId?: string,
-  adminToken?: string,
 ): Promise<T> => {
   if (typeof fetch !== 'function') {
     return fallback;
@@ -591,7 +585,8 @@ const fetchJson = async <T>(
 
   try {
     const response = await fetch(url, {
-      headers: buildAdminHeaders(viewerId, adminToken),
+      headers: buildAdminHeaders(viewerId),
+      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -609,7 +604,6 @@ const sendJson = async <T>(
   body: unknown,
   fallback: T,
   viewerId?: string,
-  adminToken?: string,
 ): Promise<T> => {
   if (typeof fetch !== 'function') {
     return fallback;
@@ -618,7 +612,8 @@ const sendJson = async <T>(
   try {
     const response = await fetch(url, {
       method: 'POST',
-      headers: buildAdminHeaders(viewerId, adminToken, true),
+      headers: buildAdminHeaders(viewerId, true),
+      credentials: 'include',
       body: JSON.stringify(body),
     });
 
@@ -684,7 +679,6 @@ export const createDashboardClient = (
   baseUrl = 'http://localhost:3001',
   collectorGatewayBaseUrl = 'http://localhost:3000',
   viewerId = import.meta.env.VITE_AIMETRIC_VIEWER_ID as string | undefined,
-  adminToken = import.meta.env.VITE_AIMETRIC_ADMIN_TOKEN as string | undefined,
 ): DashboardClient => ({
   getPersonalSnapshot: (filters) =>
     fetchJson<PersonalSnapshot>(
@@ -727,28 +721,24 @@ export const createDashboardClient = (
       buildRuleUrl(baseUrl, '/rules/versions', projectKey),
       fallbackRuleVersions,
       viewerId,
-      adminToken,
     ),
   getRuleRollout: (projectKey) =>
     fetchJson<RuleRollout>(
       buildRuleUrl(baseUrl, '/rules/rollout', projectKey),
       fallbackRuleRollout,
       viewerId,
-      adminToken,
     ),
   getRuleRolloutEvaluation: (projectKey, memberId) =>
     fetchJson<RuleRolloutEvaluation>(
       buildRuleUrl(baseUrl, '/rules/rollout/evaluate', projectKey, memberId),
       fallbackRuleRolloutEvaluation,
       viewerId,
-      adminToken,
     ),
   getEnterpriseMetricCatalog: () =>
     fetchJson<EnterpriseMetricCatalog>(
       new URL('/enterprise-metrics/catalog', baseUrl).toString(),
       fallbackEnterpriseMetricCatalog,
       viewerId,
-      adminToken,
     ),
   getEnterpriseMetricValues: (filters, metricKeys) =>
     fetchJson<MetricCalculationResult[]>(
@@ -760,7 +750,6 @@ export const createDashboardClient = (
       ),
       [],
       viewerId,
-      adminToken,
     ),
   getEnterpriseMetricSnapshots: (filters, metricKeys) =>
     fetchJson<MetricCalculationResult[]>(
@@ -772,7 +761,6 @@ export const createDashboardClient = (
       ),
       [],
       viewerId,
-      adminToken,
     ),
   getCollectorIngestionHealth: () =>
     fetchJson<CollectorIngestionHealth>(
@@ -784,105 +772,90 @@ export const createDashboardClient = (
       new URL('/governance/directory', baseUrl).toString(),
       fallbackGovernanceDirectory,
       viewerId,
-      adminToken,
     ),
   getPullRequestSummary: (filters) =>
     fetchJson<PullRequestSummary>(
       buildMetricUrl(baseUrl, '/integrations/pull-requests/summary', filters),
       fallbackPullRequestSummary,
       viewerId,
-      adminToken,
     ),
   getPullRequests: (filters) =>
     fetchJson<PullRequestRecord[]>(
       buildMetricUrl(baseUrl, '/integrations/pull-requests', filters),
       [],
       viewerId,
-      adminToken,
     ),
   getRequirementSummary: (filters) =>
     fetchJson<RequirementSummary>(
       buildMetricUrl(baseUrl, '/integrations/requirements/summary', filters),
       fallbackRequirementSummary,
       viewerId,
-      adminToken,
     ),
   getRequirements: (filters) =>
     fetchJson<RequirementRecord[]>(
       buildMetricUrl(baseUrl, '/integrations/requirements', filters),
       [],
       viewerId,
-      adminToken,
     ),
   getCiRunSummary: (filters) =>
     fetchJson<CiRunSummary>(
       buildMetricUrl(baseUrl, '/integrations/ci/runs/summary', filters),
       fallbackCiRunSummary,
       viewerId,
-      adminToken,
     ),
   getCiRuns: (filters) =>
     fetchJson<CiRunRecord[]>(
       buildMetricUrl(baseUrl, '/integrations/ci/runs', filters),
       [],
       viewerId,
-      adminToken,
     ),
   getDeploymentSummary: (filters) =>
     fetchJson<DeploymentSummary>(
       buildMetricUrl(baseUrl, '/integrations/deployments/summary', filters),
       fallbackDeploymentSummary,
       viewerId,
-      adminToken,
     ),
   getDeployments: (filters) =>
     fetchJson<DeploymentRecord[]>(
       buildMetricUrl(baseUrl, '/integrations/deployments', filters),
       [],
       viewerId,
-      adminToken,
     ),
   getIncidentSummary: (filters) =>
     fetchJson<IncidentSummary>(
       buildMetricUrl(baseUrl, '/integrations/incidents/summary', filters),
       fallbackIncidentSummary,
       viewerId,
-      adminToken,
     ),
   getIncidents: (filters) =>
     fetchJson<IncidentRecord[]>(
       buildMetricUrl(baseUrl, '/integrations/incidents', filters),
       [],
       viewerId,
-      adminToken,
     ),
   getDefectSummary: (filters) =>
     fetchJson<DefectSummary>(
       buildMetricUrl(baseUrl, '/integrations/defects/summary', filters),
       fallbackDefectSummary,
       viewerId,
-      adminToken,
     ),
   getDefects: (filters) =>
     fetchJson<DefectRecord[]>(
       buildMetricUrl(baseUrl, '/integrations/defects', filters),
       [],
       viewerId,
-      adminToken,
     ),
   getDefectAttributionSummary: (filters) =>
     fetchJson<DefectAttributionSummary>(
       buildMetricUrl(baseUrl, '/integrations/defects/attribution/summary', filters),
       fallbackDefectAttributionSummary,
       viewerId,
-      adminToken,
     ),
   getDefectAttributionRows: (filters) =>
     fetchJson<DefectAttributionRow[]>(
       buildMetricUrl(baseUrl, '/integrations/defects/attribution', filters),
       [],
       viewerId,
-      adminToken,
     ),
   getViewerScopeAssignment: (scopeViewerId) =>
     fetchJson<ViewerScopeAssignment | null>(
@@ -892,7 +865,6 @@ export const createDashboardClient = (
       ).toString(),
       null,
       viewerId,
-      adminToken,
     ),
   updateViewerScopeAssignment: (input) =>
     sendJson<ViewerScopeAssignment>(
@@ -900,7 +872,6 @@ export const createDashboardClient = (
       input,
       fallbackViewerScopeAssignment(input.viewerId),
       viewerId,
-      adminToken,
     ),
   updateRuleRollout: (input) =>
     sendJson<RuleRollout>(
@@ -908,6 +879,5 @@ export const createDashboardClient = (
       input,
       fallbackRuleRollout,
       viewerId,
-      adminToken,
     ),
 });

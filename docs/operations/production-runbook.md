@@ -19,8 +19,10 @@
 ```bash
 export DATABASE_URL='postgresql://aimetric:aimetric@postgres:5432/aimetric?schema=public'
 export AIMETRIC_COLLECTOR_TOKEN='replace-with-collector-token'
+export METRIC_PLATFORM_COLLECTOR_TOKEN='replace-with-platform-collector-token'
 export METRIC_PLATFORM_ADMIN_TOKEN='replace-with-admin-token'
 export METRIC_PLATFORM_URL='http://metric-platform:3001'
+export AIMETRIC_REQUIRE_AUTH='true'
 export METRIC_SNAPSHOT_RECALCULATION_INTERVAL_MS=60000
 export INGESTION_DELIVERY_MODE='sync'
 ```
@@ -28,7 +30,9 @@ export INGESTION_DELIVERY_MODE='sync'
 变量说明：
 
 - `AIMETRIC_COLLECTOR_TOKEN`：采集端 Bearer Token。开启后，`collector-gateway /ingestion` 会拒绝未授权请求。
+- `METRIC_PLATFORM_COLLECTOR_TOKEN`：`collector-gateway` 转发到 `metric-platform /events/import` 的服务间 Bearer Token；未单独配置时，本地 demo 可复用 `AIMETRIC_COLLECTOR_TOKEN`。
 - `METRIC_PLATFORM_ADMIN_TOKEN`：管理端 Bearer Token。开启后，规则变更、回算、管理审计查询需要鉴权。
+- `AIMETRIC_REQUIRE_AUTH`：设置为 `true` 时，服务启动会强制要求管理端 token 和采集 token，避免生产环境 fail-open。
 - `DATABASE_URL`：PostgreSQL 连接串。
 - `METRIC_PLATFORM_URL`：`collector-gateway` 转发事件到 `metric-platform` 的地址。
 - `METRIC_SNAPSHOT_RECALCULATION_INTERVAL_MS`：指标快照自动回算周期。
@@ -41,6 +45,7 @@ corepack pnpm install
 docker compose up -d
 
 export AIMETRIC_COLLECTOR_TOKEN='local-collector-token'
+export METRIC_PLATFORM_COLLECTOR_TOKEN='local-platform-collector-token'
 export METRIC_PLATFORM_ADMIN_TOKEN='local-admin-token'
 
 corepack pnpm start:metric-platform

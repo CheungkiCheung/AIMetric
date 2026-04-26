@@ -18,6 +18,7 @@ export interface IngestionServiceOptions {
   queueBackend?: IngestionQueueBackend;
   queueDir?: string;
   metricPlatformBaseUrl?: string;
+  metricPlatformCollectorToken?: string;
   queue?: IngestionQueue;
   maxDeliveryAttempts?: number;
 }
@@ -322,6 +323,7 @@ export class FileBackedIngestionQueue implements IngestionQueue {
 export class IngestionService {
   private readonly deliveryMode: IngestionDeliveryMode;
   private readonly metricPlatformBaseUrl: string;
+  private readonly metricPlatformCollectorToken: string | undefined;
   private readonly queue: IngestionQueue;
   private enqueuedTotal = 0;
   private forwardedTotal = 0;
@@ -334,6 +336,10 @@ export class IngestionService {
       options.metricPlatformBaseUrl ??
       process.env.METRIC_PLATFORM_URL ??
       'http://127.0.0.1:3001';
+    this.metricPlatformCollectorToken =
+      options.metricPlatformCollectorToken ??
+      process.env.METRIC_PLATFORM_COLLECTOR_TOKEN ??
+      process.env.AIMETRIC_COLLECTOR_TOKEN;
     this.queue =
       options.queue ??
       createDefaultQueue({
@@ -446,6 +452,9 @@ export class IngestionService {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
+          ...(this.metricPlatformCollectorToken
+            ? { authorization: `Bearer ${this.metricPlatformCollectorToken}` }
+            : {}),
         },
         body: JSON.stringify(batch),
       });

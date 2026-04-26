@@ -1455,7 +1455,7 @@ export class PostgresMetricEventRepository implements MetricEventRepository {
             MIN(pull_requests.created_at) AS first_pr_created_at,
             COUNT(*)::INTEGER AS linked_pull_request_count,
             ARRAY_AGG(pull_requests.pr_number ORDER BY pull_requests.created_at ASC) AS linked_pull_request_numbers
-          FROM github_pull_requests pull_requests
+          FROM scm_pull_requests pull_requests
           WHERE pull_requests.project_key = requirements.project_key
             AND requirements.requirement_key = ANY(pull_requests.requirement_keys)
         ) linked_prs

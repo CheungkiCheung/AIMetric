@@ -66,8 +66,9 @@ CREATE TABLE IF NOT EXISTS enterprise_metric_snapshots (
   )
 );
 
-CREATE TABLE IF NOT EXISTS github_pull_requests (
+CREATE TABLE IF NOT EXISTS scm_pull_requests (
   id BIGSERIAL PRIMARY KEY,
+  provider TEXT NOT NULL,
   project_key TEXT NOT NULL,
   repo_name TEXT NOT NULL,
   pr_number INTEGER NOT NULL,
@@ -80,7 +81,7 @@ CREATE TABLE IF NOT EXISTS github_pull_requests (
   created_at TIMESTAMPTZ NOT NULL,
   merged_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ NOT NULL,
-  UNIQUE (project_key, repo_name, pr_number)
+  UNIQUE (provider, project_key, repo_name, pr_number)
 );
 
 CREATE TABLE IF NOT EXISTS delivery_requirements (

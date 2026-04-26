@@ -959,6 +959,14 @@ describe('PostgresMetricEventRepository query mapping', () => {
     expect(
       queries.some((query) => query.text.includes('INSERT INTO delivery_requirements')),
     ).toBe(true);
+    expect(
+      queries.some((query) => query.text.includes('FROM scm_pull_requests pull_requests')),
+    ).toBe(true);
+    expect(
+      queries.some((query) =>
+        query.text.includes('FROM github_pull_requests pull_requests'),
+      ),
+    ).toBe(false);
   });
 
   it('includes ingestion_key in insert statements for deduplicated session events', async () => {
