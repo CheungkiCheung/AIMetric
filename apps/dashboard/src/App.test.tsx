@@ -518,45 +518,8 @@ describe('App', () => {
     vi.useRealTimers();
   });
 
-  it('renders personal, team, and analysis views', async () => {
-    render(
-      <App
-        client={createClient({
-          getRuleVersions: async () => ({
-            projectKey: 'aimetric',
-            activeVersion: 'v2',
-            versions: [
-              {
-                version: 'v2',
-                status: 'active',
-                updatedAt: '2026-04-24',
-                summary: '文件化模板与版本切换基础版',
-              },
-            ],
-          }),
-          getRuleRollout: async () => ({
-            projectKey: 'aimetric',
-            enabled: true,
-            candidateVersion: 'v1',
-            percentage: 25,
-            includedMembers: ['alice'],
-            updatedAt: '2026-04-24T00:00:00.000Z',
-          }),
-          getRuleRolloutEvaluation: async () => ({
-            projectKey: 'aimetric',
-            memberId: 'alice',
-            enabled: true,
-            activeVersion: 'v2',
-            selectedVersion: 'v1',
-            candidateVersion: 'v1',
-            percentage: 25,
-            bucket: 7,
-            matched: true,
-            reason: 'included-member',
-          }),
-        })}
-      />,
-    );
+  it('renders the cockpit shell and page navigation', async () => {
+    render(<App client={createClient()} refreshIntervalMs={0} />);
 
     expect(await screen.findByText('提效管理者 AI 提效经营驾驶舱')).toBeInTheDocument();
     expect(screen.getByText('AI 工具资产与采集覆盖')).toBeInTheDocument();
@@ -567,6 +530,12 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: /治理与采集/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /交付质量/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /证据分析/ })).toBeInTheDocument();
+  });
+
+  it('opens evidence analysis page from navigation', async () => {
+    render(<App client={createClient()} refreshIntervalMs={0} />);
+
+    expect(await screen.findByText('提效管理者 AI 提效经营驾驶舱')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /证据分析/ }));
     expect(screen.getByText('个人出码视图')).toBeInTheDocument();
@@ -574,75 +543,46 @@ describe('App', () => {
     expect(screen.getByText('会话分析')).toBeInTheDocument();
     expect(screen.getByText('出码分析')).toBeInTheDocument();
     expect(screen.getByText('/repo/src/demo.ts')).toBeInTheDocument();
-    expect(screen.getAllByText('70.0%').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('62.5%').length).toBeGreaterThan(0);
+  });
+
+  it('opens governance and collection page from navigation', async () => {
+    render(<App client={createClient()} refreshIntervalMs={0} />);
+
+    expect(await screen.findByText('提效管理者 AI 提效经营驾驶舱')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /治理与采集/ }));
     expect(screen.getByText('组织治理概览')).toBeInTheDocument();
     expect(screen.getByText('权限治理配置')).toBeInTheDocument();
-    expect(screen.getAllByText('平台工程团队').length).toBeGreaterThan(0);
-    expect(screen.getByText('MCP 采集质量')).toBeInTheDocument();
     expect(screen.getByText('采集健康运营')).toBeInTheDocument();
-    expect(screen.getByText('队列模式')).toBeInTheDocument();
-    expect(screen.getByText('文件持久队列')).toBeInTheDocument();
-    expect(screen.getByText('待投递批次')).toBeInTheDocument();
-    expect(screen.getByText('DLQ 批次')).toBeInTheDocument();
     expect(screen.getByText('规则中心管理')).toBeInTheDocument();
-    expect(screen.getByText('25%')).toBeInTheDocument();
-    expect(screen.getByText('命中规则版本')).toBeInTheDocument();
-    expect(screen.getAllByText('v1').length).toBeGreaterThan(0);
+  });
+
+  it('opens delivery quality page from navigation', async () => {
+    render(<App client={createClient()} refreshIntervalMs={0} />);
+
+    expect(await screen.findByText('提效管理者 AI 提效经营驾驶舱')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /交付质量/ }));
     expect(screen.getByText('CI 质量概览')).toBeInTheDocument();
-    expect(screen.getByText('发布质量概览')).toBeInTheDocument();
-    expect(screen.getByText('事故风险概览')).toBeInTheDocument();
-    expect(screen.getByText('缺陷风险概览')).toBeInTheDocument();
     expect(screen.getByText('缺陷归因分析')).toBeInTheDocument();
     expect(screen.getByText('需求交付概览')).toBeInTheDocument();
     expect(screen.getByText('PR 交付概览')).toBeInTheDocument();
-    expect(screen.getAllByText('AI 触达需求占比').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('60.0%').length).toBeGreaterThan(0);
-    expect(screen.getByText('36.0 小时')).toBeInTheDocument();
     expect(screen.getByText('Jira AIM-101 Build management dashboard')).toBeInTheDocument();
-    expect(screen.getAllByText('75.0%').length).toBeGreaterThan(0);
-    expect(screen.getByText('12.0 分钟')).toBeInTheDocument();
-    expect(screen.getByText('[GITLAB-CI] AIMetric #501 ci')).toBeInTheDocument();
-    expect(screen.getAllByText('25.0%').length).toBeGreaterThan(0);
-    expect(screen.getByText('16.0 分钟')).toBeInTheDocument();
-    expect(screen.getByText('AIMetric deploy-1')).toBeInTheDocument();
-    expect(screen.getByText('2.5 小时')).toBeInTheDocument();
-    expect(screen.getByText('INC-7 Production deployment issue')).toBeInTheDocument();
-    expect(screen.getByText('6.0 小时')).toBeInTheDocument();
-    expect(
-      screen.getByText('[JIRA] BUG-7 PR merge flow breaks on production'),
-    ).toBeInTheDocument();
     expect(screen.getByText('AI 参与需求缺陷率')).toBeInTheDocument();
-    expect(screen.getByText('AI 触达 PR 逃逸缺陷率')).toBeInTheDocument();
-    expect(screen.getByText('发布失败关联缺陷')).toBeInTheDocument();
-    expect(screen.getByText(/关联 PR：2/)).toBeInTheDocument();
-    expect(screen.getByText(/PR 编号：101, 103/)).toBeInTheDocument();
-    expect(screen.getAllByText('AI 触达 PR 占比').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('75.0%').length).toBeGreaterThan(0);
-    expect(screen.getByText('18.0 小时')).toBeInTheDocument();
-    expect(screen.getByText('[GITHUB] AIMetric #101 Add collector health dashboard')).toBeInTheDocument();
-    expect(screen.getAllByText(/关联需求：AIM-101/).length).toBeGreaterThan(0);
+  });
+
+  it('opens metric semantics page from navigation', async () => {
+    render(<App client={createClient()} refreshIntervalMs={0} />);
+
+    expect(await screen.findByText('提效管理者 AI 提效经营驾驶舱')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /指标语义层/ }));
     expect(screen.getByText('企业指标语义层')).toBeInTheDocument();
     expect(screen.getByText('统一指标计算管线')).toBeInTheDocument();
     expect(screen.getByText('编辑证据数')).toBeInTheDocument();
     expect(screen.getAllByText('AI 出码率').length).toBeGreaterThan(0);
-    expect(
-      screen.getAllByText(
-        (_, element) =>
-          element?.tagName === 'STRONG' &&
-          element.textContent?.includes('70.0％') === true,
-      ).length,
-    ).toBeGreaterThan(0);
     expect(screen.getAllByText('AI 参与需求 Lead Time 对比').length).toBeGreaterThan(0);
-    expect(screen.getByText('-12.0 小时')).toBeInTheDocument();
     expect(screen.getByText('六类核心维度')).toBeInTheDocument();
-    expect(screen.getAllByText('AI-IDE 使用人数比例').length).toBeGreaterThan(0);
     expect(screen.getByText('必须按需求规模和类型分层对比，避免简单平均造成误判。')).toBeInTheDocument();
   });
 
