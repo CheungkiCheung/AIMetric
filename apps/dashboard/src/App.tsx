@@ -49,6 +49,7 @@ import { RequirementDashboard } from './pages/requirement-dashboard.js';
 import { RuleCenterDashboard } from './pages/rule-center-dashboard.js';
 import { SessionAnalysisTable } from './pages/session-analysis-table.js';
 import { TeamDashboard } from './pages/team-dashboard.js';
+import { ToolDetailPage } from './pages/tool-detail-page.js';
 import { ViewerScopeDashboard } from './pages/viewer-scope-dashboard.js';
 import './pages/effectiveness-manager-cockpit.css';
 
@@ -125,6 +126,19 @@ const trendMetricKeys = [
 
 type AppPage = 'cockpit' | 'metrics' | 'governance' | 'delivery' | 'evidence';
 
+interface AppRoute {
+  page: AppPage;
+  toolKey?: string;
+}
+
+const pagePathByKey: Record<AppPage, string> = {
+  cockpit: '/',
+  metrics: '/metrics',
+  governance: '/governance',
+  delivery: '/delivery',
+  evidence: '/evidence',
+};
+
 const appPages: Array<{
   key: AppPage;
   label: string;
@@ -156,6 +170,22 @@ const appPages: Array<{
     summary: '查看会话、出码、个人、团队和编辑证据',
   },
 ];
+
+const parseRoute = (pathname: string): AppRoute => {
+  const toolMatch = pathname.match(/^\/tools\/([^/]+)$/);
+
+  if (toolMatch?.[1]) {
+    return {
+      page: 'cockpit',
+      toolKey: decodeURIComponent(toolMatch[1]),
+    };
+  }
+
+  const page = (Object.entries(pagePathByKey).find(([, path]) => path === pathname)?.[0] ??
+    'cockpit') as AppPage;
+
+  return { page };
+};
 
 export interface AppProps {
   client?: DashboardClient;
@@ -216,7 +246,14 @@ export const App = ({
   const [selectedWindowDays, setSelectedWindowDays] = useState(30);
   const [filters, setFilters] = useState<DashboardFilters>(getDefaultFilters(30));
   const [savingRuleRollout, setSavingRuleRollout] = useState(false);
-  const [activePage, setActivePage] = useState<AppPage>('cockpit');
+  const [route, setRoute] = useState<AppRoute>(() => parseRoute(window.location.pathname));
+  const activePage = route.page;
+  const isToolDetailPage = route.toolKey !== undefined;
+
+  const navigateTo = (pathname: string) => {
+    window.history.pushState({}, '', pathname);
+    setRoute(parseRoute(pathname));
+  };
 
   const loadDashboard = async (nextFilters: DashboardFilters) => {
     const projectKey = nextFilters.projectKey ?? 'aimetric';
@@ -391,6 +428,18 @@ export const App = ({
       }
     };
   }, [client, filters, refreshIntervalMs]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setRoute(parseRoute(window.location.pathname));
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -628,9 +677,9 @@ export const App = ({
             <button
               key={page.key}
               type="button"
-              className={page.key === activePage ? 'is-active' : undefined}
-              aria-current={page.key === activePage ? 'page' : undefined}
-              onClick={() => setActivePage(page.key)}
+              className={page.key === activePage && !isToolDetailPage ? 'is-active' : undefined}
+              aria-current={page.key === activePage && !isToolDetailPage ? 'page' : undefined}
+              onClick={() => navigateTo(pagePathByKey[page.key])}
             >
               <strong>{page.label}</strong>
               <span>{page.summary}</span>
@@ -638,9 +687,9 @@ export const App = ({
           ))}
         </nav>
 
-        {activePage !== 'cockpit' ? filterControls : null}
+        {activePage !== 'cockpit' && !isToolDetailPage ? filterControls : null}
 
-        {activePage === 'cockpit' ? (
+        {activePage === 'cockpit' && !isToolDetailPage ? (
           <EffectivenessManagerCockpit
             filters={filters}
             selectedWindowDays={selectedWindowDays}
@@ -656,10 +705,26 @@ export const App = ({
             collectorHealth={collectorHealth}
             governanceDirectory={governanceDirectory}
             mcpAuditMetrics={mcpAuditMetrics}
+            onOpenTool={(toolKey) => navigateTo(`/tools/${encodeURIComponent(toolKey)}`)}
           />
         ) : null}
 
-        {activePage === 'metrics' ? (
+        {isToolDetailPage ? (
+          <ToolDetailPage
+            toolKey={route.toolKey ?? 'mcp'}
+            onBack={() => navigateTo('/')}
+            teamSnapshot={teamSnapshot}
+            analysisSummary={analysisSummary}
+            requirementSummary={requirementSummary}
+            pullRequestSummary={pullRequestSummary}
+            deploymentSummary={deploymentSummary}
+            defectAttributionSummary={defectAttributionSummary}
+            collectorHealth={collectorHealth}
+            mcpAuditMetrics={mcpAuditMetrics}
+          />
+        ) : null}
+
+        {activePage === 'metrics' && !isToolDetailPage ? (
           <>
             <section style={filterPanelStyle}>
               <div style={{ display: 'grid', gap: '8px' }}>
@@ -688,7 +753,7 @@ export const App = ({
           </>
         ) : null}
 
-        {activePage === 'governance' ? (
+        {activePage === 'governance' && !isToolDetailPage ? (
           <>
             <GovernanceDirectoryDashboard directory={governanceDirectory} />
             <ViewerScopeDashboard
@@ -708,7 +773,7 @@ export const App = ({
           </>
         ) : null}
 
-        {activePage === 'delivery' ? (
+        {activePage === 'delivery' && !isToolDetailPage ? (
           <>
             <RequirementDashboard summary={requirementSummary} rows={requirements} />
             <PullRequestDashboard summary={pullRequestSummary} rows={pullRequests} />
@@ -723,7 +788,7 @@ export const App = ({
           </>
         ) : null}
 
-        {activePage === 'evidence' ? (
+        {activePage === 'evidence' && !isToolDetailPage ? (
           <>
             <SessionAnalysisTable rows={sessionAnalysisRows} />
             <OutputAnalysisTable rows={outputAnalysisRows} />

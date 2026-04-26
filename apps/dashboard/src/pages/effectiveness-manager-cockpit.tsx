@@ -28,6 +28,7 @@ export interface EffectivenessManagerCockpitProps {
   collectorHealth: CollectorIngestionHealth;
   governanceDirectory: GovernanceDirectory;
   mcpAuditMetrics: McpAuditMetrics;
+  onOpenTool?: (toolKey: string) => void;
 }
 
 type ToolStatus = 'active' | 'ready' | 'planned';
@@ -531,6 +532,7 @@ export const EffectivenessManagerCockpit = ({
   collectorHealth,
   governanceDirectory,
   mcpAuditMetrics,
+  onOpenTool,
 }: EffectivenessManagerCockpitProps) => {
   const toolCards = buildToolCards({
     teamSnapshot,
@@ -1020,7 +1022,14 @@ export const EffectivenessManagerCockpit = ({
                 <button
                   key={tool.key}
                   type="button"
-                  onClick={() => setSelectedToolKey(tool.key)}
+                  onClick={() => {
+                    if (onOpenTool) {
+                      onOpenTool(tool.key);
+                      return;
+                    }
+
+                    setSelectedToolKey(tool.key);
+                  }}
                   style={{
                     ...cardStyle,
                     textAlign: 'left',

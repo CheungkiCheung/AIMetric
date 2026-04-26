@@ -515,6 +515,7 @@ const createClient = (
 describe('App', () => {
   afterEach(() => {
     cleanup();
+    window.history.pushState({}, '', '/');
     vi.useRealTimers();
   });
 
@@ -584,6 +585,29 @@ describe('App', () => {
     expect(screen.getAllByText('AI 参与需求 Lead Time 对比').length).toBeGreaterThan(0);
     expect(screen.getByText('六类核心维度')).toBeInTheDocument();
     expect(screen.getByText('必须按需求规模和类型分层对比，避免简单平均造成误判。')).toBeInTheDocument();
+  });
+
+  it('opens a tool detail page when a cockpit tool card is clicked', async () => {
+    render(<App client={createClient()} refreshIntervalMs={0} />);
+
+    expect(await screen.findByText('AI 工具资产与采集覆盖')).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole('button', { name: /MCP 工具链/ })[0]);
+
+    expect(await screen.findByText('MCP 工具链详情')).toBeInTheDocument();
+    expect(screen.getByText('主采集入口')).toBeInTheDocument();
+    expect(screen.getByText('会话数、工具调用成功率、编辑证据数、AI 触达 PR 的证据基础')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/tools/mcp');
+  });
+
+  it('renders a tool detail page from a direct URL', async () => {
+    window.history.pushState({}, '', '/tools/cursor');
+
+    render(<App client={createClient()} refreshIntervalMs={0} />);
+
+    expect(await screen.findByText('Cursor 详情')).toBeInTheDocument();
+    expect(screen.getByText('AI-IDE 深采集')).toBeInTheDocument();
+    expect(screen.getByText('Tab 接受行数、AI-IDE 使用人数比例、AI 代码生成行数补充证据')).toBeInTheDocument();
   });
 
   it('reloads dashboard and analysis data when filters change', async () => {
