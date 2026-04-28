@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">
+<title>AIMetric 提效工具体验与效果洞察 v6</title>
+<style>
+:root{--ink:#111827;--muted:#5b6678;--line:#d8e0ea;--paper:#f4f6fa;--panel:#fff;--nav:#101828;--blue:#2463eb;--teal:#0f8f83;--amber:#b7791f;--red:#c2410c;--violet:#6d5bd0;--radius:8px;font-family:"IBM Plex Sans","PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink)}button{font:inherit;cursor:pointer}.shell{min-height:100vh;display:grid;grid-template-columns:264px minmax(0,1fr);gap:18px;padding:18px}.side,.panel,.metric{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius)}.side{position:sticky;top:18px;align-self:start;min-height:calc(100vh - 36px);padding:18px;display:grid;grid-template-rows:auto auto 1fr;gap:18px}.brand b{display:block;font-size:23px}.brand span{display:block;margin-top:5px;color:var(--muted);font-size:13px;line-height:1.45}.nav{display:grid;gap:8px}.nav button{border:0;border-radius:var(--radius);min-height:42px;padding:10px 12px;text-align:left;font-weight:850;background:#edf2f7;color:#223044}.nav button.active{background:var(--nav);color:white}.snapshot{align-self:end;display:grid;gap:10px}.snapshot h2{margin:0;font-size:15px}.signal{border:1px solid var(--line);border-radius:var(--radius);padding:11px;background:#f8fafc}.signal b{display:block;font-size:13px}.signal span{display:block;margin-top:4px;color:var(--muted);font-size:12px;line-height:1.45}.content{display:grid;gap:14px;min-width:0}.top{display:flex;justify-content:space-between;gap:18px;align-items:flex-end}.eyebrow{margin:0 0 8px;color:var(--blue);font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.top h1{margin:0;font-size:clamp(30px,4vw,44px);line-height:1.08;letter-spacing:0}.sub{margin:10px 0 0;color:var(--muted);font-size:16px;line-height:1.65;max-width:920px}.btn{border:1px solid var(--line);border-radius:var(--radius);min-height:42px;padding:0 14px;background:white;font-weight:850}.primary{background:var(--blue);border-color:var(--blue);color:white}.view{display:none}.view.active{display:grid;gap:14px}.grid{display:grid;gap:12px}.grid4{grid-template-columns:repeat(4,minmax(0,1fr))}.grid3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.panel,.metric{padding:16px;min-width:0}.head{display:flex;justify-content:space-between;gap:12px;align-items:baseline;margin-bottom:14px}.head h2{margin:0;font-size:21px}.head span{color:var(--muted);font-size:13px}.diagnosis{background:#101828;color:white;padding:20px;border-radius:var(--radius);border:1px solid #101828}.diagnosis h2{margin:0;font-size:26px;line-height:1.18}.diagnosis p{margin:10px 0 0;color:#d6e3f7;line-height:1.65}.metric .label{font-size:13px;color:var(--muted);font-weight:850}.metric .value{margin:7px 0 8px;font-size:32px;font-weight:950;line-height:1;font-variant-numeric:tabular-nums}.note{margin:0;color:var(--muted);font-size:12px;line-height:1.48}.bar{height:8px;border-radius:99px;background:#e6edf5;overflow:hidden}.bar i{display:block;height:100%;border-radius:inherit}.matrix{display:grid;grid-template-columns:1.15fr repeat(4,minmax(90px,.55fr)) 1.35fr;gap:0;overflow-x:auto}.cell{min-width:98px;border-top:1px solid #edf2f7;padding:12px 10px;font-size:13px}.cell.headcell{border-top:0;color:var(--muted);font-weight:850;font-size:12px}.tool{min-width:172px;font-weight:900}.reason{min-width:220px;color:#334155}.tag{display:inline-flex;align-items:center;justify-content:center;min-width:58px;border-radius:999px;padding:4px 8px;font-size:12px;font-weight:900}.good{background:#dcfce7;color:#166534}.mid{background:#fef3c7;color:#854d0e}.bad{background:#fee2e2;color:#991b1b}.cold{background:#e0f2fe;color:#075985}.clickable{transition:transform .15s,box-shadow .15s}.clickable:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(15,23,42,.08)}.crumb{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:13px}.crumb button{border:0;background:transparent;color:var(--blue);font-weight:850;padding:0}.list{display:grid;gap:9px;margin:0;padding:0;list-style:none}.list li{border:1px solid var(--line);border-radius:var(--radius);padding:11px;background:#f8fafc}.list b{display:block;font-size:13px}.list span{display:block;margin-top:4px;color:var(--muted);font-size:12px;line-height:1.45}.reasonbar{display:grid;gap:9px}.row{display:grid;grid-template-columns:132px minmax(0,1fr) 44px;gap:10px;align-items:center;font-size:13px}.row strong{font-size:12px}.smallbar{height:9px;border-radius:999px;background:#e8eef6;overflow:hidden}.smallbar i{display:block;height:100%;border-radius:inherit;background:var(--teal)}.toolcard{display:grid;gap:12px}.toolcard h3{margin:0;font-size:19px}.toolcard p{margin:0;color:var(--muted);line-height:1.55;font-size:13px}.table{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:900px}th{padding:0 0 10px;text-align:left;color:var(--muted);font-size:12px}td{border-top:1px solid #edf2f7;padding:12px 0;font-size:14px;vertical-align:top;line-height:1.45}td:nth-child(n+2),th:nth-child(n+2){text-align:center}.copy{font-size:13px;line-height:1.55;color:#334155}.copy b{color:#111827}@media(max-width:1080px){.shell{grid-template-columns:1fr}.side{position:static;min-height:auto}.nav{grid-template-columns:repeat(5,minmax(0,1fr))}.grid4,.grid3,.grid2{grid-template-columns:1fr}.top{align-items:stretch}.top .actions{display:none}}@media(max-width:680px){.shell{padding:10px}.side,.panel,.metric{padding:14px}.nav{grid-template-columns:1fr}.top{flex-direction:column}.top h1{font-size:30px}.diagnosis h2{font-size:23px}.row{grid-template-columns:112px minmax(0,1fr) 40px}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand">
+      <b>AIMetric</b>
+      <span>提效工具体验与效果洞察</span>
+    </div>
+    <nav class="nav">
+      <button class="active" data-view="overview">总览</button>
+      <button data-view="experience">工具体验</button>
+      <button data-view="effects">提效效果</button>
+      <button data-view="reasons">不用原因</button>
+      <button data-view="definitions">指标口径</button>
+    </nav>
+    <section class="snapshot">
+      <h2>本轮结论</h2>
+      <div class="signal"><b>卡点不是覆盖率</b><span>AI-IDE 已覆盖 76%，但持续使用只有 43%。</span></div>
+      <div class="signal"><b>体验问题集中在入口和场景</b><span>SDD 的主要反馈是流程入口不清、需求模板不统一。</span></div>
+      <div class="signal"><b>Co-Claw 先看使用质量</b><span>关注覆盖、频率、有效会话和一次完成情况。</span></div>
+    </section>
+  </aside>
+  <main class="content">
+    <header class="top">
+      <div>
+        <p class="eyebrow">Internal Effectiveness Intelligence</p>
+        <h1>看清哪些提效工具真的被持续使用，为什么不好用，以及效果有没有发生</h1>
+        <p class="sub">面向提效部门负责人。AIMetric 自动采集覆盖、活跃、频率、代码产出、需求交付和员工反馈，把“推广了多少”转成“自然使用了多少、哪里体验差、下一轮该改什么”。</p>
+      </div>
+      <div class="actions"><button class="btn primary">导出本轮洞察</button></div>
+    </header>
+
+    <section id="overview" class="view active">
+      <section class="diagnosis">
+        <h2>本轮提效推广主要卡在“真实持续使用”，不是工具覆盖。</h2>
+        <p>覆盖信号已经进入可观测区间，但员工会选择更顺手的工具。当前最需要解释的是：哪些工具被自然留下来，哪些只是安装或试用，哪些场景让人觉得不好用。</p>
+      </section>
+      <section class="grid grid4">
+        <article class="metric"><span class="label">持续使用人数比例</span><div class="value">43%</div><div class="bar"><i style="width:43%;background:var(--teal)"></i></div><p class="note">活跃天数 + 有效会话数共同判断。</p></article>
+        <article class="metric"><span class="label">AI 代码生成率</span><div class="value">31.8%</div><div class="bar"><i style="width:64%;background:var(--blue)"></i></div><p class="note">AI 代码生成行数 / 总代码变更行数。</p></article>
+        <article class="metric"><span class="label">SDD 需求交付占比</span><div class="value">22%</div><div class="bar"><i style="width:22%;background:var(--amber)"></i></div><p class="note">SDD 参与并交付的需求占比。</p></article>
+        <article class="metric"><span class="label">反馈待解释比例</span><div class="value">28%</div><div class="bar"><i style="width:28%;background:var(--red)"></i></div><p class="note">覆盖但未持续使用，需要采集原因。</p></article>
+      </section>
+      <section class="panel">
+        <div class="head"><h2>工具体验与效果矩阵</h2><span>点击侧栏进入详情</span></div>
+        <div class="matrix">
+          <div class="cell headcell">工具</div><div class="cell headcell">覆盖</div><div class="cell headcell">持续使用</div><div class="cell headcell">效果信号</div><div class="cell headcell">体验状态</div><div class="cell headcell">当前判断</div>
+          <div class="cell tool">AI-IDE</div><div class="cell"><span class="tag good">76%</span></div><div class="cell"><span class="tag mid">43%</span></div><div class="cell"><span class="tag good">强</span></div><div class="cell"><span class="tag mid">分化</span></div><div class="cell reason">覆盖充足，但真实持续使用不足；重点分析采纳率和低频原因。</div>
+          <div class="cell tool">SDD</div><div class="cell"><span class="tag mid">38%</span></div><div class="cell"><span class="tag mid">24%</span></div><div class="cell"><span class="tag mid">中</span></div><div class="cell"><span class="tag bad">入口问题</span></div><div class="cell reason">规约驱动开发流程需要看需求覆盖、交付占比和流程阻塞，不按 Agent 出码评估。</div>
+          <div class="cell tool">Co-Claw / OpenClaw</div><div class="cell"><span class="tag cold">18%</span></div><div class="cell"><span class="tag cold">12%</span></div><div class="cell"><span class="tag mid">待验证</span></div><div class="cell"><span class="tag mid">轻量试用</span></div><div class="cell reason">看使用覆盖、频率、有效会话和一次完成情况；不套用结对批次指标。</div>
+          <div class="cell tool">自研 AI 工具</div><div class="cell"><span class="tag mid">41%</span></div><div class="cell"><span class="tag mid">29%</span></div><div class="cell"><span class="tag good">可观测</span></div><div class="cell"><span class="tag mid">场景差异</span></div><div class="cell reason">按场景看成功率、耗时、结果采纳和节省工时估算。</div>
+        </div>
+      </section>
+      <section class="grid grid3">
+        <article class="panel clickable" data-view="experience"><div class="head"><h2>工具体验</h2><span>查看</span></div><p class="note">每类工具看覆盖、活跃、频率、有效会话和体验状态。</p></article>
+        <article class="panel clickable" data-view="effects"><div class="head"><h2>提效效果</h2><span>查看</span></div><p class="note">把代码产出、需求交付、人力节省和人效提升放到结果层。</p></article>
+        <article class="panel clickable" data-view="reasons"><div class="head"><h2>不用原因</h2><span>查看</span></div><p class="note">解释“覆盖但不用”“用了但低频”“觉得不好用”的具体原因。</p></article>
+      </section>
+    </section>
+
+    <section id="experience" class="view">
+      <div class="crumb"><button data-view="overview">总览</button><span>/ 工具体验</span></div>
+      <section class="grid grid2">
+        <article class="panel toolcard"><h3>AI-IDE</h3><p>核心是开发者是否持续把它放进编码流程。看使用人数比例、活跃天数、有效会话、AI 生成代码采纳率、Tab 接受行数和 AI 代码生成率。</p><ul class="list"><li><b>当前判断</b><span>覆盖不是主要问题，持续使用和采纳质量更关键。</span></li><li><b>下一步问题</b><span>低频员工是不会用、场景不适配，还是生成质量不稳定。</span></li></ul></article>
+        <article class="panel toolcard"><h3>SDD</h3><p>SDD 是规约驱动开发流程，不是 Agent。它应围绕需求规约、开发过程和交付结果观测，而不是按代码行数硬套。</p><ul class="list"><li><b>应该看</b><span>SDD 使用人数比例、SDD 开发需求数、AI-IDE + SDD 需求覆盖率、SDD 需求交付占比。</span></li><li><b>体验诊断</b><span>入口是否清楚、规约模板是否可用、需求类型是否适合 SDD。</span></li></ul></article>
+        <article class="panel toolcard"><h3>Co-Claw / OpenClaw</h3><p>它更接近轻量 AI 辅助工具或小龙虾式工具体验，不应该承接 AI-IDE 的批次运营指标。</p><ul class="list"><li><b>应该看</b><span>使用人数比例、使用频率、有效会话、一次完成情况、结果采纳。</span></li><li><b>不应该看</b><span>参与批次、结对记录、批次完成状态不作为 Co-Claw 本体指标。</span></li></ul></article>
+        <article class="panel toolcard"><h3>自研提效工具</h3><p>按工具服务的场景定义结果：评审工具看问题发现和采纳，测试工具看用例生成和缺陷拦截，自动化工具看耗时减少和成功率。</p><ul class="list"><li><b>应该看</b><span>覆盖、频率、成功率、耗时、结果采纳、节省工时估算。</span></li><li><b>体验诊断</b><span>失败原因、入口路径、等待时间、输出是否能直接进入工作流。</span></li></ul></article>
+      </section>
+    </section>
+
+    <section id="effects" class="view">
+      <div class="crumb"><button data-view="overview">总览</button><span>/ 提效效果</span></div>
+      <section class="grid grid4">
+        <article class="metric"><span class="label">总代码变更行数</span><div class="value">184k</div><p class="note">来自 Git / PR diff。</p></article>
+        <article class="metric"><span class="label">AI 代码生成行数</span><div class="value">58.5k</div><p class="note">来自 AI-IDE 和采纳证据。</p></article>
+        <article class="metric"><span class="label">代码产出</span><div class="value">92</div><p class="note">行 / 人天。</p></article>
+        <article class="metric"><span class="label">人效提升比例</span><div class="value">14.6%</div><p class="note">按需求交付和投入人天估算。</p></article>
+      </section>
+      <section class="grid grid2">
+        <article class="panel"><div class="head"><h2>结果指标</h2><span>看效果，不看待办</span></div><ul class="list"><li><b>人力节省比例</b><span>节省工时 / 原始投入工时，必须带估算口径和置信度。</span></li><li><b>SDD 需求交付占比</b><span>SDD 参与并完成交付需求 / 完成需求。</span></li><li><b>AI 生成代码采纳率</b><span>被采纳 AI 代码 / AI 建议代码，用来判断生成质量。</span></li><li><b>人均代码产出</b><span>代码变更行数 / 参与开发人数。</span></li></ul></article>
+        <article class="panel"><div class="head"><h2>效果解释</h2><span>避免单指标误判</span></div><p class="copy"><b>AI 代码生成率高</b>不等于真实提效，需要同时看采纳率、返工、需求交付和员工反馈。<br><br><b>SDD 交付占比低</b>不一定代表工具无效，也可能是适用需求少、入口不清或规约模板没有统一。<br><br><b>Co-Claw 覆盖低</b>先看频率和一次完成情况，再判断是否需要改入口、提示或适用场景。</p></article>
+      </section>
+    </section>
+
+    <section id="reasons" class="view">
+      <div class="crumb"><button data-view="overview">总览</button><span>/ 不用原因</span></div>
+      <section class="grid grid2">
+        <article class="panel"><div class="head"><h2>覆盖但未持续使用</h2><span>员工反馈归因</span></div><div class="reasonbar"><div class="row"><strong>入口不清楚</strong><div class="smallbar"><i style="width:34%"></i></div><span>34%</span></div><div class="row"><strong>场景不适配</strong><div class="smallbar"><i style="width:27%;background:var(--amber)"></i></div><span>27%</span></div><div class="row"><strong>输出需重改</strong><div class="smallbar"><i style="width:21%;background:var(--red)"></i></div><span>21%</span></div><div class="row"><strong>权限/安全</strong><div class="smallbar"><i style="width:12%;background:var(--violet)"></i></div><span>12%</span></div><div class="row"><strong>其他</strong><div class="smallbar"><i style="width:6%;background:#64748b"></i></div><span>6%</span></div></div></article>
+        <article class="panel"><div class="head"><h2>按团队看原因</h2><span>定位体验改进点</span></div><div class="table"><table><thead><tr><th>团队</th><th>AI-IDE 低频原因</th><th>SDD 低频原因</th><th>优先改进</th></tr></thead><tbody><tr><td>支付平台</td><td>安全策略限制</td><td>需求模板未统一</td><td>补齐安全白名单和模板</td></tr><tr><td>中台工具</td><td>生成质量波动</td><td>流程入口不清</td><td>改入口和示例规约</td></tr><tr><td>交付系统</td><td>只安装未融入流程</td><td>业务需求不适配</td><td>补场景分层和案例</td></tr></tbody></table></div></article>
+      </section>
+      <section class="panel"><div class="head"><h2>产品语气</h2><span>完整产品，不是内部临时看板</span></div><p class="copy">页面表达应使用“自然使用、持续使用、体验反馈、效果证据、改进方向”。避免“强制推广、今天要处理、你们、推进覆盖”这类会把产品误导成任务督办或汇报系统的词。</p></section>
+    </section>
+
+    <section id="definitions" class="view">
+      <div class="crumb"><button data-view="overview">总览</button><span>/ 指标口径</span></div>
+      <section class="grid grid3">
+        <article class="panel"><div class="head"><h2>使用指标</h2></div><ul class="list"><li><b>覆盖率</b><span>目标人群中具备使用条件或有使用记录的人数比例。</span></li><li><b>活跃天数</b><span>周期内发生有效工具事件的天数。</span></li><li><b>有效会话数</b><span>产生采纳、生成、交付、完成或明确结果的会话。</span></li><li><b>持续使用</b><span>活跃天数 + 有效会话数共同判断。</span></li></ul></article>
+        <article class="panel"><div class="head"><h2>代码指标</h2></div><ul class="list"><li><b>总代码变更行数</b><span>Git / PR diff 采集。</span></li><li><b>AI 代码生成行数</b><span>AI-IDE 生成并进入工作区的代码。</span></li><li><b>AI 代码生成率</b><span>AI 代码生成行数 / 总代码变更行数。</span></li><li><b>代码产出</b><span>代码变更行数 / 人天。</span></li></ul></article>
+        <article class="panel"><div class="head"><h2>效果指标</h2></div><ul class="list"><li><b>人力节省比例</b><span>节省工时 / 原始投入工时。</span></li><li><b>SDD 需求交付占比</b><span>SDD 参与并完成交付需求 / 完成需求。</span></li><li><b>人效提升比例</b><span>单位人力完成需求或产出提升。</span></li><li><b>一次完成情况</b><span>Co-Claw/OpenClaw 输出一次可用或少量修改可用的比例。</span></li></ul></article>
+      </section>
+    </section>
+  </main>
+</div>
+<script>
+const views=[...document.querySelectorAll(".view")];
+function show(id){views.forEach(v=>v.classList.toggle("active",v.id===id));document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.view===id));window.scrollTo({top:0,behavior:"smooth"});}
+document.querySelectorAll("[data-view]").forEach(el=>el.addEventListener("click",()=>show(el.dataset.view)));
+</script>
+</body>
+</html>
